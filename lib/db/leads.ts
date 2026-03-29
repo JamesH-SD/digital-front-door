@@ -1,26 +1,32 @@
+import fs from "fs/promises";
+import path from "path";
 import { Lead } from "@/lib/types/lead";
 
-type LeadStore = Map<string, Lead[]>;
-
-declare global {
-  // eslint-disable-next-line no-var
-  var __leadStore__: LeadStore | undefined;
-}
-
-const leads: LeadStore = globalThis.__leadStore__ ?? new Map();
-
-if (!globalThis.__leadStore__) {
-  globalThis.__leadStore__ = leads;
-}
+const filePath = path.join(process.cwd(), "data", "leads.json");
 
 function generateId(prefix: string) {
   return `${prefix}_${Math.random().toString(36).slice(2, 10)}`;
 }
 
+async function readLeads(): Promise<Lead[]> {
+  try {
+    const data = await fs.readFile(filePath, "utf-8");
+    return JSON.parse(data);
+  } catch (error) {
+    return [];
+  }
+}
+
+async function writeLeads(leads: Lead[]) {
+  await fs.writeFile(filePath, JSON.stringify(leads, null, 2));
+}
+
 export async function createLead(
   input: Omit<Lead, "id" | "createdAt" | "status">
 ) {
-  const lead: Lead = {
+  const leads = await readLeads();
+
+  const newLead: Lead = {
     id: generateId("lead"),
     tenantId: input.tenantId,
     tenantSlug: input.tenantSlug,
@@ -33,21 +39,19 @@ export async function createLead(
     createdAt: new Date().toISOString(),
   };
 
-  const existing = leads.get(input.tenantSlug) ?? [];
-  existing.unshift(lead);
-  leads.set(input.tenantSlug, existing);
+  leads.unshift(newLead);
 
-  console.log("[createLead] stored lead:", lead);
-  console.log("[createLead] tenant lead count:", input.tenantSlug, existing.length);
+  console.log("Writing to:", filePath);
 
-  return lead;
+  await writeLeads(leads);
+
+  console.log("[FILE STORAGE] Lead saved:", newLead);
+
+  return newLead;
 }
 
 export async function getLeadsByTenantSlug(tenantSlug: string) {
-  const tenantLeads = leads.get(tenantSlug) ?? [];
+  const leads = await readLeads();
 
-  console.log("[getLeadsByTenantSlug] tenantSlug:", tenantSlug);
-  console.log("[getLeadsByTenantSlug] count:", tenantLeads.length);
-
-  return tenantLeads;
+  return leads.filter((lead) => lead.tenantSlug === tenantSlug);
 }
