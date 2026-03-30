@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useRef, useState } from "react";
 import type { Lead } from "@/lib/types/lead";
 
 type LeadStatus = "new" | "contacted" | "booked" | "closed";
@@ -62,28 +62,121 @@ function CompactField({
 }
 
 export default function LeadDetailClient({ lead }: { lead: Lead }) {
-  const [isEditing, setIsEditing] = useState(false);
+    const [isEditing, setIsEditing] = useState(false);
+    const [isSaving, setIsSaving] = useState(false);
+    const [isUploading, setIsUploading] = useState(false);
+    const [saveMessage, setSaveMessage] = useState("");
+    const fileInputRef = useRef<HTMLInputElement | null>(null);
 
-  const [form, setForm] = useState({
-    phone: lead.phone || "",
-    email: lead.email || "",
-    address: lead.address || "",
-    appointment: lead.appointment || "",
-    location: lead.location || "",
-    timeline: lead.timeline || "",
-    projectType: lead.projectType || "",
-    notes: lead.notes || "",
-    status: (lead.status || "new") as LeadStatus,
-  });
+    const [form, setForm] = useState({
+        phone: lead.phone || "",
+        email: lead.email || "",
+        address: lead.address || "",
+        appointment: lead.appointment || "",
+        location: lead.location || "",
+        timeline: lead.timeline || "",
+        projectType: lead.projectType || "",
+        notes: lead.notes || "",
+        status: (lead.status || "new") as LeadStatus,
+        images: lead.images || [],
+      });
 
-  const appointmentMissing = !form.appointment.trim();
+    const appointmentMissing = !form.appointment.trim();
+
+  async function saveLead() {
+    try {
+      setIsSaving(true);
+      setSaveMessage("");
+
+      const response = await fetch(`/api/leads/${lead.id}`, {
+        method: "PATCH",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify(form),
+      });
+
+      if (!response.ok) {
+        throw new Error("Failed to save lead");
+      }
+
+      setIsEditing(false);
+      setSaveMessage("Changes saved.");
+    } catch (error) {
+      console.error(error);
+      setSaveMessage("Failed to save changes.");
+    } finally {
+      setIsSaving(false);
+    }
+  }
+
+  async function updateStatus(status: LeadStatus) {
+    setForm((prev) => ({ ...prev, status }));
+
+    try {
+      const response = await fetch(`/api/leads/${lead.id}`, {
+        method: "PATCH",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          ...form,
+          status,
+        }),
+      });
+
+      if (!response.ok) {
+        throw new Error("Failed to update status");
+      }
+
+      setSaveMessage("Status updated.");
+    } catch (error) {
+      console.error(error);
+      setSaveMessage("Failed to update status.");
+    }
+  }
+
+  async function uploadImage(file: File) {
+    try {
+      setIsUploading(true);
+      setSaveMessage("");
+  
+      const formData = new FormData();
+      formData.append("file", file);
+      formData.append("tenantSlug", lead.tenantSlug);
+  
+      const response = await fetch(`/api/leads/${lead.id}/images`, {
+        method: "POST",
+        body: formData,
+      });
+  
+      const result = await response.json();
+  
+      if (!response.ok) {
+        throw new Error(result.error || "Failed to upload image");
+      }
+  
+      setForm((prev) => ({
+        ...prev,
+        images: [...prev.images, result.image],
+      }));
+  
+      setSaveMessage("Image uploaded.");
+    } catch (error) {
+      console.error("uploadImage error:", error);
+  
+      setSaveMessage(
+        error instanceof Error ? error.message : "Failed to upload image."
+      );
+    } finally {
+      setIsUploading(false);
+    }
+  }
 
   return (
     <div className="space-y-6">
-      {/* Large main container */}
       <div className="rounded-3xl border bg-white p-5 shadow-sm sm:p-6">
         <div className="space-y-5">
-          {/* Header row inside large div */}
           <div className="flex flex-col gap-4 border-b pb-4 md:flex-row md:items-start md:justify-between">
             <div>
               <h2 className="text-base font-semibold text-gray-900">
@@ -100,12 +193,7 @@ export default function LeadDetailClient({ lead }: { lead: Lead }) {
               </label>
               <select
                 value={form.status}
-                onChange={(e) =>
-                  setForm((prev) => ({
-                    ...prev,
-                    status: e.target.value as LeadStatus,
-                  }))
-                }
+                onChange={(e) => updateStatus(e.target.value as LeadStatus)}
                 className={`mt-1 w-full rounded-full border px-3 py-2 text-sm font-medium capitalize outline-none ${getStatusClasses(
                   form.status
                 )}`}
@@ -118,7 +206,6 @@ export default function LeadDetailClient({ lead }: { lead: Lead }) {
             </div>
           </div>
 
-          {/* Main fields block */}
           <div className="grid gap-3 md:grid-cols-2">
             <CompactField
               label="Phone"
@@ -205,7 +292,6 @@ export default function LeadDetailClient({ lead }: { lead: Lead }) {
             />
           </div>
 
-          {/* Description */}
           <div className="rounded-2xl border bg-gray-50/60 p-4">
             <p className="text-sm font-semibold text-gray-700">Description:</p>
 
@@ -229,7 +315,6 @@ export default function LeadDetailClient({ lead }: { lead: Lead }) {
             )}
           </div>
 
-          {/* Notes */}
           <div className="rounded-2xl border bg-gray-50/60 p-4">
             <p className="text-sm font-semibold text-gray-700">Notes:</p>
 
@@ -251,38 +336,73 @@ export default function LeadDetailClient({ lead }: { lead: Lead }) {
             )}
           </div>
 
-          {/* Images */}
           <div className="rounded-2xl border bg-gray-50/60 p-4">
-            <p className="text-sm font-semibold text-gray-700">Images:</p>
+            <div className="flex items-center justify-between gap-3">
+                <p className="text-sm font-semibold text-gray-700">Images:</p>
 
-            {lead.images && lead.images.length > 0 ? (
-              <div className="mt-3 grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
-                {lead.images.map((image) => (
-                  <div
-                    key={image.id}
-                    className="rounded-xl border bg-gray-50 p-3"
-                  >
-                    <div className="overflow-hidden rounded-lg bg-white">
-                      <img
-                        src={image.url}
-                        alt={image.filename || "Lead image"}
-                        className="h-full w-full aspect-video object-cover"
-                      />
-                    </div>
-                    <p className="mt-2 truncate text-xs text-gray-600">
-                      {image.filename || image.url}
-                    </p>
-                  </div>
-                ))}
-              </div>
-            ) : (
-              <p className="mt-3 text-sm text-gray-900">Not provided</p>
-            )}
-          </div>
+                <div className="flex items-center gap-2">
+                <input
+                    ref={fileInputRef}
+                    type="file"
+                    accept="image/*"
+                    className="hidden"
+                    onChange={(e) => {
+                    const file = e.target.files?.[0];
+                    if (file) {
+                        void uploadImage(file);
+                    }
+
+                    e.currentTarget.value = "";
+                    }}
+                />
+
+                <button
+                    type="button"
+                    onClick={() => fileInputRef.current?.click()}
+                    disabled={isUploading}
+                    className="rounded-lg border px-3 py-1.5 text-xs font-semibold text-gray-700 transition hover:bg-gray-100 disabled:cursor-not-allowed disabled:opacity-60"
+                >
+                    {isUploading ? "Uploading..." : "Upload Image"}
+                </button>
+                </div>
+            </div>
+
+  {form.images.length > 0 ? (
+    <div className="mt-3 grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+      {form.images.map((image) => (
+        <div
+          key={image.id}
+          className="rounded-xl border bg-gray-50 p-3"
+        >
+          <a
+            href={image.url}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="block overflow-hidden rounded-lg bg-white"
+          >
+            <img
+              src={image.url}
+              alt={image.filename || "Lead image"}
+              className="aspect-video w-full object-cover transition hover:scale-105 cursor-pointer"
+            />
+          </a>
+          <p className="mt-2 truncate text-xs text-gray-600">
+            {image.filename || image.url}
+          </p>
+        </div>
+      ))}
+    </div>
+  ) : (
+    <p className="mt-3 text-sm text-gray-900">Not provided</p>
+  )}
+</div>
+
+          {saveMessage ? (
+            <p className="text-sm text-gray-600">{saveMessage}</p>
+          ) : null}
         </div>
       </div>
 
-      {/* Centered bottom buttons */}
       <div className="flex flex-col items-center justify-center gap-3 sm:flex-row">
         <button
           type="button"
@@ -293,10 +413,17 @@ export default function LeadDetailClient({ lead }: { lead: Lead }) {
 
         <button
           type="button"
-          onClick={() => setIsEditing((prev) => !prev)}
-          className="rounded-xl bg-gray-900 px-5 py-2.5 text-sm font-semibold text-white transition hover:bg-gray-800"
+          onClick={() => {
+            if (isEditing) {
+              void saveLead();
+            } else {
+              setIsEditing(true);
+            }
+          }}
+          disabled={isSaving}
+          className="rounded-xl bg-gray-900 px-5 py-2.5 text-sm font-semibold text-white transition hover:bg-gray-800 disabled:cursor-not-allowed disabled:opacity-60"
         >
-          {isEditing ? "Save" : "Edit"}
+          {isSaving ? "Saving..." : isEditing ? "Save" : "Edit"}
         </button>
       </div>
     </div>

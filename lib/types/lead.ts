@@ -21,7 +21,8 @@ export type Lead = {
   timeline: string;
   appointment?: string;
   notes?: string;
-  images?: LeadImage[];
+  images: LeadImage[];
   status: LeadStatus;
   createdAt: string;
+  updatedAt?: string;
 };

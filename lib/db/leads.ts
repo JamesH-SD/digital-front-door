@@ -1,5 +1,5 @@
 import { createClient } from "@/lib/supabase/server";
-import { Lead } from "@/lib/types/lead";
+import { Lead, LeadImage, LeadStatus } from "@/lib/types/lead";
 
 /**
  * Get all leads for a tenant
@@ -63,26 +63,35 @@ export async function createLead(input: {
   timeline?: string;
   appointment?: string;
   notes?: string;
-  status?: string;
+  images?: LeadImage[];
+  status?: LeadStatus;
 }) {
   const supabase = await createClient();
 
-  // 1. get tenant code
-  const { data: tenant } = await supabase
+  const { data: tenant, error: tenantError } = await supabase
     .from("tenants")
     .select("tenant_code")
     .eq("slug", input.tenantSlug)
     .single();
 
+  if (tenantError) {
+    console.error("Error fetching tenant code:", tenantError.message);
+    throw tenantError;
+  }
+
   if (!tenant?.tenant_code) {
     throw new Error("Missing tenant code");
   }
 
-  // 2. generate lead number
-  const { data: leadNumberData } = await supabase.rpc(
+  const { data: leadNumberData, error: leadNumberError } = await supabase.rpc(
     "generate_lead_number",
     { p_tenant_code: tenant.tenant_code }
   );
+
+  if (leadNumberError) {
+    console.error("Error generating lead number:", leadNumberError.message);
+    throw leadNumberError;
+  }
 
   const leadNumber = leadNumberData;
 
@@ -91,7 +100,7 @@ export async function createLead(input: {
     .insert({
       tenant_id: input.tenantId ?? null,
       tenant_slug: input.tenantSlug,
-      lead_number: leadNumber, // 👈 NEW
+      lead_number: leadNumber,
       session_id: input.sessionId ?? null,
       customer_name: input.customerName,
       phone: input.phone ?? null,
@@ -102,6 +111,7 @@ export async function createLead(input: {
       timeline: input.timeline ?? null,
       appointment: input.appointment ?? null,
       notes: input.notes ?? null,
+      images: input.images ?? [],
       status: input.status ?? "new",
     })
     .select()
@@ -129,12 +139,8 @@ export async function updateLead(
     timeline: string;
     appointment: string;
     notes: string;
-    status: string;
-    images: {
-      id: string;
-      url: string;
-      filename?: string;
-    }[];
+    status: LeadStatus;
+    images: LeadImage[];
   }>
 ) {
   const supabase = await createClient();
@@ -188,5 +194,6 @@ function mapLead(data: any): Lead {
     images: data.images ?? [],
     status: data.status ?? "new",
     createdAt: data.created_at ?? new Date().toISOString(),
+    updatedAt: data.updated_at ?? undefined,
   };
 }
