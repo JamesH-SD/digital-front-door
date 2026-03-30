@@ -1,6 +1,6 @@
 "use client";
 
-import { useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import type { Lead } from "@/lib/types/lead";
 
 type LeadStatus = "new" | "contacted" | "booked" | "closed";
@@ -62,26 +62,49 @@ function CompactField({
 }
 
 export default function LeadDetailClient({ lead }: { lead: Lead }) {
-    const [isEditing, setIsEditing] = useState(false);
-    const [isSaving, setIsSaving] = useState(false);
-    const [isUploading, setIsUploading] = useState(false);
-    const [saveMessage, setSaveMessage] = useState("");
-    const fileInputRef = useRef<HTMLInputElement | null>(null);
+  const [isEditing, setIsEditing] = useState(false);
+  const [isSaving, setIsSaving] = useState(false);
+  const [isUploading, setIsUploading] = useState(false);
+  const [saveMessage, setSaveMessage] = useState("");
+  const [selectedImage, setSelectedImage] = useState<{
+    id: string;
+    url: string;
+    filename?: string;
+  } | null>(null);
+  const [selectedIndex, setSelectedIndex] = useState<number | null>(null);
 
-    const [form, setForm] = useState({
-        phone: lead.phone || "",
-        email: lead.email || "",
-        address: lead.address || "",
-        appointment: lead.appointment || "",
-        location: lead.location || "",
-        timeline: lead.timeline || "",
-        projectType: lead.projectType || "",
-        notes: lead.notes || "",
-        status: (lead.status || "new") as LeadStatus,
-        images: lead.images || [],
-      });
+  const fileInputRef = useRef<HTMLInputElement | null>(null);
 
-    const appointmentMissing = !form.appointment.trim();
+  const [form, setForm] = useState({
+    phone: lead.phone || "",
+    email: lead.email || "",
+    address: lead.address || "",
+    appointment: lead.appointment || "",
+    location: lead.location || "",
+    timeline: lead.timeline || "",
+    projectType: lead.projectType || "",
+    notes: lead.notes || "",
+    status: (lead.status || "new") as LeadStatus,
+    images: lead.images || [],
+  });
+
+  const appointmentMissing = !form.appointment.trim();
+
+  useEffect(() => {
+    function handleEscape(event: KeyboardEvent) {
+      if (event.key === "Escape") {
+        setSelectedImage(null);
+      }
+    }
+
+    if (selectedImage) {
+      window.addEventListener("keydown", handleEscape);
+    }
+
+    return () => {
+      window.removeEventListener("keydown", handleEscape);
+    };
+  }, [selectedImage]);
 
   async function saveLead() {
     try {
@@ -96,22 +119,27 @@ export default function LeadDetailClient({ lead }: { lead: Lead }) {
         body: JSON.stringify(form),
       });
 
+      const result = await response.json();
+
       if (!response.ok) {
-        throw new Error("Failed to save lead");
+        throw new Error(result.error || "Failed to save lead");
       }
 
       setIsEditing(false);
       setSaveMessage("Changes saved.");
     } catch (error) {
       console.error(error);
-      setSaveMessage("Failed to save changes.");
+      setSaveMessage(
+        error instanceof Error ? error.message : "Failed to save changes."
+      );
     } finally {
       setIsSaving(false);
     }
   }
 
   async function updateStatus(status: LeadStatus) {
-    setForm((prev) => ({ ...prev, status }));
+    const nextForm = { ...form, status };
+    setForm(nextForm);
 
     try {
       const response = await fetch(`/api/leads/${lead.id}`, {
@@ -119,20 +147,21 @@ export default function LeadDetailClient({ lead }: { lead: Lead }) {
         headers: {
           "Content-Type": "application/json",
         },
-        body: JSON.stringify({
-          ...form,
-          status,
-        }),
+        body: JSON.stringify(nextForm),
       });
 
+      const result = await response.json();
+
       if (!response.ok) {
-        throw new Error("Failed to update status");
+        throw new Error(result.error || "Failed to update status");
       }
 
       setSaveMessage("Status updated.");
     } catch (error) {
       console.error(error);
-      setSaveMessage("Failed to update status.");
+      setSaveMessage(
+        error instanceof Error ? error.message : "Failed to update status."
+      );
     }
   }
 
@@ -140,37 +169,54 @@ export default function LeadDetailClient({ lead }: { lead: Lead }) {
     try {
       setIsUploading(true);
       setSaveMessage("");
-  
+
       const formData = new FormData();
       formData.append("file", file);
       formData.append("tenantSlug", lead.tenantSlug);
-  
+
       const response = await fetch(`/api/leads/${lead.id}/images`, {
         method: "POST",
         body: formData,
       });
-  
+
       const result = await response.json();
-  
+
       if (!response.ok) {
         throw new Error(result.error || "Failed to upload image");
       }
-  
+
       setForm((prev) => ({
         ...prev,
         images: [...prev.images, result.image],
       }));
-  
+
       setSaveMessage("Image uploaded.");
     } catch (error) {
       console.error("uploadImage error:", error);
-  
       setSaveMessage(
         error instanceof Error ? error.message : "Failed to upload image."
       );
     } finally {
       setIsUploading(false);
     }
+  }
+
+  function showNextImage() {
+    if (selectedIndex === null) return;
+  
+    const nextIndex = (selectedIndex + 1) % form.images.length;
+    setSelectedIndex(nextIndex);
+    setSelectedImage(form.images[nextIndex]);
+  }
+  
+  function showPrevImage() {
+    if (selectedIndex === null) return;
+  
+    const prevIndex =
+      (selectedIndex - 1 + form.images.length) % form.images.length;
+  
+    setSelectedIndex(prevIndex);
+    setSelectedImage(form.images[prevIndex]);
   }
 
   return (
@@ -338,64 +384,66 @@ export default function LeadDetailClient({ lead }: { lead: Lead }) {
 
           <div className="rounded-2xl border bg-gray-50/60 p-4">
             <div className="flex items-center justify-between gap-3">
-                <p className="text-sm font-semibold text-gray-700">Images:</p>
+              <p className="text-sm font-semibold text-gray-700">Images:</p>
 
-                <div className="flex items-center gap-2">
+              <div className="flex items-center gap-2">
                 <input
-                    ref={fileInputRef}
-                    type="file"
-                    accept="image/*"
-                    className="hidden"
-                    onChange={(e) => {
+                  ref={fileInputRef}
+                  type="file"
+                  accept="image/*"
+                  className="hidden"
+                  onChange={(e) => {
                     const file = e.target.files?.[0];
                     if (file) {
-                        void uploadImage(file);
+                      void uploadImage(file);
                     }
 
                     e.currentTarget.value = "";
-                    }}
+                  }}
                 />
 
                 <button
-                    type="button"
-                    onClick={() => fileInputRef.current?.click()}
-                    disabled={isUploading}
-                    className="rounded-lg border px-3 py-1.5 text-xs font-semibold text-gray-700 transition hover:bg-gray-100 disabled:cursor-not-allowed disabled:opacity-60"
+                  type="button"
+                  onClick={() => fileInputRef.current?.click()}
+                  disabled={isUploading}
+                  className="rounded-lg border px-3 py-1.5 text-xs font-semibold text-gray-700 transition hover:bg-gray-100 disabled:cursor-not-allowed disabled:opacity-60"
                 >
-                    {isUploading ? "Uploading..." : "Upload Image"}
+                  {isUploading ? "Uploading..." : "Upload Image"}
                 </button>
-                </div>
+              </div>
             </div>
 
-  {form.images.length > 0 ? (
-    <div className="mt-3 grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
-      {form.images.map((image) => (
-        <div
-          key={image.id}
-          className="rounded-xl border bg-gray-50 p-3"
-        >
-          <a
-            href={image.url}
-            target="_blank"
-            rel="noopener noreferrer"
-            className="block overflow-hidden rounded-lg bg-white"
-          >
-            <img
-              src={image.url}
-              alt={image.filename || "Lead image"}
-              className="aspect-video w-full object-cover transition hover:scale-105 cursor-pointer"
-            />
-          </a>
-          <p className="mt-2 truncate text-xs text-gray-600">
-            {image.filename || image.url}
-          </p>
-        </div>
-      ))}
-    </div>
-  ) : (
-    <p className="mt-3 text-sm text-gray-900">Not provided</p>
-  )}
-</div>
+            {form.images.length > 0 ? (
+              <div className="mt-3 grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+                {form.images.map((image, index) => (
+                  <div
+                    key={image.id}
+                    className="rounded-xl border bg-gray-50 p-3"
+                  >
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setSelectedImage(image);
+                        setSelectedIndex(index);
+                      }}
+                      className="block w-full overflow-hidden rounded-lg bg-white text-left"
+                    >
+                      <img
+                        src={image.url}
+                        alt={image.filename || "Lead image"}
+                        className="aspect-video w-full cursor-zoom-in object-cover transition hover:scale-105"
+                      />
+                    </button>
+                    <p className="mt-2 truncate text-xs text-gray-600">
+                      {image.filename || image.url}
+                    </p>
+                  </div>
+                ))}
+              </div>
+            ) : (
+              <p className="mt-3 text-sm text-gray-900">Not provided</p>
+            )}
+          </div>
 
           {saveMessage ? (
             <p className="text-sm text-gray-600">{saveMessage}</p>
@@ -426,6 +474,64 @@ export default function LeadDetailClient({ lead }: { lead: Lead }) {
           {isSaving ? "Saving..." : isEditing ? "Save" : "Edit"}
         </button>
       </div>
+
+      {selectedImage ? (
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 p-4"
+          onClick={() => {
+            setSelectedImage(null);
+            setSelectedIndex(null);
+          }}
+        >
+          <div
+            
+            className="relative w-full max-w-5xl"
+            onClick={(e) => e.stopPropagation()}
+          >
+            {/* LEFT ARROW */}
+            <button
+              type="button"
+              onClick={showPrevImage}
+              className="absolute left-3 top-1/2 z-10 -translate-y-1/2 rounded-full bg-black/70 px-3 py-2 text-white hover:bg-black"
+            >
+              ←
+            </button>
+
+            {/* RIGHT ARROW */}
+            <button
+              type="button"
+              onClick={showNextImage}
+              className="absolute right-3 top-1/2 z-10 -translate-y-1/2 rounded-full bg-black/70 px-3 py-2 text-white hover:bg-black"
+            >
+              →
+            </button>
+            <button
+              type="button"
+              onClick={() => {
+                setSelectedImage(null);
+                setSelectedIndex(null);
+              }}
+              className="absolute right-3 top-3 z-10 rounded-full bg-black/70 px-3 py-1 text-sm font-semibold text-white transition hover:bg-black"
+            >
+              ✕
+            </button>
+
+            <div className="overflow-hidden rounded-2xl bg-white shadow-2xl">
+              <img
+                src={selectedImage.url}
+                alt={selectedImage.filename || "Lead image"}
+                className="max-h-[80vh] w-full bg-black object-contain"
+              />
+
+              <div className="border-t bg-white px-4 py-3">
+                <p className="truncate text-sm text-gray-700">
+                  {selectedImage.filename || selectedImage.url}
+                </p>
+              </div>
+            </div>
+          </div>
+        </div>
+      ) : null}
     </div>
   );
 }
