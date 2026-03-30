@@ -1,42 +1,40 @@
 import { Tenant } from "@/lib/types/tenant";
+import { createClient } from "@/lib/supabase/server";
 
-const mockTenants: Tenant[] = [
-  {
-    id: "1",
-    slug: "hughes-general",
-    businessName: "Hughes General",
-    tagline: "Fast, reliable framing for remodels and additions.",
-    logoUrl: null,
-    primaryColor: "#1d4ed8",
-    phone: "(619) 549-0891",
-    email: "james@hughesgeneral.com",
-    city: "Vista",
-    state: "CA",
-    serviceAreaSummary: "Serving San Diego County",
-    isActive: true,
-  },
-  {
-    id: "2",
-    slug: "elite-electric",
-    businessName: "Elite Electric",
-    tagline: "Residential and light commercial electrical work.",
-    logoUrl: null,
-    primaryColor: "#f59e0b",
-    phone: "(555) 222-3333",
-    email: "info@eliteelectric.com",
-    city: "Temecula",
-    state: "CA",
-    serviceAreaSummary: "Serving Riverside and North San Diego County",
-    isActive: true,
-  },
-];
-
+/**
+ * Fetch a tenant by slug from Supabase.
+ */
 export async function getTenantBySlug(
   slug: string
 ): Promise<Tenant | null> {
-  const tenant = mockTenants.find(
-    (item) => item.slug.toLowerCase() === slug.toLowerCase() && item.isActive
-  );
+  const supabase = await createClient();
 
-  return tenant ?? null;
+  const { data, error } = await supabase
+    .from("tenants")
+    .select("*")
+    .eq("slug", slug.toLowerCase())
+    .eq("is_active", true)
+    .single();
+
+  if (error) {
+    console.error("Error fetching tenant:", error.message);
+    return null;
+  }
+
+  if (!data) return null;
+
+  return {
+    id: data.id,
+    slug: data.slug,
+    businessName: data.business_name || data.name || "",
+    tagline: data.tagline || "",
+    logoUrl: data.logo_url || null,
+    primaryColor: data.primary_color || "#1d4ed8",
+    phone: data.phone || "",
+    email: data.email || "",
+    city: data.city || "",
+    state: data.state || "",
+    serviceAreaSummary: data.service_area_summary || "",
+    isActive: data.is_active ?? true,
+  };
 }

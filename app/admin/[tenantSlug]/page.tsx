@@ -1,3 +1,4 @@
+import Link from "next/link";
 import { notFound } from "next/navigation";
 import { getTenantBySlug } from "@/lib/db/tenants";
 import { getLeadsByTenantSlug } from "@/lib/db/leads";
@@ -8,6 +9,9 @@ type PageProps = {
   }>;
 };
 
+/**
+ * Formats ISO timestamps into a readable date/time for the admin UI.
+ */
 function formatDate(dateString: string) {
   const date = new Date(dateString);
 
@@ -20,12 +24,18 @@ function formatDate(dateString: string) {
   }).format(date);
 }
 
+/**
+ * Returns Tailwind classes for lead status badges.
+ * This keeps badge styling centralized and easy to update later.
+ */
 function getStatusClasses(status: string) {
   switch (status) {
     case "new":
       return "bg-green-100 text-green-700 border-green-200";
     case "contacted":
       return "bg-yellow-100 text-yellow-700 border-yellow-200";
+    case "booked":
+      return "bg-blue-100 text-blue-700 border-blue-200";
     case "closed":
       return "bg-gray-100 text-gray-700 border-gray-200";
     default:
@@ -36,18 +46,26 @@ function getStatusClasses(status: string) {
 export default async function AdminTenantPage({ params }: PageProps) {
   const { tenantSlug } = await params;
 
+  // Validate the tenant before rendering the admin page.
   const tenant = await getTenantBySlug(tenantSlug);
 
   if (!tenant) {
     notFound();
   }
 
+  // Load all leads for this tenant.
   const leads = await getLeadsByTenantSlug(tenantSlug);
+
+  // Sort newest first so recent opportunities are shown at the top.
+  const sortedLeads = [...leads].sort(
+    (a, b) =>
+      new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()
+  );
 
   return (
     <main className="min-h-screen bg-gray-50">
       <section className="border-b bg-white">
-        <div className="mx-auto max-w-6xl px-6 py-10">
+        <div className="mx-auto max-w-6xl px-4 py-8 sm:px-6">
           <div className="flex flex-col gap-4 md:flex-row md:items-end md:justify-between">
             <div>
               <p className="text-sm font-medium text-gray-500">Admin Dashboard</p>
@@ -55,17 +73,17 @@ export default async function AdminTenantPage({ params }: PageProps) {
                 {tenant.businessName}
               </h1>
               <p className="mt-2 text-sm text-gray-600">
-                View and manage leads captured from your Digital Front Door.
+                Review captured leads and open each one for full detail.
               </p>
             </div>
 
-            <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+            <div className="grid grid-cols-2 gap-3">
               <div className="rounded-2xl border bg-white px-5 py-4 shadow-sm">
                 <p className="text-xs font-medium uppercase tracking-wide text-gray-500">
                   Total Leads
                 </p>
                 <p className="mt-2 text-2xl font-bold text-gray-900">
-                  {leads.length}
+                  {sortedLeads.length}
                 </p>
               </div>
 
@@ -74,7 +92,7 @@ export default async function AdminTenantPage({ params }: PageProps) {
                   New Leads
                 </p>
                 <p className="mt-2 text-2xl font-bold text-gray-900">
-                  {leads.filter((lead) => lead.status === "new").length}
+                  {sortedLeads.filter((lead) => lead.status === "new").length}
                 </p>
               </div>
             </div>
@@ -82,32 +100,48 @@ export default async function AdminTenantPage({ params }: PageProps) {
         </div>
       </section>
 
-      <section className="mx-auto max-w-6xl px-6 py-8">
-        {leads.length === 0 ? (
+      <section className="mx-auto max-w-6xl px-4 py-6 sm:px-6">
+        {sortedLeads.length === 0 ? (
           <div className="rounded-2xl border border-dashed bg-white px-6 py-16 text-center shadow-sm">
             <h2 className="text-xl font-semibold text-gray-900">
               No leads captured yet
             </h2>
             <p className="mt-2 text-sm text-gray-600">
-              Once visitors complete the chat intake flow, new leads will appear
-              here.
+              Once a visitor completes the chat intake flow, their lead will appear here.
             </p>
           </div>
         ) : (
-          <div className="grid gap-5">
-            {leads.map((lead) => (
-              <article
-                key={lead.id}
-                className="rounded-2xl border bg-white p-6 shadow-sm transition hover:shadow-md"
-              >
-                <div className="flex flex-col gap-4 md:flex-row md:items-start md:justify-between">
-                  <div>
-                    <div className="flex flex-wrap items-center gap-3">
-                      <h2 className="text-xl font-semibold text-gray-900">
-                        {lead.customerName}
-                      </h2>
+          <div className="overflow-hidden rounded-2xl border bg-white shadow-sm">
+            <div className="hidden grid-cols-6 gap-4 border-b bg-gray-50 px-4 py-3 text-xs font-semibold uppercase tracking-wide text-gray-500 md:grid">
+              <div>Lead</div>
+              <div>Name</div>
+              <div>Project</div>
+              <div>Location</div>
+              <div>Status</div>
+              <div>Created</div>
+            </div>
+
+            <div>
+              {sortedLeads.map((lead) => (
+                <Link
+                  key={lead.id}
+                  href={`/admin/${tenantSlug}/leads/${lead.id}`}
+                  className="block border-b px-4 py-4 transition hover:bg-gray-50"
+                >
+                  {/* Mobile layout */}
+                  <div className="space-y-2 md:hidden">
+                    <div className="flex items-start justify-between gap-3">
+                      <div>
+                        <p className="text-xs font-medium uppercase tracking-wide text-gray-500">
+                        {lead.leadNumber || lead.id}
+                        </p>
+                        <h2 className="mt-1 text-sm font-semibold text-gray-900">
+                          {lead.customerName}
+                        </h2>
+                      </div>
+
                       <span
-                        className={`inline-flex rounded-full border px-3 py-1 text-xs font-medium capitalize ${getStatusClasses(
+                        className={`inline-flex rounded-full border px-2.5 py-1 text-xs font-medium capitalize ${getStatusClasses(
                           lead.status
                         )}`}
                       >
@@ -115,47 +149,39 @@ export default async function AdminTenantPage({ params }: PageProps) {
                       </span>
                     </div>
 
-                    <p className="mt-2 text-sm text-gray-500">
-                      Captured {formatDate(lead.createdAt)}
-                    </p>
+                    <div className="text-sm text-gray-600">
+                      <p>{lead.projectType}</p>
+                      <p>{lead.location}</p>
+                      <p className="text-xs text-gray-500">
+                        {formatDate(lead.createdAt)}
+                      </p>
+                    </div>
                   </div>
 
-                  <div className="rounded-xl bg-gray-50 px-4 py-3 text-sm">
-                    <p className="font-medium text-gray-900">Contact</p>
-                    <p className="mt-1 text-gray-700">{lead.contact}</p>
+                  {/* Desktop layout */}
+                  <div className="hidden grid-cols-6 gap-4 md:grid">
+                    <div className="text-sm text-gray-600">{lead.leadNumber || lead.id}</div>
+                    <div className="text-sm font-medium text-gray-900">
+                      {lead.customerName}
+                    </div>
+                    <div className="text-sm text-gray-600">{lead.projectType}</div>
+                    <div className="text-sm text-gray-600">{lead.location}</div>
+                    <div>
+                      <span
+                        className={`inline-flex rounded-full border px-2.5 py-1 text-xs font-medium capitalize ${getStatusClasses(
+                          lead.status
+                        )}`}
+                      >
+                        {lead.status}
+                      </span>
+                    </div>
+                    <div className="text-sm text-gray-600">
+                      {formatDate(lead.createdAt)}
+                    </div>
                   </div>
-                </div>
-
-                <div className="mt-6 grid gap-4 md:grid-cols-3">
-                  <div className="rounded-xl border bg-gray-50 p-4">
-                    <p className="text-xs font-medium uppercase tracking-wide text-gray-500">
-                      Project Type
-                    </p>
-                    <p className="mt-2 text-sm font-medium text-gray-900">
-                      {lead.projectType}
-                    </p>
-                  </div>
-
-                  <div className="rounded-xl border bg-gray-50 p-4">
-                    <p className="text-xs font-medium uppercase tracking-wide text-gray-500">
-                      Location
-                    </p>
-                    <p className="mt-2 text-sm font-medium text-gray-900">
-                      {lead.location}
-                    </p>
-                  </div>
-
-                  <div className="rounded-xl border bg-gray-50 p-4">
-                    <p className="text-xs font-medium uppercase tracking-wide text-gray-500">
-                      Timeline
-                    </p>
-                    <p className="mt-2 text-sm font-medium text-gray-900">
-                      {lead.timeline}
-                    </p>
-                  </div>
-                </div>
-              </article>
-            ))}
+                </Link>
+              ))}
+            </div>
           </div>
         )}
       </section>

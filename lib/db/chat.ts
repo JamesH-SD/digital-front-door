@@ -211,11 +211,23 @@ export async function addUserMessage(sessionId: string, content: string) {
       const lead = await createLead({
         tenantId: updatedSession.tenantId,
         tenantSlug: updatedSession.tenantSlug,
+        sessionId: updatedSession.id,
         customerName: intake.name || "Unknown",
+      
+        // For the current MVP, the final intake field is being used as the
+        // primary callback value, so we store it in both phone and contact.
+        // Later, once we split phone/email cleanly, this can become smarter.
+        phone: intake.contact || "Unknown",
+        email: undefined,
         contact: intake.contact || "Unknown",
+      
+        address: undefined,
         projectType: intake.projectType || "Unknown",
         location: intake.location || "Unknown",
         timeline: intake.timeline || "Unknown",
+        appointment: undefined,
+        notes: undefined,
+        images: [],
       });
       
       await sendLeadNotification(lead);
