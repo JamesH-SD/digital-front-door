@@ -183,31 +183,36 @@ async function updateSession(session: ChatSession) {
   }
 }
 
-async function appendCustomerUpdateToLeadNotes(
-  leadId: string,
-  content: string
-) {
+/**
+ * Append post-capture customer follow-up messages to the dedicated
+ * customer_updates field on the lead.
+ *
+ * This intentionally does NOT write into leads.notes because notes are
+ * reserved for contractor/internal use in the admin workflow.
+ */
+async function appendCustomerUpdateToLead(leadId: string, content: string) {
   const supabase = await createClient();
 
   const { data: existingLead, error: fetchError } = await supabase
     .from("leads")
-    .select("notes")
+    .select("customer_updates")
     .eq("id", leadId)
     .single();
 
   if (fetchError) {
-    console.error("Error fetching lead notes:", fetchError.message);
+    console.error("Error fetching customer updates:", fetchError.message);
     throw fetchError;
   }
 
   const timestamp = new Date().toISOString();
+  const existingCustomerUpdates =
+    existingLead?.customer_updates?.trim() || "";
 
-  const existingNotes = existingLead?.notes?.trim() || "";
   const appendedBlock = `[Customer Update - ${timestamp}]
 ${content}`.trim();
 
-  const newNotes = existingNotes
-    ? `${existingNotes}
+  const newCustomerUpdates = existingCustomerUpdates
+    ? `${existingCustomerUpdates}
 
 ${appendedBlock}`
     : appendedBlock;
@@ -215,13 +220,13 @@ ${appendedBlock}`
   const { error: updateError } = await supabase
     .from("leads")
     .update({
-      notes: newNotes,
+      customer_updates: newCustomerUpdates,
       updated_at: new Date().toISOString(),
     })
     .eq("id", leadId);
 
   if (updateError) {
-    console.error("Error updating lead notes:", updateError.message);
+    console.error("Error updating customer updates:", updateError.message);
     throw updateError;
   }
 }
@@ -344,10 +349,14 @@ export async function addUserMessage(sessionId: string, content: string) {
   const userMessage = createMessageObject(sessionId, "user", trimmedContent);
   await insertMessage(userMessage);
 
-  // Session already has an attached lead, so keep the conversation alive
-  // and append future customer messages to that lead's notes.
+  /**
+   * If the session has already produced a lead, keep the chat active and
+   * treat future customer messages as follow-up updates for that same lead.
+   *
+   * These updates go into leads.customer_updates, not leads.notes.
+   */
   if (session.currentStep === "complete" && session.leadId) {
-    await appendCustomerUpdateToLeadNotes(session.leadId, trimmedContent);
+    await appendCustomerUpdateToLead(session.leadId, trimmedContent);
 
     const assistantReply = createMessageObject(
       sessionId,
@@ -387,6 +396,7 @@ export async function addUserMessage(sessionId: string, content: string) {
       timeline: intake.timeline || "Unknown",
       appointment: undefined,
       notes: undefined,
+      customerUpdates: undefined,
       images: [],
     });
 

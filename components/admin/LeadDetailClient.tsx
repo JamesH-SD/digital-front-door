@@ -75,6 +75,14 @@ export default function LeadDetailClient({ lead }: { lead: Lead }) {
 
   const fileInputRef = useRef<HTMLInputElement | null>(null);
 
+  /**
+   * Form state used for editable contractor-facing lead management.
+   *
+   * Important separation:
+   * - notes: contractor/internal notes
+   * - customerUpdates: customer-originated follow-up details captured
+   *   after the original chat intake
+   */
   const [form, setForm] = useState({
     phone: lead.phone || "",
     email: lead.email || "",
@@ -84,6 +92,7 @@ export default function LeadDetailClient({ lead }: { lead: Lead }) {
     timeline: lead.timeline || "",
     projectType: lead.projectType || "",
     notes: lead.notes || "",
+    customerUpdates: lead.customerUpdates || "",
     status: (lead.status || "new") as LeadStatus,
     images: lead.images || [],
   });
@@ -92,18 +101,18 @@ export default function LeadDetailClient({ lead }: { lead: Lead }) {
 
   function showNextImage() {
     if (selectedIndex === null) return;
-  
+
     const nextIndex = (selectedIndex + 1) % form.images.length;
     setSelectedIndex(nextIndex);
     setSelectedImage(form.images[nextIndex]);
   }
-  
+
   function showPrevImage() {
     if (selectedIndex === null) return;
-  
+
     const prevIndex =
       (selectedIndex - 1 + form.images.length) % form.images.length;
-  
+
     setSelectedIndex(prevIndex);
     setSelectedImage(form.images[prevIndex]);
   }
@@ -111,27 +120,27 @@ export default function LeadDetailClient({ lead }: { lead: Lead }) {
   useEffect(() => {
     function handleKeyDown(event: KeyboardEvent) {
       if (!selectedImage) return;
-  
+
       if (event.key === "Escape") {
         setSelectedImage(null);
         setSelectedIndex(null);
         return;
       }
-  
+
       if (event.key === "ArrowRight") {
         event.preventDefault();
         showNextImage();
         return;
       }
-  
+
       if (event.key === "ArrowLeft") {
         event.preventDefault();
         showPrevImage();
       }
     }
-  
+
     window.addEventListener("keydown", handleKeyDown);
-  
+
     return () => {
       window.removeEventListener("keydown", handleKeyDown);
     };
@@ -375,7 +384,9 @@ export default function LeadDetailClient({ lead }: { lead: Lead }) {
           </div>
 
           <div className="rounded-2xl border bg-gray-50/60 p-4">
-            <p className="text-sm font-semibold text-gray-700">Notes:</p>
+            <p className="text-sm font-semibold text-gray-700">
+              Contractor Notes:
+            </p>
 
             <textarea
               value={form.notes}
@@ -390,9 +401,28 @@ export default function LeadDetailClient({ lead }: { lead: Lead }) {
 
             {!isEditing && (
               <p className="mt-2 text-xs text-gray-500">
-                Click Edit to update notes and lead details.
+                Click Edit to update contractor notes and lead details.
               </p>
             )}
+          </div>
+
+          <div className="rounded-2xl border bg-gray-50/60 p-4">
+            <p className="text-sm font-semibold text-gray-700">
+              Customer Updates:
+            </p>
+
+            <textarea
+              value={form.customerUpdates}
+              readOnly
+              rows={5}
+              className="mt-2 w-full rounded-md border border-gray-300 bg-gray-100 px-3 py-2 text-sm text-gray-900 outline-none"
+              placeholder="Customer follow-up messages will appear here"
+            />
+
+            <p className="mt-2 text-xs text-gray-500">
+              These are follow-up details submitted by the customer through chat
+              after the original request was captured.
+            </p>
           </div>
 
           <div className="rounded-2xl border bg-gray-50/60 p-4">
@@ -497,11 +527,9 @@ export default function LeadDetailClient({ lead }: { lead: Lead }) {
           }}
         >
           <div
-            
             className="relative w-full max-w-5xl"
             onClick={(e) => e.stopPropagation()}
           >
-            {/* LEFT ARROW */}
             <button
               type="button"
               onClick={showPrevImage}
@@ -510,7 +538,6 @@ export default function LeadDetailClient({ lead }: { lead: Lead }) {
               ←
             </button>
 
-            {/* RIGHT ARROW */}
             <button
               type="button"
               onClick={showNextImage}
@@ -518,6 +545,7 @@ export default function LeadDetailClient({ lead }: { lead: Lead }) {
             >
               →
             </button>
+
             <button
               type="button"
               onClick={() => {

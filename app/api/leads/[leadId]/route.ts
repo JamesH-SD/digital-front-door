@@ -21,6 +21,7 @@ export async function PATCH(request: NextRequest, context: RouteContext) {
       timeline: body.timeline,
       appointment: body.appointment,
       notes: body.notes,
+      customerUpdates: body.customerUpdates,
       status: body.status,
       images: body.images,
     });

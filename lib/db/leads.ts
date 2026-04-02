@@ -63,6 +63,7 @@ export async function createLead(input: {
   timeline?: string;
   appointment?: string;
   notes?: string;
+  customerUpdates?: string;
   images?: LeadImage[];
   status?: LeadStatus;
 }) {
@@ -111,6 +112,7 @@ export async function createLead(input: {
       timeline: input.timeline ?? null,
       appointment: input.appointment ?? null,
       notes: input.notes ?? null,
+      customer_updates: input.customerUpdates ?? null,
       images: input.images ?? [],
       status: input.status ?? "new",
     })
@@ -139,6 +141,7 @@ export async function updateLead(
     timeline: string;
     appointment: string;
     notes: string;
+    customerUpdates: string;
     status: LeadStatus;
     images: LeadImage[];
   }>
@@ -156,6 +159,7 @@ export async function updateLead(
       timeline: updates.timeline,
       appointment: updates.appointment,
       notes: updates.notes,
+      customer_updates: updates.customerUpdates,
       status: updates.status,
       images: updates.images,
       updated_at: new Date().toISOString(),
@@ -174,6 +178,11 @@ export async function updateLead(
 
 /**
  * Map DB → app model
+ *
+ * Notes:
+ * - notes: internal contractor notes
+ * - customerUpdates: extra information added by the customer after the
+ *   request was initially captured through chat
  */
 function mapLead(data: any): Lead {
   return {
@@ -191,6 +200,7 @@ function mapLead(data: any): Lead {
     timeline: data.timeline ?? "",
     appointment: data.appointment ?? undefined,
     notes: data.notes ?? undefined,
+    customerUpdates: data.customer_updates ?? undefined,
     images: data.images ?? [],
     status: data.status ?? "new",
     createdAt: data.created_at ?? new Date().toISOString(),
