@@ -4,7 +4,7 @@ export async function sendLeadNotification(lead: Lead) {
   // Simulate SMS
   console.log("📲 SMS Notification:");
   console.log(`New lead for ${lead.tenantSlug}`);
-  console.log(`${lead.customerName} - ${lead.contact}`);
+  console.log(`${lead.customerName} - ${lead.phone}`);
   console.log(`${lead.projectType} in ${lead.location}`);
   console.log("------");
 
@@ -14,7 +14,7 @@ export async function sendLeadNotification(lead: Lead) {
     subject: `New Lead - ${lead.projectType}`,
     body: `
       Name: ${lead.customerName}
-      Contact: ${lead.contact}
+      Contact: ${lead.phone}
       Project: ${lead.projectType}
       Location: ${lead.location}
       Timeline: ${lead.timeline}

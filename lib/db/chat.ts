@@ -1,16 +1,19 @@
-import { ChatMessage, ChatSession, IntakeStep, ChatRole } from "@/lib/types/chat";
+import { createClient } from "@/lib/supabase/server";
+import {
+  ChatMessage,
+  ChatRole,
+  ChatSession,
+  IntakeStep,
+} from "@/lib/types/chat";
 import { getTenantBySlug } from "@/lib/db/tenants";
 import { createLead } from "@/lib/db/leads";
 import { sendLeadNotification } from "@/lib/notifications/sendLeadNotification";
-
-const sessions = new Map<string, ChatSession>();
-const messages = new Map<string, ChatMessage[]>();
 
 function generateId(prefix: string) {
   return `${prefix}_${Math.random().toString(36).slice(2, 10)}`;
 }
 
-function createMessage(
+function createMessageObject(
   sessionId: string,
   role: ChatRole,
   content: string
@@ -42,68 +45,184 @@ function getPromptForStep(step: IntakeStep, businessName: string): string {
       return "Great. What is the best phone number or email for the contractor to reach you?";
 
     case "complete":
-      return "Thanks — I have everything I need. Your request has been captured and the contractor can follow up with you shortly.";
+      return "Thanks, that helps a lot. Is there anything else you'd like the contractor to know?";
 
     default:
       return "How can I help you today?";
   }
 }
 
-function getNextStep(step: IntakeStep): IntakeStep {
-  switch (step) {
-    case "project_type":
-      return "location";
-    case "location":
-      return "timeline";
-    case "timeline":
-      return "name";
-    case "name":
-      return "contact";
-    case "contact":
-      return "complete";
-    case "complete":
-      return "complete";
-    default:
-      return "project_type";
-  }
-}
-
-function applyAnswerToSession(session: ChatSession, userInput: string): ChatSession {
+function applyAnswerToSession(
+  session: ChatSession,
+  userInput: string
+): ChatSession {
   const trimmed = userInput.trim();
 
   switch (session.currentStep) {
     case "project_type":
-      session.intakeData.projectType = trimmed;
-      session.currentStep = "location";
-      return session;
+      return {
+        ...session,
+        currentStep: "location",
+        intakeData: {
+          ...session.intakeData,
+          projectType: trimmed,
+        },
+      };
 
     case "location":
-      session.intakeData.location = trimmed;
-      session.currentStep = "timeline";
-      return session;
+      return {
+        ...session,
+        currentStep: "timeline",
+        intakeData: {
+          ...session.intakeData,
+          location: trimmed,
+        },
+      };
 
     case "timeline":
-      session.intakeData.timeline = trimmed;
-      session.currentStep = "name";
-      return session;
+      return {
+        ...session,
+        currentStep: "name",
+        intakeData: {
+          ...session.intakeData,
+          timeline: trimmed,
+        },
+      };
 
     case "name":
-      session.intakeData.name = trimmed;
-      session.currentStep = "contact";
-      return session;
+      return {
+        ...session,
+        currentStep: "contact",
+        intakeData: {
+          ...session.intakeData,
+          name: trimmed,
+        },
+      };
 
     case "contact":
-      session.intakeData.contact = trimmed;
-      session.currentStep = "complete";
-      session.leadCaptured = true;
-      session.status = "closed";
-      return session;
+      return {
+        ...session,
+        currentStep: "complete",
+        leadCaptured: true,
+        status: "active",
+        intakeData: {
+          ...session.intakeData,
+          contact: trimmed,
+        },
+      };
 
     case "complete":
       return session;
 
     default:
       return session;
+  }
+}
+
+function mapSession(row: any): ChatSession {
+  return {
+    id: row.id,
+    tenantId: row.tenant_id ?? undefined,
+    tenantSlug: row.tenant_slug,
+    status: row.status ?? "active",
+    createdAt: row.created_at,
+    currentStep: row.current_step,
+    intakeData: row.intake_data ?? {},
+    leadCaptured: row.lead_captured ?? false,
+    leadId: row.lead_id ?? null,
+    notificationSentAt: row.notification_sent_at ?? null,
+  };
+}
+
+function mapMessage(row: any): ChatMessage {
+  return {
+    id: row.id,
+    sessionId: row.session_id,
+    role: row.role,
+    content: row.content,
+    createdAt: row.created_at,
+  };
+}
+
+async function insertMessage(message: ChatMessage) {
+  const supabase = await createClient();
+
+  const { error } = await supabase.from("chat_messages").insert({
+    id: message.id,
+    session_id: message.sessionId,
+    role: message.role,
+    content: message.content,
+    created_at: message.createdAt,
+  });
+
+  if (error) {
+    console.error("Error inserting chat message:", error.message);
+    throw error;
+  }
+}
+
+async function updateSession(session: ChatSession) {
+  const supabase = await createClient();
+
+  const { error } = await supabase
+    .from("chat_sessions")
+    .update({
+      status: session.status,
+      current_step: session.currentStep,
+      intake_data: session.intakeData,
+      lead_captured: session.leadCaptured,
+      lead_id: session.leadId ?? null,
+      notification_sent_at: session.notificationSentAt ?? null,
+      updated_at: new Date().toISOString(),
+    })
+    .eq("id", session.id);
+
+  if (error) {
+    console.error("Error updating chat session:", error.message);
+    throw error;
+  }
+}
+
+async function appendCustomerUpdateToLeadNotes(
+  leadId: string,
+  content: string
+) {
+  const supabase = await createClient();
+
+  const { data: existingLead, error: fetchError } = await supabase
+    .from("leads")
+    .select("notes")
+    .eq("id", leadId)
+    .single();
+
+  if (fetchError) {
+    console.error("Error fetching lead notes:", fetchError.message);
+    throw fetchError;
+  }
+
+  const timestamp = new Date().toISOString();
+
+  const existingNotes = existingLead?.notes?.trim() || "";
+  const appendedBlock = `[Customer Update - ${timestamp}]
+${content}`.trim();
+
+  const newNotes = existingNotes
+    ? `${existingNotes}
+
+${appendedBlock}`
+    : appendedBlock;
+
+  const { error: updateError } = await supabase
+    .from("leads")
+    .update({
+      notes: newNotes,
+      updated_at: new Date().toISOString(),
+    })
+    .eq("id", leadId);
+
+  if (updateError) {
+    console.error("Error updating lead notes:", updateError.message);
+    throw updateError;
   }
 }
 
@@ -114,25 +233,48 @@ export async function createChatSessionForTenantSlug(tenantSlug: string) {
     return null;
   }
 
+  const supabase = await createClient();
+  const now = new Date().toISOString();
+
   const session: ChatSession = {
     id: generateId("sess"),
     tenantId: tenant.id,
     tenantSlug: tenant.slug,
     status: "active",
-    createdAt: new Date().toISOString(),
+    createdAt: now,
     currentStep: "project_type",
     intakeData: {},
     leadCaptured: false,
+    leadId: null,
+    notificationSentAt: null,
   };
 
-  const greeting = createMessage(
+  const { error: sessionError } = await supabase.from("chat_sessions").insert({
+    id: session.id,
+    tenant_id: tenant.id ?? null,
+    tenant_slug: tenant.slug,
+    status: session.status,
+    current_step: session.currentStep,
+    intake_data: session.intakeData,
+    lead_captured: session.leadCaptured,
+    lead_id: session.leadId,
+    notification_sent_at: session.notificationSentAt,
+    created_at: session.createdAt,
+    updated_at: session.createdAt,
+  });
+
+  if (sessionError) {
+    console.error("Error creating chat session:", sessionError.message);
+    throw sessionError;
+  }
+
+  const greeting = createMessageObject(
     session.id,
     "assistant",
     getPromptForStep("project_type", tenant.businessName)
   );
 
-  sessions.set(session.id, session);
-  messages.set(session.id, [greeting]);
+  await insertMessage(greeting);
 
   return {
     session,
@@ -141,15 +283,43 @@ export async function createChatSessionForTenantSlug(tenantSlug: string) {
 }
 
 export async function getChatSession(sessionId: string) {
-  return sessions.get(sessionId) ?? null;
+  const supabase = await createClient();
+
+  const { data, error } = await supabase
+    .from("chat_sessions")
+    .select("*")
+    .eq("id", sessionId)
+    .single();
+
+  if (error) {
+    if (error.code !== "PGRST116") {
+      console.error("Error fetching chat session:", error.message);
+    }
+    return null;
+  }
+
+  return mapSession(data);
 }
 
 export async function getMessagesForSession(sessionId: string) {
-  return messages.get(sessionId) ?? [];
+  const supabase = await createClient();
+
+  const { data, error } = await supabase
+    .from("chat_messages")
+    .select("*")
+    .eq("session_id", sessionId)
+    .order("created_at", { ascending: true });
+
+  if (error) {
+    console.error("Error fetching chat messages:", error.message);
+    return [];
+  }
+
+  return data.map(mapMessage);
 }
 
 export async function addUserMessage(sessionId: string, content: string) {
-  const session = sessions.get(sessionId);
+  const session = await getChatSession(sessionId);
 
   if (!session) {
     return null;
@@ -161,101 +331,92 @@ export async function addUserMessage(sessionId: string, content: string) {
     return null;
   }
 
-  const currentMessages = messages.get(sessionId) ?? [];
-
   const trimmedContent = content.trim();
 
   if (!trimmedContent) {
     return {
       sessionId,
-      messages: currentMessages,
+      messages: await getMessagesForSession(sessionId),
       session,
     };
   }
 
-  const userMessage = createMessage(sessionId, "user", trimmedContent);
-  currentMessages.push(userMessage);
+  const userMessage = createMessageObject(sessionId, "user", trimmedContent);
+  await insertMessage(userMessage);
 
-  if (session.currentStep === "complete") {
-    const assistantReply = createMessage(
+  // Session already has an attached lead, so keep the conversation alive
+  // and append future customer messages to that lead's notes.
+  if (session.currentStep === "complete" && session.leadId) {
+    await appendCustomerUpdateToLeadNotes(session.leadId, trimmedContent);
+
+    const assistantReply = createMessageObject(
       sessionId,
       "assistant",
-      "Your request has already been captured. If you'd like, you can start a new chat for another project."
+      "Got it — I’ve added that to your request. Anything else you'd like the contractor to know?"
     );
 
-    currentMessages.push(assistantReply);
-    messages.set(sessionId, currentMessages);
-    sessions.set(sessionId, session);
+    await insertMessage(assistantReply);
 
     return {
       sessionId,
-      messages: currentMessages,
+      messages: await getMessagesForSession(sessionId),
       session,
     };
   }
 
   const updatedSession = applyAnswerToSession(session, trimmedContent);
+  await updateSession(updatedSession);
 
-  if (updatedSession.currentStep === "complete" && updatedSession.leadCaptured) {
-    const alreadyCreated = currentMessages.some(
-      (msg) =>
-        msg.role === "system" &&
-        msg.content.startsWith("LEAD_CREATED:")
+  if (
+    updatedSession.currentStep === "complete" &&
+    updatedSession.leadCaptured &&
+    !updatedSession.leadId
+  ) {
+    const intake = updatedSession.intakeData;
+
+    const lead = await createLead({
+      tenantId: updatedSession.tenantId,
+      tenantSlug: updatedSession.tenantSlug,
+      sessionId: updatedSession.id,
+      customerName: intake.name || "Unknown",
+      phone: intake.contact || "Unknown",
+      email: undefined,
+      address: undefined,
+      projectType: intake.projectType || "Unknown",
+      location: intake.location || "Unknown",
+      timeline: intake.timeline || "Unknown",
+      appointment: undefined,
+      notes: undefined,
+      images: [],
+    });
+
+    await sendLeadNotification(lead);
+
+    updatedSession.leadId = lead.id;
+    updatedSession.notificationSentAt = new Date().toISOString();
+
+    await updateSession(updatedSession);
+
+    const systemMessage = createMessageObject(
+      sessionId,
+      "system",
+      `LEAD_CREATED:${new Date().toISOString()}`
     );
-  
-    if (!alreadyCreated) {
-      const intake = updatedSession.intakeData;
-    
-      console.log("[chat] creating lead with intake:", intake);
-    
-      const lead = await createLead({
-        tenantId: updatedSession.tenantId,
-        tenantSlug: updatedSession.tenantSlug,
-        sessionId: updatedSession.id,
-        customerName: intake.name || "Unknown",
-      
-        // For the current MVP, the final intake field is being used as the
-        // primary callback value, so we store it in both phone and contact.
-        // Later, once we split phone/email cleanly, this can become smarter.
-        phone: intake.contact || "Unknown",
-        email: undefined,
-        contact: intake.contact || "Unknown",
-      
-        address: undefined,
-        projectType: intake.projectType || "Unknown",
-        location: intake.location || "Unknown",
-        timeline: intake.timeline || "Unknown",
-        appointment: undefined,
-        notes: undefined,
-        images: [],
-      });
-      
-      await sendLeadNotification(lead);
-  
-      currentMessages.push(
-        createMessage(
-          sessionId,
-          "system",
-          `LEAD_CREATED:${new Date().toISOString()}`
-        )
-      );
-    }
+
+    await insertMessage(systemMessage);
   }
-  
-  const assistantReply = createMessage(
+
+  const assistantReply = createMessageObject(
     sessionId,
     "assistant",
     getPromptForStep(updatedSession.currentStep, tenant.businessName)
   );
-  
-  currentMessages.push(assistantReply);
-  
-  messages.set(sessionId, currentMessages);
-  sessions.set(sessionId, updatedSession);
-  
+
+  await insertMessage(assistantReply);
+
   return {
     sessionId,
-    messages: currentMessages,
+    messages: await getMessagesForSession(sessionId),
     session: updatedSession,
   };
 }

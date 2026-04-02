@@ -1,4 +1,4 @@
-export type ChatRole = "assistant" | "user" | "system";
+export type ChatRole = "user" | "assistant" | "system";
 
 export type IntakeStep =
   | "project_type"
@@ -8,14 +8,6 @@ export type IntakeStep =
   | "contact"
   | "complete";
 
-export type IntakeData = {
-  projectType?: string;
-  location?: string;
-  timeline?: string;
-  name?: string;
-  contact?: string;
-};
-
 export type ChatMessage = {
   id: string;
   sessionId: string;
@@ -24,24 +16,24 @@ export type ChatMessage = {
   createdAt: string;
 };
 
+export type IntakeData = {
+  projectType?: string;
+  location?: string;
+  timeline?: string;
+  name?: string;
+  contact?: string;
+  [key: string]: any;
+};
+
 export type ChatSession = {
   id: string;
-  tenantId: string;
+  tenantId?: string;
   tenantSlug: string;
   status: "active" | "closed";
   createdAt: string;
   currentStep: IntakeStep;
   intakeData: IntakeData;
   leadCaptured: boolean;
-};
-
-export type CreateSessionResult = {
-  session: ChatSession;
-  messages: ChatMessage[];
-};
-
-export type SendMessageResult = {
-  sessionId: string;
-  messages: ChatMessage[];
-  session: ChatSession;
+  leadId?: string | null;
+  notificationSentAt?: string | null;
 };

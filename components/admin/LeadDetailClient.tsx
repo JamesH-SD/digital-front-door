@@ -90,21 +90,52 @@ export default function LeadDetailClient({ lead }: { lead: Lead }) {
 
   const appointmentMissing = !form.appointment.trim();
 
+  function showNextImage() {
+    if (selectedIndex === null) return;
+  
+    const nextIndex = (selectedIndex + 1) % form.images.length;
+    setSelectedIndex(nextIndex);
+    setSelectedImage(form.images[nextIndex]);
+  }
+  
+  function showPrevImage() {
+    if (selectedIndex === null) return;
+  
+    const prevIndex =
+      (selectedIndex - 1 + form.images.length) % form.images.length;
+  
+    setSelectedIndex(prevIndex);
+    setSelectedImage(form.images[prevIndex]);
+  }
+
   useEffect(() => {
-    function handleEscape(event: KeyboardEvent) {
+    function handleKeyDown(event: KeyboardEvent) {
+      if (!selectedImage) return;
+  
       if (event.key === "Escape") {
         setSelectedImage(null);
+        setSelectedIndex(null);
+        return;
+      }
+  
+      if (event.key === "ArrowRight") {
+        event.preventDefault();
+        showNextImage();
+        return;
+      }
+  
+      if (event.key === "ArrowLeft") {
+        event.preventDefault();
+        showPrevImage();
       }
     }
-
-    if (selectedImage) {
-      window.addEventListener("keydown", handleEscape);
-    }
-
+  
+    window.addEventListener("keydown", handleKeyDown);
+  
     return () => {
-      window.removeEventListener("keydown", handleEscape);
+      window.removeEventListener("keydown", handleKeyDown);
     };
-  }, [selectedImage]);
+  }, [selectedImage, selectedIndex, form.images]);
 
   async function saveLead() {
     try {
@@ -199,24 +230,6 @@ export default function LeadDetailClient({ lead }: { lead: Lead }) {
     } finally {
       setIsUploading(false);
     }
-  }
-
-  function showNextImage() {
-    if (selectedIndex === null) return;
-  
-    const nextIndex = (selectedIndex + 1) % form.images.length;
-    setSelectedIndex(nextIndex);
-    setSelectedImage(form.images[nextIndex]);
-  }
-  
-  function showPrevImage() {
-    if (selectedIndex === null) return;
-  
-    const prevIndex =
-      (selectedIndex - 1 + form.images.length) % form.images.length;
-  
-    setSelectedIndex(prevIndex);
-    setSelectedImage(form.images[prevIndex]);
   }
 
   return (
@@ -524,9 +537,14 @@ export default function LeadDetailClient({ lead }: { lead: Lead }) {
               />
 
               <div className="border-t bg-white px-4 py-3">
-                <p className="truncate text-sm text-gray-700">
-                  {selectedImage.filename || selectedImage.url}
-                </p>
+                <div className="flex flex-col gap-1 sm:flex-row sm:items-center sm:justify-between">
+                  <p className="truncate text-sm text-gray-700">
+                    {selectedImage.filename || selectedImage.url}
+                  </p>
+                  <p className="text-xs text-gray-500">
+                    Use ← → to browse, Esc to close
+                  </p>
+                </div>
               </div>
             </div>
           </div>
