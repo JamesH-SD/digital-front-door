@@ -21,7 +21,19 @@ export type IntakeData = {
   location?: string;
   timeline?: string;
   name?: string;
+
+  /**
+   * Primary contact method for the initial lead capture.
+   * For the current MVP, this is the normalized phone number.
+   */
   contact?: string;
+
+  /**
+   * Optional email captured after the lead has already been created.
+   * This is not required for initial lead creation.
+   */
+  email?: string;
+
   [key: string]: any;
 };
 

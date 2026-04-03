@@ -5,8 +5,110 @@ import type { Lead } from "@/lib/types/lead";
 
 type LeadStatus = "new" | "contacted" | "booked" | "closed";
 
+type CustomerUpdateEntry = {
+  timestamp: string | null;
+  content: string;
+};
+
 function displayValue(value?: string) {
   return value && value.trim() ? value : "Not provided";
+}
+
+/**
+ * Format normalized US phone numbers for display.
+ *
+ * Examples:
+ * - +16195490891 -> (619) 549-0891
+ * - 6195490891   -> (619) 549-0891
+ *
+ * If the value does not match a simple US pattern, return it unchanged so
+ * we do not accidentally hide or corrupt unexpected data.
+ */
+function formatPhoneForDisplay(value?: string) {
+  if (!value || !value.trim()) return "Not provided";
+
+  const digits = value.replace(/\D/g, "");
+
+  if (digits.length === 11 && digits.startsWith("1")) {
+    const area = digits.slice(1, 4);
+    const prefix = digits.slice(4, 7);
+    const line = digits.slice(7, 11);
+    return `(${area}) ${prefix}-${line}`;
+  }
+
+  if (digits.length === 10) {
+    const area = digits.slice(0, 3);
+    const prefix = digits.slice(3, 6);
+    const line = digits.slice(6, 10);
+    return `(${area}) ${prefix}-${line}`;
+  }
+
+  return value;
+}
+
+/**
+ * Convert an ISO timestamp into a local, human-friendly value for display.
+ *
+ * We keep UTC/Zulu in the database, but display local time in the UI so the
+ * admin experience is easier to read.
+ */
+function formatTimestampForDisplay(value?: string | null) {
+  if (!value) return "Time unavailable";
+
+  const date = new Date(value);
+
+  if (Number.isNaN(date.getTime())) {
+    return value;
+  }
+
+  return new Intl.DateTimeFormat(undefined, {
+    dateStyle: "medium",
+    timeStyle: "short",
+  }).format(date);
+}
+
+/**
+ * Parse the raw customer_updates text into timestamped display blocks.
+ *
+ * Expected stored format:
+ * [Customer Update - 2026-04-03T02:15:00.000Z]
+ * Message text here
+ *
+ * Multiple updates are separated by blank lines.
+ */
+function parseCustomerUpdates(raw?: string): CustomerUpdateEntry[] {
+  if (!raw || !raw.trim()) {
+    return [];
+  }
+
+  const normalized = raw.trim();
+
+  const pattern =
+    /\[Customer Update - ([^\]]+)\]\s*([\s\S]*?)(?=\n{2}\[Customer Update - |\s*$)/g;
+
+  const entries: CustomerUpdateEntry[] = [];
+  let match: RegExpExecArray | null;
+
+  while ((match = pattern.exec(normalized)) !== null) {
+    entries.push({
+      timestamp: match[1]?.trim() || null,
+      content: match[2]?.trim() || "",
+    });
+  }
+
+  /**
+   * Fallback:
+   * If the stored content does not match the expected pattern, preserve it as
+   * a single entry instead of failing silently.
+   */
+  if (entries.length === 0) {
+    entries.push({
+      timestamp: null,
+      content: normalized,
+    });
+  }
+
+  return entries;
 }
 
 function getStatusClasses(status: string) {
@@ -30,12 +132,16 @@ function CompactField({
   isEditing = false,
   onChange,
   placeholder,
+  displayFormatter,
+  hrefBuilder,
 }: {
   label: string;
   value?: string;
   isEditing?: boolean;
   onChange?: (value: string) => void;
   placeholder?: string;
+  displayFormatter?: (value?: string) => string;
+  hrefBuilder?: (value?: string) => string | null;
 }) {
   if (isEditing) {
     return (
@@ -53,10 +159,73 @@ function CompactField({
     );
   }
 
+  const formattedValue = displayFormatter
+    ? displayFormatter(value)
+    : displayValue(value);
+
+  const href = hrefBuilder ? hrefBuilder(value) : null;
+
   return (
     <div className="rounded-lg border bg-gray-50 px-3 py-2 text-sm text-gray-900">
       <span className="font-semibold text-gray-700">{label}:</span>{" "}
-      <span>{displayValue(value)}</span>
+      {href && value && value.trim() ? (
+        <a
+          href={href}
+          className="text-blue-700 underline underline-offset-2 hover:text-blue-800"
+        >
+          {formattedValue}
+        </a>
+      ) : (
+        <span>{formattedValue}</span>
+      )}
+    </div>
+  );
+}
+
+/**
+ * Reusable collapsible section for larger lead detail panels.
+ *
+ * This helps prevent the lead detail view from growing out of control as
+ * descriptions, customer updates, contractor notes, and images get longer.
+ */
+function CollapsibleSection({
+  title,
+  isOpen,
+  onToggle,
+  children,
+  rightLabel,
+}: {
+  title: string;
+  isOpen: boolean;
+  onToggle: () => void;
+  children: React.ReactNode;
+  rightLabel?: string;
+}) {
+  return (
+    <div className="rounded-2xl border bg-gray-50/60">
+      <button
+        type="button"
+        onClick={onToggle}
+        className="flex w-full items-center justify-between gap-3 px-4 py-4 text-left"
+      >
+        <div className="min-w-0">
+          <p className="text-sm font-semibold text-gray-700">{title}</p>
+          {rightLabel ? (
+            <p className="mt-1 text-xs text-gray-500">{rightLabel}</p>
+          ) : null}
+        </div>
+
+        <span
+          className={`shrink-0 text-sm text-gray-500 transition-transform ${
+            isOpen ? "rotate-180" : ""
+          }`}
+          aria-hidden="true"
+        >
+          ▼
+        </span>
+      </button>
+
+      {isOpen ? <div className="border-t px-4 py-4">{children}</div> : null}
     </div>
   );
 }
@@ -76,10 +245,10 @@ export default function LeadDetailClient({ lead }: { lead: Lead }) {
   const fileInputRef = useRef<HTMLInputElement | null>(null);
 
   /**
-   * Form state used for editable contractor-facing lead management.
+   * Form state used for editable internal lead management.
    *
    * Important separation:
-   * - notes: contractor/internal notes
+   * - notes: internal company notes
    * - customerUpdates: customer-originated follow-up details captured
    *   after the original chat intake
    */
@@ -97,7 +266,22 @@ export default function LeadDetailClient({ lead }: { lead: Lead }) {
     images: lead.images || [],
   });
 
+  /**
+   * Section expansion state.
+   *
+   * Default behavior:
+   * - Description: open
+   * - Contractor Notes: collapsed
+   * - Customer Updates: collapsed
+   * - Images: collapsed
+   */
+  const [isDescriptionOpen, setIsDescriptionOpen] = useState(true);
+  const [isNotesOpen, setIsNotesOpen] = useState(false);
+  const [isCustomerUpdatesOpen, setIsCustomerUpdatesOpen] = useState(false);
+  const [isImagesOpen, setIsImagesOpen] = useState(false);
+
   const appointmentMissing = !form.appointment.trim();
+  const customerUpdateEntries = parseCustomerUpdates(form.customerUpdates);
 
   function showNextImage() {
     if (selectedIndex === null) return;
@@ -282,6 +466,11 @@ export default function LeadDetailClient({ lead }: { lead: Lead }) {
               onChange={(value) =>
                 setForm((prev) => ({ ...prev, phone: value }))
               }
+              displayFormatter={formatPhoneForDisplay}
+              hrefBuilder={(value) => {
+                if (!value || !value.trim()) return null;
+                return `tel:${value}`;
+              }}
             />
 
             <CompactField
@@ -291,6 +480,10 @@ export default function LeadDetailClient({ lead }: { lead: Lead }) {
               onChange={(value) =>
                 setForm((prev) => ({ ...prev, email: value }))
               }
+              hrefBuilder={(value) => {
+                if (!value || !value.trim()) return null;
+                return `mailto:${value}`;
+              }}
             />
 
             <CompactField
@@ -360,9 +553,11 @@ export default function LeadDetailClient({ lead }: { lead: Lead }) {
             />
           </div>
 
-          <div className="rounded-2xl border bg-gray-50/60 p-4">
-            <p className="text-sm font-semibold text-gray-700">Description:</p>
-
+          <CollapsibleSection
+            title="Description"
+            isOpen={isDescriptionOpen}
+            onToggle={() => setIsDescriptionOpen((prev) => !prev)}
+          >
             {isEditing ? (
               <textarea
                 value={form.projectType}
@@ -373,28 +568,29 @@ export default function LeadDetailClient({ lead }: { lead: Lead }) {
                   }))
                 }
                 rows={4}
-                className="mt-2 w-full rounded-md border border-gray-300 bg-white px-3 py-2 text-sm text-gray-900 outline-none focus:border-gray-500"
+                className="w-full rounded-md border border-gray-300 bg-white px-3 py-2 text-sm text-gray-900 outline-none focus:border-gray-500"
                 placeholder="Enter description"
               />
             ) : (
-              <p className="mt-2 whitespace-pre-wrap text-sm text-gray-900">
+              <p className="whitespace-pre-wrap text-sm text-gray-900">
                 {displayValue(form.projectType)}
               </p>
             )}
-          </div>
+          </CollapsibleSection>
 
-          <div className="rounded-2xl border bg-gray-50/60 p-4">
-            <p className="text-sm font-semibold text-gray-700">
-              Contractor Notes:
-            </p>
-
+          <CollapsibleSection
+            title="Contractor Notes"
+            isOpen={isNotesOpen}
+            onToggle={() => setIsNotesOpen((prev) => !prev)}
+            rightLabel="Internal company notes"
+          >
             <textarea
               value={form.notes}
               onChange={(e) =>
                 setForm((prev) => ({ ...prev, notes: e.target.value }))
               }
               rows={5}
-              className="mt-2 w-full rounded-md border border-gray-300 bg-white px-3 py-2 text-sm text-gray-900 outline-none focus:border-gray-500 disabled:bg-gray-100 disabled:text-gray-500"
+              className="w-full rounded-md border border-gray-300 bg-white px-3 py-2 text-sm text-gray-900 outline-none focus:border-gray-500 disabled:bg-gray-100 disabled:text-gray-500"
               placeholder="Add contractor notes here"
               disabled={!isEditing}
             />
@@ -404,28 +600,58 @@ export default function LeadDetailClient({ lead }: { lead: Lead }) {
                 Click Edit to update contractor notes and lead details.
               </p>
             )}
-          </div>
+          </CollapsibleSection>
 
-          <div className="rounded-2xl border bg-gray-50/60 p-4">
-            <p className="text-sm font-semibold text-gray-700">
-              Customer Updates:
-            </p>
+          <CollapsibleSection
+            title="Customer Updates"
+            isOpen={isCustomerUpdatesOpen}
+            onToggle={() => setIsCustomerUpdatesOpen((prev) => !prev)}
+            rightLabel={`${customerUpdateEntries.length} update${
+              customerUpdateEntries.length === 1 ? "" : "s"
+            }`}
+          >
+            {customerUpdateEntries.length > 0 ? (
+              <div className="space-y-3">
+                {customerUpdateEntries.map((entry, index) => (
+                  <div
+                    key={`${entry.timestamp ?? "no-time"}_${index}`}
+                    className="rounded-xl border bg-white p-3"
+                  >
+                    <div className="mb-2 flex items-center justify-between gap-3">
+                      <p className="text-xs font-semibold uppercase tracking-wide text-gray-500">
+                        Customer Update
+                      </p>
+                      <p className="text-xs text-gray-500">
+                        {formatTimestampForDisplay(entry.timestamp)}
+                      </p>
+                    </div>
 
-            <textarea
-              value={form.customerUpdates}
-              readOnly
-              rows={5}
-              className="mt-2 w-full rounded-md border border-gray-300 bg-gray-100 px-3 py-2 text-sm text-gray-900 outline-none"
-              placeholder="Customer follow-up messages will appear here"
-            />
+                    <p className="whitespace-pre-wrap text-sm text-gray-900">
+                      {entry.content || "No details provided."}
+                    </p>
+                  </div>
+                ))}
+              </div>
+            ) : (
+              <div className="rounded-md border border-gray-300 bg-gray-100 px-3 py-2 text-sm text-gray-900">
+                Customer follow-up messages will appear here.
+              </div>
+            )}
 
             <p className="mt-2 text-xs text-gray-500">
-              These are follow-up details submitted by the customer through chat
-              after the original request was captured.
+              These are follow-up details submitted through chat after the
+              original request was captured.
             </p>
-          </div>
+          </CollapsibleSection>
 
-          <div className="rounded-2xl border bg-gray-50/60 p-4">
+          <CollapsibleSection
+            title="Images"
+            isOpen={isImagesOpen}
+            onToggle={() => setIsImagesOpen((prev) => !prev)}
+            rightLabel={`${form.images.length} image${
+              form.images.length === 1 ? "" : "s"
+            }`}
+          >
             <div className="flex items-center justify-between gap-3">
               <p className="text-sm font-semibold text-gray-700">Images:</p>
 
@@ -486,7 +712,7 @@ export default function LeadDetailClient({ lead }: { lead: Lead }) {
             ) : (
               <p className="mt-3 text-sm text-gray-900">Not provided</p>
             )}
-          </div>
+          </CollapsibleSection>
 
           {saveMessage ? (
             <p className="text-sm text-gray-600">{saveMessage}</p>

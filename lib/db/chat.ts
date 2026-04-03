@@ -27,28 +27,104 @@ function createMessageObject(
   };
 }
 
+/**
+ * Basic email validation for optional email capture after the lead exists.
+ * This is intentionally simple and practical for MVP use.
+ */
+function normalizeEmail(input: string): string | null {
+  const trimmed = input.trim().toLowerCase();
+
+  if (!trimmed) return null;
+
+  const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+
+  if (!emailRegex.test(trimmed)) {
+    return null;
+  }
+
+  return trimmed;
+}
+
+/**
+ * Normalize US phone numbers to E.164 for consistency in the database
+ * and compatibility with SMS providers like Twilio.
+ *
+ * Accepted examples:
+ * - 6195551212        -> +16195551212
+ * - (619) 555-1212    -> +16195551212
+ * - 1-619-555-1212    -> +16195551212
+ * - +1 619 555 1212   -> +16195551212
+ *
+ * Rejected examples:
+ * - too short / too long
+ * - 1111111111
+ * - 1234567890
+ */
+function normalizeUsPhone(input: string): string | null {
+  const digitsOnly = input.replace(/\D/g, "");
+
+  if (!digitsOnly) {
+    return null;
+  }
+
+  let normalizedDigits = digitsOnly;
+
+  if (normalizedDigits.length === 11 && normalizedDigits.startsWith("1")) {
+    normalizedDigits = normalizedDigits.slice(1);
+  }
+
+  if (normalizedDigits.length !== 10) {
+    return null;
+  }
+
+  const invalidPatterns = new Set([
+    "0000000000",
+    "1111111111",
+    "2222222222",
+    "3333333333",
+    "4444444444",
+    "5555555555",
+    "6666666666",
+    "7777777777",
+    "8888888888",
+    "9999999999",
+    "1234567890",
+    "0123456789",
+  ]);
+
+  if (invalidPatterns.has(normalizedDigits)) {
+    return null;
+  }
+
+  return `+1${normalizedDigits}`;
+}
+
 function getPromptForStep(step: IntakeStep, businessName: string): string {
   switch (step) {
     case "project_type":
-      return `Hi! I'm the virtual receptionist for ${businessName}. What kind of project can I help you with today?`;
+      return `Hi! Welcome to ${businessName}. How can we help you today?`;
 
     case "location":
-      return "Got it. What city is the job located in?";
+      return "Got it. What city is the project in?";
 
     case "timeline":
-      return "Thanks. What is your timeline for getting this work done?";
+      return "Thanks. When are you hoping to get this work done?";
 
     case "name":
-      return "Understood. What is your name?";
+      return "Great. What’s your first and last name?";
 
     case "contact":
-      return "Great. What is the best phone number or email for the contractor to reach you?";
+      return "What’s the best phone number for us to reach you by text or call?";
 
     case "complete":
-      return "Thanks, that helps a lot. Is there anything else you'd like the contractor to know?";
+      /**
+       * The post-capture conversational flow is owned by the frontend.
+       * Returning an empty string prevents duplicate completion bubbles.
+       */
+      return "";
 
     default:
-      return "How can I help you today?";
+      return "How can we help you today?";
   }
 }
 
@@ -100,6 +176,15 @@ function applyAnswerToSession(
       };
 
     case "contact":
+      /**
+       * Once a valid phone number is captured, we have the minimum required
+       * information needed to create the lead silently in the background.
+       *
+       * The session remains active so the user can optionally add:
+       * - email
+       * - photos
+       * - extra project details
+       */
       return {
         ...session,
         currentStep: "complete",
@@ -184,11 +269,10 @@ async function updateSession(session: ChatSession) {
 }
 
 /**
- * Append post-capture customer follow-up messages to the dedicated
- * customer_updates field on the lead.
+ * Append customer follow-up messages to the dedicated customer_updates field.
  *
- * This intentionally does NOT write into leads.notes because notes are
- * reserved for contractor/internal use in the admin workflow.
+ * This intentionally does NOT write into leads.notes because notes are reserved
+ * for internal/company use in the admin workflow.
  */
 async function appendCustomerUpdateToLead(leadId: string, content: string) {
   const supabase = await createClient();
@@ -229,6 +313,49 @@ ${appendedBlock}`
     console.error("Error updating customer updates:", updateError.message);
     throw updateError;
   }
+}
+
+/**
+ * Save or update the optional email address on an existing lead.
+ */
+async function updateLeadEmail(leadId: string, email: string) {
+  const supabase = await createClient();
+
+  const { error } = await supabase
+    .from("leads")
+    .update({
+      email,
+      updated_at: new Date().toISOString(),
+    })
+    .eq("id", leadId);
+
+  if (error) {
+    console.error("Error updating lead email:", error.message);
+    throw error;
+  }
+}
+
+/**
+ * Look up minimal lead data needed to decide whether an incoming post-capture
+ * message should be treated as email capture or as a normal follow-up update.
+ */
+async function getLeadContactState(leadId: string) {
+  const supabase = await createClient();
+
+  const { data, error } = await supabase
+    .from("leads")
+    .select("email")
+    .eq("id", leadId)
+    .single();
+
+  if (error) {
+    console.error("Error fetching lead contact state:", error.message);
+    throw error;
+  }
+
+  return {
+    email: data?.email ?? null,
+  };
 }
 
 export async function createChatSessionForTenantSlug(tenantSlug: string) {
@@ -350,18 +477,122 @@ export async function addUserMessage(sessionId: string, content: string) {
   await insertMessage(userMessage);
 
   /**
-   * If the session has already produced a lead, keep the chat active and
-   * treat future customer messages as follow-up updates for that same lead.
+   * Validate and normalize the phone number before we let the chat advance
+   * past the required contact step.
+   */
+  if (session.currentStep === "contact") {
+    const normalizedPhone = normalizeUsPhone(trimmedContent);
+
+    if (!normalizedPhone) {
+      const assistantReply = createMessageObject(
+        sessionId,
+        "assistant",
+        "That doesn’t look like a valid phone number yet. Please send the best number for us to reach you by text or call."
+      );
+
+      await insertMessage(assistantReply);
+
+      return {
+        sessionId,
+        messages: await getMessagesForSession(sessionId),
+        session,
+      };
+    }
+
+    const updatedSession = applyAnswerToSession(session, normalizedPhone);
+    await updateSession(updatedSession);
+
+    if (
+      updatedSession.currentStep === "complete" &&
+      updatedSession.leadCaptured &&
+      !updatedSession.leadId
+    ) {
+      const intake = updatedSession.intakeData;
+
+      const lead = await createLead({
+        tenantId: updatedSession.tenantId,
+        tenantSlug: updatedSession.tenantSlug,
+        sessionId: updatedSession.id,
+        customerName: intake.name || "Unknown",
+        phone: intake.contact || "Unknown",
+        email: undefined,
+        address: undefined,
+        projectType: intake.projectType || "Unknown",
+        location: intake.location || "Unknown",
+        timeline: intake.timeline || "Unknown",
+        appointment: undefined,
+        notes: undefined,
+        customerUpdates: undefined,
+        images: [],
+      });
+
+      await sendLeadNotification(lead);
+
+      updatedSession.leadId = lead.id;
+      updatedSession.notificationSentAt = new Date().toISOString();
+
+      await updateSession(updatedSession);
+    }
+
+    const prompt = getPromptForStep(
+      updatedSession.currentStep,
+      tenant.businessName
+    );
+
+    if (prompt) {
+      const assistantReply = createMessageObject(
+        sessionId,
+        "assistant",
+        prompt
+      );
+      await insertMessage(assistantReply);
+    }
+
+    return {
+      sessionId,
+      messages: await getMessagesForSession(sessionId),
+      session: updatedSession,
+    };
+  }
+
+  /**
+   * If a lead already exists for this session, keep the conversation alive.
    *
-   * These updates go into leads.customer_updates, not leads.notes.
+   * Special handling:
+   * - if the message looks like an email, store it on the lead
+   * - otherwise treat it as a normal follow-up project update
    */
   if (session.currentStep === "complete" && session.leadId) {
+    const normalizedEmail = normalizeEmail(trimmedContent);
+
+    if (normalizedEmail) {
+      const leadState = await getLeadContactState(session.leadId);
+
+      await updateLeadEmail(session.leadId, normalizedEmail);
+
+      const assistantReply = createMessageObject(
+        sessionId,
+        "assistant",
+        leadState.email
+          ? "Thanks — we’ve updated the email on your request."
+          : "Thanks — we’ve added your email to your request."
+      );
+
+      await insertMessage(assistantReply);
+
+      return {
+        sessionId,
+        messages: await getMessagesForSession(sessionId),
+        session,
+      };
+    }
+
     await appendCustomerUpdateToLead(session.leadId, trimmedContent);
 
     const assistantReply = createMessageObject(
       sessionId,
       "assistant",
-      "Got it — I’ve added that to your request. Anything else you'd like the contractor to know?"
+      "Got it — we’ve added that to your request. If you’d like, you can also share an email for updates, quotes, or documents."
     );
 
     await insertMessage(assistantReply);
@@ -373,9 +604,16 @@ export async function addUserMessage(sessionId: string, content: string) {
     };
   }
 
+  /**
+   * For the rest of the scripted intake flow, apply the answer normally.
+   */
   const updatedSession = applyAnswerToSession(session, trimmedContent);
   await updateSession(updatedSession);
 
+  /**
+   * Once the minimum required information has been collected, create the lead
+   * silently in the background if it does not already exist for this session.
+   */
   if (
     updatedSession.currentStep === "complete" &&
     updatedSession.leadCaptured &&
@@ -406,23 +644,17 @@ export async function addUserMessage(sessionId: string, content: string) {
     updatedSession.notificationSentAt = new Date().toISOString();
 
     await updateSession(updatedSession);
-
-    const systemMessage = createMessageObject(
-      sessionId,
-      "system",
-      `LEAD_CREATED:${new Date().toISOString()}`
-    );
-
-    await insertMessage(systemMessage);
   }
 
-  const assistantReply = createMessageObject(
-    sessionId,
-    "assistant",
-    getPromptForStep(updatedSession.currentStep, tenant.businessName)
+  const prompt = getPromptForStep(
+    updatedSession.currentStep,
+    tenant.businessName
   );
 
-  await insertMessage(assistantReply);
+  if (prompt) {
+    const assistantReply = createMessageObject(sessionId, "assistant", prompt);
+    await insertMessage(assistantReply);
+  }
 
   return {
     sessionId,
