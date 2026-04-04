@@ -7,6 +7,10 @@ import { createClient } from "@/lib/supabase/server";
 export async function getTenantBySlug(
   slug: string
 ): Promise<Tenant | null> {
+  if (!slug) {
+    return null;
+  }
+
   const supabase = await createClient();
 
   const { data, error } = await supabase
@@ -26,15 +30,28 @@ export async function getTenantBySlug(
   return {
     id: data.id,
     slug: data.slug,
-    businessName: data.business_name || data.name || "",
-    tagline: data.tagline || "",
-    logoUrl: data.logo_url || null,
-    primaryColor: data.primary_color || "#1d4ed8",
-    phone: data.phone || "",
-    email: data.email || "",
-    city: data.city || "",
-    state: data.state || "",
-    serviceAreaSummary: data.service_area_summary || "",
-    isActive: data.is_active ?? true,
+    businessName: data.business_name,
+    primaryPhone: data.primary_phone,
+    email: data.email,
+    websiteUrl: data.website_url,
+    primaryCategory: data.primary_category,
+    isServiceAreaBusiness: data.is_service_area_business,
+    addressLine1: data.address_line1,
+    city: data.city,
+    state: data.state,
+    zip: data.zip,
+    serviceAreaSummary: data.service_area_summary,
+    serviceCities: data.service_cities || [],
+    outOfAreaMessage: data.out_of_area_message,
+    tagline: data.tagline,
+    aboutUs: data.about_us,
+    licenseNumber: data.license_number,
+    servicesOffered: data.services_offered || [],
+    hours: data.hours || {},
+    greetingMessage: data.greeting_message,
+    askForTimeline: data.ask_for_timeline,
+    askForEmailAfterPhone: data.ask_for_email_after_phone,
+    askForImagesAfterCapture: data.ask_for_images_after_capture,
+    requirePhoneForLead: data.require_phone_for_lead,
   };
 }
