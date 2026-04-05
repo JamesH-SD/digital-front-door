@@ -4,15 +4,15 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import type { Tenant } from "@/lib/types/tenant";
 import AdminSidebar from "@/components/admin/AdminSidebar";
+import {
+  AdminBreadcrumbsProvider,
+  BreadcrumbItem,
+  useAdminBreadcrumbs,
+} from "@/components/admin/AdminBreadcrumbsContext";
 
 type AdminShellProps = {
   tenant: Tenant;
   children: React.ReactNode;
-};
-
-type BreadcrumbItem = {
-  label: string;
-  href?: string;
 };
 
 function formatSegmentLabel(segment: string) {
@@ -34,7 +34,6 @@ function buildBreadcrumbs(
   const breadcrumbs: BreadcrumbItem[] = [
     {
       label: "Admin",
-      href: `/admin/${tenantSlug}`,
     },
   ];
 
@@ -54,42 +53,43 @@ function buildBreadcrumbs(
     return breadcrumbs;
   }
 
-  let currentPath = `/admin/${tenantSlug}`;
+  const leadsListHref = `/admin/${tenantSlug}`;
 
   routeParts.forEach((part, index) => {
-    currentPath += `/${part}`;
-
     const isLast = index === routeParts.length - 1;
     const isLikelyId =
       part.length > 20 ||
       part.startsWith("lead_") ||
       /^[0-9a-f-]{16,}$/i.test(part);
 
+    if (part === "leads") {
+      breadcrumbs.push({
+        label: "Leads",
+        href: isLast ? undefined : leadsListHref,
+      });
+      return;
+    }
+
     breadcrumbs.push({
-      label: isLikelyId ? "Detail" : formatSegmentLabel(part),
-      href: isLast ? undefined : currentPath,
+      label: isLikelyId ? "Lead" : formatSegmentLabel(part),
+      href: isLast ? undefined : `${leadsListHref}/${routeParts
+        .slice(0, index + 1)
+        .join("/")}`,
     });
   });
 
   return breadcrumbs;
 }
 
-/**
- * Shared tenant admin shell.
- *
- * Layout goals:
- * - left navigation for module growth
- * - top bar aligned with sidebar header
- * - centered page content area
- * - future-ready utility controls (language / auth)
- * - breadcrumbs rendered above page content instead of inside the header
- */
-export default function AdminShell({
+function AdminShellContent({
   tenant,
   children,
 }: AdminShellProps) {
   const pathname = usePathname();
-  const breadcrumbs = buildBreadcrumbs(pathname, tenant.slug);
+  const { breadcrumbs: overrideBreadcrumbs } = useAdminBreadcrumbs();
+
+  const breadcrumbs =
+    overrideBreadcrumbs ?? buildBreadcrumbs(pathname, tenant.slug);
 
   return (
     <div className="min-h-screen bg-gray-50">
@@ -160,5 +160,16 @@ export default function AdminShell({
         </div>
       </div>
     </div>
+  );
+}
+
+export default function AdminShell({
+  tenant,
+  children,
+}: AdminShellProps) {
+  return (
+    <AdminBreadcrumbsProvider>
+      <AdminShellContent tenant={tenant}>{children}</AdminShellContent>
+    </AdminBreadcrumbsProvider>
   );
 }

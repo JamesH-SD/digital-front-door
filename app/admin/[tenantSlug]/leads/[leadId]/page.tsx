@@ -1,6 +1,8 @@
 import { notFound } from "next/navigation";
 import LeadDetailClient from "@/components/admin/LeadDetailClient";
 import { getLeadById } from "@/lib/db/leads";
+import { getLeadActivities } from "@/lib/db/lead-activities";
+import AdminBreadcrumbsSetter from "@/components/admin/AdminBreadcrumbsSetter";
 
 type PageProps = {
   params: Promise<{
@@ -18,5 +20,19 @@ export default async function LeadDetailPage({ params }: PageProps) {
     notFound();
   }
 
-  return <LeadDetailClient lead={lead} />;
+  const activities = await getLeadActivities(lead.id);
+
+  return (
+    <>
+      <AdminBreadcrumbsSetter
+        items={[
+          { label: "Admin" },
+          { label: "Leads", href: `/admin/${tenantSlug}` },
+          { label: lead.leadNumber || "Lead" },
+        ]}
+      />
+
+      <LeadDetailClient lead={lead} activities={activities} />
+    </>
+  );
 }

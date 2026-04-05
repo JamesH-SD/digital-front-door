@@ -2,6 +2,7 @@
 
 import { useEffect, useRef, useState } from "react";
 import type { Lead } from "@/lib/types/lead";
+import type { LeadActivity } from "@/lib/types/lead-activity";
 
 type LeadStatus = "new" | "contacted" | "booked" | "closed";
 
@@ -48,9 +49,6 @@ function formatPhoneForDisplay(value?: string) {
 
 /**
  * Convert an ISO timestamp into a local, human-friendly value for display.
- *
- * We keep UTC/Zulu in the database, but display local time in the UI so the
- * admin experience is easier to read.
  */
 function formatTimestampForDisplay(value?: string | null) {
   if (!value) return "Time unavailable";
@@ -69,12 +67,6 @@ function formatTimestampForDisplay(value?: string | null) {
 
 /**
  * Parse the raw customer_updates text into timestamped display blocks.
- *
- * Expected stored format:
- * [Customer Update - 2026-04-03T02:15:00.000Z]
- * Message text here
- *
- * Multiple updates are separated by blank lines.
  */
 function parseCustomerUpdates(raw?: string): CustomerUpdateEntry[] {
   if (!raw || !raw.trim()) {
@@ -96,11 +88,6 @@ function parseCustomerUpdates(raw?: string): CustomerUpdateEntry[] {
     });
   }
 
-  /**
-   * Fallback:
-   * If the stored content does not match the expected pattern, preserve it as
-   * a single entry instead of failing silently.
-   */
   if (entries.length === 0) {
     entries.push({
       timestamp: null,
@@ -124,6 +111,121 @@ function getStatusClasses(status: string) {
     default:
       return "bg-gray-100 text-gray-700 border-gray-200";
   }
+}
+
+function getActivityLabel(activity: LeadActivity) {
+  switch (activity.eventType) {
+    case "lead.created":
+      return "Lead created";
+    case "lead.viewed":
+      return "Lead viewed";
+    case "lead.status_changed":
+      return "Status changed";
+    case "lead.customer_update_added":
+      return "Customer added details";
+    case "lead.email_added":
+      return "Email added";
+    case "lead.email_updated":
+      return "Email updated";
+    case "lead.address_updated":
+      return "Address updated";
+    case "lead.location_updated":
+      return "Location updated";
+    case "lead.timeline_updated":
+      return "Timeline updated";
+    case "lead.appointment_updated":
+      return "Appointment updated";
+    case "lead.image_uploaded":
+      return "Photo uploaded";
+    default:
+      return activity.eventType;
+  }
+}
+
+function getActivityDescription(activity: LeadActivity) {
+  const metadata = activity.metadata || {};
+
+  if (metadata.message) {
+    return String(metadata.message);
+  }
+
+  if (metadata.fieldName && metadata.newValue) {
+    if (metadata.previousValue) {
+      return `${metadata.fieldName} changed from "${metadata.previousValue}" to "${metadata.newValue}"`;
+    }
+
+    return `${metadata.fieldName} set to "${metadata.newValue}"`;
+  }
+
+  if (activity.eventType === "lead.image_uploaded" && metadata.filename) {
+    return `Uploaded ${metadata.filename}`;
+  }
+
+  return "Activity recorded.";
+}
+
+function getActivityDotClasses(activity: LeadActivity) {
+  switch (activity.eventType) {
+    case "lead.created":
+      return "bg-green-600";
+    case "lead.email_added":
+    case "lead.email_updated":
+      return "bg-blue-600";
+    case "lead.image_uploaded":
+      return "bg-purple-600";
+    case "lead.customer_update_added":
+      return "bg-amber-500";
+    case "lead.status_changed":
+      return "bg-indigo-600";
+    case "lead.timeline_updated":
+      return "bg-cyan-600";
+    case "lead.address_updated":
+    case "lead.location_updated":
+    case "lead.appointment_updated":
+      return "bg-slate-600";
+    default:
+      return "bg-gray-900";
+  }
+}
+
+function getActivityGroupLabel(dateString: string) {
+  const activityDate = new Date(dateString);
+  const now = new Date();
+
+  const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+  const yesterday = new Date(today);
+  yesterday.setDate(today.getDate() - 1);
+
+  const activityDay = new Date(
+    activityDate.getFullYear(),
+    activityDate.getMonth(),
+    activityDate.getDate()
+  );
+
+  if (activityDay.getTime() === today.getTime()) {
+    return "Today";
+  }
+
+  if (activityDay.getTime() === yesterday.getTime()) {
+    return "Yesterday";
+  }
+
+  return "Earlier";
+}
+
+function groupActivitiesForDisplay(activities: LeadActivity[]) {
+  const grouped: Record<string, LeadActivity[]> = {
+    Today: [],
+    Yesterday: [],
+    Earlier: [],
+  };
+
+  for (const activity of activities) {
+    const group = getActivityGroupLabel(activity.createdAt);
+    grouped[group].push(activity);
+  }
+
+  return grouped;
 }
 
 function CompactField({
@@ -182,12 +284,6 @@ function CompactField({
   );
 }
 
-/**
- * Reusable collapsible section for larger lead detail panels.
- *
- * This helps prevent the lead detail view from growing out of control as
- * descriptions, customer updates, contractor notes, and images get longer.
- */
 function CollapsibleSection({
   title,
   isOpen,
@@ -230,7 +326,13 @@ function CollapsibleSection({
   );
 }
 
-export default function LeadDetailClient({ lead }: { lead: Lead }) {
+export default function LeadDetailClient({
+  lead,
+  activities,
+}: {
+  lead: Lead;
+  activities: LeadActivity[];
+}) {
   const [isEditing, setIsEditing] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
   const [isUploading, setIsUploading] = useState(false);
@@ -244,14 +346,6 @@ export default function LeadDetailClient({ lead }: { lead: Lead }) {
 
   const fileInputRef = useRef<HTMLInputElement | null>(null);
 
-  /**
-   * Form state used for editable internal lead management.
-   *
-   * Important separation:
-   * - notes: internal company notes
-   * - customerUpdates: customer-originated follow-up details captured
-   *   after the original chat intake
-   */
   const [form, setForm] = useState({
     phone: lead.phone || "",
     email: lead.email || "",
@@ -266,15 +360,7 @@ export default function LeadDetailClient({ lead }: { lead: Lead }) {
     images: lead.images || [],
   });
 
-  /**
-   * Section expansion state.
-   *
-   * Default behavior:
-   * - Description: open
-   * - Contractor Notes: collapsed
-   * - Customer Updates: collapsed
-   * - Images: collapsed
-   */
+  const [isTimelineOpen, setIsTimelineOpen] = useState(true);
   const [isDescriptionOpen, setIsDescriptionOpen] = useState(true);
   const [isNotesOpen, setIsNotesOpen] = useState(false);
   const [isCustomerUpdatesOpen, setIsCustomerUpdatesOpen] = useState(false);
@@ -282,6 +368,15 @@ export default function LeadDetailClient({ lead }: { lead: Lead }) {
 
   const appointmentMissing = !form.appointment.trim();
   const customerUpdateEntries = parseCustomerUpdates(form.customerUpdates);
+
+  const visibleActivities = activities.filter(
+    (activity) => activity.eventType !== "lead.viewed"
+  );
+  
+  const groupedActivities = groupActivitiesForDisplay(visibleActivities);
+  const orderedGroups = ["Today", "Yesterday", "Earlier"].filter(
+    (group) => groupedActivities[group].length > 0
+  );
 
   function showNextImage() {
     if (selectedIndex === null) return;
@@ -552,6 +647,89 @@ export default function LeadDetailClient({ lead }: { lead: Lead }) {
               }
             />
           </div>
+
+          <CollapsibleSection
+            title="Activity Timeline"
+            isOpen={isTimelineOpen}
+            onToggle={() => setIsTimelineOpen((prev) => !prev)}
+            rightLabel={`${visibleActivities.length} event${
+              visibleActivities.length === 1 ? "" : "s"
+            }`}
+          >
+            {visibleActivities.length > 0 ? (
+              <div className="rounded-xl border bg-white px-4 py-2">
+                <div className="space-y-4">
+                  {orderedGroups.map((group) => (
+                    <div key={group}>
+                      <div className="mb-2 flex items-center gap-2">
+                        <div className="h-px flex-1 bg-gray-200" />
+                        <p className="shrink-0 text-[11px] font-semibold uppercase tracking-wide text-gray-500">
+                          {group}
+                        </p>
+                        <div className="h-px flex-1 bg-gray-200" />
+                      </div>
+
+                      <div className="space-y-0">
+                        {groupedActivities[group].map((activity, index, arr) => {
+                          const label = getActivityLabel(activity);
+                          const description = getActivityDescription(activity);
+                          const showDescription =
+                            description !== "Activity recorded." &&
+                            activity.eventType !== "lead.viewed";
+
+                          return (
+                            <div
+                              key={activity.id}
+                              className="relative flex gap-3 py-3"
+                            >
+                              {index < arr.length - 1 ? (
+                                <div className="absolute left-[7px] top-7 bottom-0 w-px bg-gray-200" />
+                              ) : null}
+
+                              <div
+                                className={`relative z-10 mt-1 h-3.5 w-3.5 shrink-0 rounded-full border-2 border-white shadow-sm ${getActivityDotClasses(
+                                  activity
+                                )}`}
+                              />
+
+                              <div className="min-w-0 flex-1">
+                                <div className="flex flex-col gap-1 sm:flex-row sm:items-start sm:justify-between">
+                                  <div className="min-w-0">
+                                    <p className="text-sm font-medium text-gray-900">
+                                      {label}
+                                    </p>
+
+                                    {showDescription ? (
+                                      <p className="mt-0.5 whitespace-pre-wrap text-xs text-gray-600">
+                                        {description}
+                                      </p>
+                                    ) : null}
+                                  </div>
+
+                                  <div className="shrink-0 sm:pl-4">
+                                    <p className="text-xs text-gray-500">
+                                      {formatTimestampForDisplay(activity.createdAt)}
+                                    </p>
+                                    <p className="mt-0.5 text-[11px] uppercase tracking-wide text-gray-400">
+                                      {activity.eventSource}
+                                    </p>
+                                  </div>
+                                </div>
+                              </div>
+                            </div>
+                          );
+                        })}
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            ) : (
+              <div className="rounded-md border border-gray-300 bg-gray-100 px-3 py-2 text-sm text-gray-900">
+                No activity recorded yet.
+              </div>
+            )}
+          </CollapsibleSection>
 
           <CollapsibleSection
             title="Description"
