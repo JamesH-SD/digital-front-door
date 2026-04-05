@@ -8,6 +8,8 @@ import {
 import { getTenantBySlug } from "@/lib/db/tenants";
 import { createLead } from "@/lib/db/leads";
 import { sendLeadNotification } from "@/lib/notifications/sendLeadNotification";
+import { createLeadActivity } from "@/lib/db/lead-activities";
+import { extractStructuredLeadUpdateFromMessage } from "@/lib/chat/extractStructuredLeadUpdate";
 
 function generateId(prefix: string) {
   return `${prefix}_${Math.random().toString(36).slice(2, 10)}`;
@@ -48,17 +50,6 @@ function normalizeEmail(input: string): string | null {
 /**
  * Normalize US phone numbers to E.164 for consistency in the database
  * and compatibility with SMS providers like Twilio.
- *
- * Accepted examples:
- * - 6195551212        -> +16195551212
- * - (619) 555-1212    -> +16195551212
- * - 1-619-555-1212    -> +16195551212
- * - +1 619 555 1212   -> +16195551212
- *
- * Rejected examples:
- * - too short / too long
- * - 1111111111
- * - 1234567890
  */
 function normalizeUsPhone(input: string): string | null {
   const digitsOnly = input.replace(/\D/g, "");
@@ -117,10 +108,6 @@ function getPromptForStep(step: IntakeStep, businessName: string): string {
       return "What’s the best phone number for us to reach you by text or call?";
 
     case "complete":
-      /**
-       * The post-capture conversational flow is owned by the frontend.
-       * Returning an empty string prevents duplicate completion bubbles.
-       */
       return "";
 
     default:
@@ -176,15 +163,6 @@ function applyAnswerToSession(
       };
 
     case "contact":
-      /**
-       * Once a valid phone number is captured, we have the minimum required
-       * information needed to create the lead silently in the background.
-       *
-       * The session remains active so the user can optionally add:
-       * - email
-       * - photos
-       * - extra project details
-       */
       return {
         ...session,
         currentStep: "complete",
@@ -268,12 +246,35 @@ async function updateSession(session: ChatSession) {
   }
 }
 
-/**
- * Append customer follow-up messages to the dedicated customer_updates field.
- *
- * This intentionally does NOT write into leads.notes because notes are reserved
- * for internal/company use in the admin workflow.
- */
+async function safeCreateLeadActivity(input: {
+  leadId: string;
+  tenantSlug: string;
+  eventType:
+    | "lead.customer_update_added"
+    | "lead.email_added"
+    | "lead.email_updated"
+    | "lead.address_updated"
+    | "lead.location_updated"
+    | "lead.timeline_updated"
+    | "lead.appointment_updated";
+  eventSource: "customer" | "system" | "admin";
+  metadata?: Record<string, any>;
+}) {
+  try {
+    await createLeadActivity(input);
+  } catch (error) {
+    console.error("Non-fatal lead activity logging error:", error);
+  }
+}
+
+async function safeSendLeadNotification(lead: Awaited<ReturnType<typeof createLead>>) {
+  try {
+    await sendLeadNotification(lead);
+  } catch (error) {
+    console.error("Non-fatal lead notification error:", error);
+  }
+}
+
 async function appendCustomerUpdateToLead(leadId: string, content: string) {
   const supabase = await createClient();
 
@@ -315,47 +316,94 @@ ${appendedBlock}`
   }
 }
 
-/**
- * Save or update the optional email address on an existing lead.
- */
-async function updateLeadEmail(leadId: string, email: string) {
-  const supabase = await createClient();
-
-  const { error } = await supabase
-    .from("leads")
-    .update({
-      email,
-      updated_at: new Date().toISOString(),
-    })
-    .eq("id", leadId);
-
-  if (error) {
-    console.error("Error updating lead email:", error.message);
-    throw error;
-  }
-}
-
-/**
- * Look up minimal lead data needed to decide whether an incoming post-capture
- * message should be treated as email capture or as a normal follow-up update.
- */
-async function getLeadContactState(leadId: string) {
+async function getLeadFieldState(leadId: string) {
   const supabase = await createClient();
 
   const { data, error } = await supabase
     .from("leads")
-    .select("email")
+    .select("email, address, location, timeline, appointment, tenant_slug")
     .eq("id", leadId)
     .single();
 
   if (error) {
-    console.error("Error fetching lead contact state:", error.message);
+    console.error("Error fetching lead field state:", error.message);
     throw error;
   }
 
   return {
     email: data?.email ?? null,
+    address: data?.address ?? null,
+    location: data?.location ?? null,
+    timeline: data?.timeline ?? null,
+    appointment: data?.appointment ?? null,
+    tenantSlug: data?.tenant_slug ?? null,
   };
+}
+
+async function updateLeadFields(
+  leadId: string,
+  updates: Partial<{
+    email: string;
+    address: string;
+    location: string;
+    timeline: string;
+    appointment: string;
+  }>
+) {
+  const supabase = await createClient();
+
+  const payload: Record<string, any> = {
+    updated_at: new Date().toISOString(),
+  };
+
+  if (typeof updates.email !== "undefined") payload.email = updates.email;
+  if (typeof updates.address !== "undefined") payload.address = updates.address;
+  if (typeof updates.location !== "undefined") payload.location = updates.location;
+  if (typeof updates.timeline !== "undefined") payload.timeline = updates.timeline;
+  if (typeof updates.appointment !== "undefined") payload.appointment = updates.appointment;
+
+  const { error } = await supabase.from("leads").update(payload).eq("id", leadId);
+
+  if (error) {
+    console.error("Error updating structured lead fields:", error.message);
+    throw error;
+  }
+}
+
+async function logStructuredLeadFieldActivity(input: {
+  leadId: string;
+  tenantSlug: string;
+  fieldName: "email" | "address" | "location" | "timeline" | "appointment";
+  previousValue?: string | null;
+  newValue: string;
+}) {
+  async function logStructuredLeadFieldActivity(input: {
+    leadId: string;
+    tenantSlug: string;
+    fieldName: "email" | "address" | "location" | "timeline" | "appointment";
+    previousValue?: string | null;
+    newValue: string;
+  }) {
+    const eventTypeMap = {
+      email: input.previousValue ? "lead.email_updated" : "lead.email_added",
+      address: "lead.address_updated",
+      location: "lead.location_updated",
+      timeline: "lead.timeline_updated",
+      appointment: "lead.appointment_updated",
+    } as const;
+  
+    await safeCreateLeadActivity({
+      leadId: input.leadId,
+      tenantSlug: input.tenantSlug,
+      eventType: eventTypeMap[input.fieldName],
+      eventSource: "customer",
+      metadata: {
+        fieldName: input.fieldName,
+        previousValue: input.previousValue ?? null,
+        newValue: input.newValue,
+      },
+    });
+  }
 }
 
 export async function createChatSessionForTenantSlug(tenantSlug: string) {
@@ -476,10 +524,6 @@ export async function addUserMessage(sessionId: string, content: string) {
   const userMessage = createMessageObject(sessionId, "user", trimmedContent);
   await insertMessage(userMessage);
 
-  /**
-   * Validate and normalize the phone number before we let the chat advance
-   * past the required contact step.
-   */
   if (session.currentStep === "contact") {
     const normalizedPhone = normalizeUsPhone(trimmedContent);
 
@@ -526,7 +570,7 @@ export async function addUserMessage(sessionId: string, content: string) {
         images: [],
       });
 
-      await sendLeadNotification(lead);
+      await safeSendLeadNotification(lead);
 
       updatedSession.leadId = lead.id;
       updatedSession.notificationSentAt = new Date().toISOString();
@@ -540,11 +584,7 @@ export async function addUserMessage(sessionId: string, content: string) {
     );
 
     if (prompt) {
-      const assistantReply = createMessageObject(
-        sessionId,
-        "assistant",
-        prompt
-      );
+      const assistantReply = createMessageObject(sessionId, "assistant", prompt);
       await insertMessage(assistantReply);
     }
 
@@ -555,27 +595,70 @@ export async function addUserMessage(sessionId: string, content: string) {
     };
   }
 
-  /**
-   * If a lead already exists for this session, keep the conversation alive.
-   *
-   * Special handling:
-   * - if the message looks like an email, store it on the lead
-   * - otherwise treat it as a normal follow-up project update
-   */
   if (session.currentStep === "complete" && session.leadId) {
-    const normalizedEmail = normalizeEmail(trimmedContent);
-
-    if (normalizedEmail) {
-      const leadState = await getLeadContactState(session.leadId);
-
-      await updateLeadEmail(session.leadId, normalizedEmail);
-
+    const extracted = extractStructuredLeadUpdateFromMessage(trimmedContent);
+    const leadState = await getLeadFieldState(session.leadId);
+    const tenantSlug = leadState.tenantSlug || session.tenantSlug;
+  
+    if (extracted.invalidEmailAttempt) {
+      const assistantReply = createMessageObject(
+        sessionId,
+        "assistant",
+        "Ooops! That email doesn’t look complete yet. Please send the best email address for updates, quotes, or documents."
+      );
+  
+      await insertMessage(assistantReply);
+  
+      return {
+        sessionId,
+        messages: await getMessagesForSession(sessionId),
+        session,
+      };
+    }
+  
+    if (extracted.email) {
+      await updateLeadFields(session.leadId, { email: extracted.email });
+  
+      await logStructuredLeadFieldActivity({
+        leadId: session.leadId,
+        tenantSlug,
+        fieldName: "email",
+        previousValue: leadState.email,
+        newValue: extracted.email,
+      });
+  
       const assistantReply = createMessageObject(
         sessionId,
         "assistant",
         leadState.email
           ? "Thanks — we’ve updated the email on your request."
           : "Thanks — we’ve added your email to your request."
+      );
+  
+      await insertMessage(assistantReply);
+  
+      return {
+        sessionId,
+        messages: await getMessagesForSession(sessionId),
+        session,
+      };
+    }
+
+    if (extracted.address) {
+      await updateLeadFields(session.leadId, { address: extracted.address });
+
+      await logStructuredLeadFieldActivity({
+        leadId: session.leadId,
+        tenantSlug,
+        fieldName: "address",
+        previousValue: leadState.address,
+        newValue: extracted.address,
+      });
+
+      const assistantReply = createMessageObject(
+        sessionId,
+        "assistant",
+        "Thanks — we’ve added the project address to your request."
       );
 
       await insertMessage(assistantReply);
@@ -587,12 +670,105 @@ export async function addUserMessage(sessionId: string, content: string) {
       };
     }
 
-    await appendCustomerUpdateToLead(session.leadId, trimmedContent);
+    if (extracted.location) {
+      await updateLeadFields(session.leadId, { location: extracted.location });
+
+      await logStructuredLeadFieldActivity({
+        leadId: session.leadId,
+        tenantSlug,
+        fieldName: "location",
+        previousValue: leadState.location,
+        newValue: extracted.location,
+      });
+
+      const assistantReply = createMessageObject(
+        sessionId,
+        "assistant",
+        "Thanks — we’ve updated the project location on your request."
+      );
+
+      await insertMessage(assistantReply);
+
+      return {
+        sessionId,
+        messages: await getMessagesForSession(sessionId),
+        session,
+      };
+    }
+
+    if (extracted.timeline) {
+      await updateLeadFields(session.leadId, { timeline: extracted.timeline });
+
+      await logStructuredLeadFieldActivity({
+        leadId: session.leadId,
+        tenantSlug,
+        fieldName: "timeline",
+        previousValue: leadState.timeline,
+        newValue: extracted.timeline,
+      });
+
+      const assistantReply = createMessageObject(
+        sessionId,
+        "assistant",
+        "Thanks — we’ve updated the requested timeline."
+      );
+
+      await insertMessage(assistantReply);
+
+      return {
+        sessionId,
+        messages: await getMessagesForSession(sessionId),
+        session,
+      };
+    }
+
+    if (extracted.appointment) {
+      await updateLeadFields(session.leadId, {
+        appointment: extracted.appointment,
+      });
+
+      await logStructuredLeadFieldActivity({
+        leadId: session.leadId,
+        tenantSlug,
+        fieldName: "appointment",
+        previousValue: leadState.appointment,
+        newValue: extracted.appointment,
+      });
+
+      const assistantReply = createMessageObject(
+        sessionId,
+        "assistant",
+        "Thanks — we’ve added your scheduling preference to the request."
+      );
+
+      await insertMessage(assistantReply);
+
+      return {
+        sessionId,
+        messages: await getMessagesForSession(sessionId),
+        session,
+      };
+    }
+
+    await appendCustomerUpdateToLead(
+      session.leadId,
+      extracted.customerUpdateFallback || trimmedContent
+    );
+
+    await safeCreateLeadActivity({
+      leadId: session.leadId,
+      tenantSlug,
+      eventType: "lead.customer_update_added",
+      eventSource: "customer",
+      metadata: {
+        message: extracted.customerUpdateFallback || trimmedContent,
+      },
+    });
 
     const assistantReply = createMessageObject(
       sessionId,
       "assistant",
-      "Got it — we’ve added that to your request. If you’d like, you can also share an email for updates, quotes, or documents."
+      "Got it — we’ve added that to your request. You can also share an email, address, timeline, or scheduling preference here."
     );
 
     await insertMessage(assistantReply);
@@ -604,16 +780,9 @@ export async function addUserMessage(sessionId: string, content: string) {
     };
   }
 
-  /**
-   * For the rest of the scripted intake flow, apply the answer normally.
-   */
   const updatedSession = applyAnswerToSession(session, trimmedContent);
   await updateSession(updatedSession);
 
-  /**
-   * Once the minimum required information has been collected, create the lead
-   * silently in the background if it does not already exist for this session.
-   */
   if (
     updatedSession.currentStep === "complete" &&
     updatedSession.leadCaptured &&

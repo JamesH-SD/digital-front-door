@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { getLeadById, updateLead } from "@/lib/db/leads";
+import { createLeadActivity } from "@/lib/db/lead-activities";
 
 type RouteContext = {
   params: Promise<{
@@ -47,9 +48,9 @@ export async function POST(request: NextRequest, context: RouteContext) {
       );
     }
 
-    const lead = await getLeadById(tenantSlug, leadId);
+    const lead = await getLeadById(leadId);
 
-    if (!lead) {
+    if (!lead || lead.tenantSlug !== tenantSlug) {
       return NextResponse.json(
         { error: "Lead not found" },
         { status: 404 }
@@ -99,9 +100,25 @@ export async function POST(request: NextRequest, context: RouteContext) {
     };
 
     const updatedLead = await updateLead(leadId, {
-      images: [...lead.images, newImage],
+      images: [...(lead.images || []), newImage],
     });
-
+    
+    try {
+      await createLeadActivity({
+        leadId,
+        tenantSlug,
+        eventType: "lead.image_uploaded",
+        eventSource: "customer",
+        metadata: {
+          imageId: newImage.id,
+          imageUrl: newImage.url,
+          filename: newImage.filename ?? null,
+        },
+      });
+    } catch (error) {
+      console.error("Non-fatal image activity error:", error);
+    }
+    
     return NextResponse.json({
       image: newImage,
       lead: updatedLead,

@@ -1,9 +1,30 @@
 import { createClient } from "@/lib/supabase/server";
-import { Lead, LeadImage, LeadStatus } from "@/lib/types/lead";
+import type { Lead, LeadImage, LeadStatus } from "@/lib/types/lead";
 
-/**
- * Get all leads for a tenant
- */
+function mapLead(row: any): Lead {
+  return {
+    id: row.id,
+    leadNumber: row.lead_number ?? "",
+    tenantId: row.tenant_id ?? "",
+    tenantSlug: row.tenant_slug ?? "",
+    sessionId: row.session_id ?? undefined,
+    customerName: row.customer_name ?? "",
+    phone: row.phone ?? undefined,
+    email: row.email ?? undefined,
+    address: row.address ?? undefined,
+    projectType: row.project_type ?? "",
+    location: row.location ?? "",
+    timeline: row.timeline ?? "",
+    appointment: row.appointment ?? undefined,
+    notes: row.notes ?? undefined,
+    customerUpdates: row.customer_updates ?? undefined,
+    images: row.images ?? [],
+    status: row.status ?? "new",
+    createdAt: row.created_at ?? new Date().toISOString(),
+    updatedAt: row.updated_at ?? undefined,
+  };
+}
+
 export async function getLeadsByTenantSlug(
   tenantSlug: string
 ): Promise<Lead[]> {
@@ -20,22 +41,15 @@ export async function getLeadsByTenantSlug(
     return [];
   }
 
-  return data.map(mapLead);
+  return (data ?? []).map(mapLead);
 }
 
-/**
- * Get a single lead by ID
- */
-export async function getLeadById(
-  tenantSlug: string,
-  leadId: string
-): Promise<Lead | null> {
+export async function getLeadById(leadId: string): Promise<Lead | null> {
   const supabase = await createClient();
 
   const { data, error } = await supabase
     .from("leads")
     .select("*")
-    .eq("tenant_slug", tenantSlug)
     .eq("id", leadId)
     .single();
 
@@ -47,9 +61,6 @@ export async function getLeadById(
   return data ? mapLead(data) : null;
 }
 
-/**
- * Create a new lead
- */
 export async function createLead(input: {
   tenantId?: string;
   tenantSlug: string;
@@ -66,7 +77,7 @@ export async function createLead(input: {
   customerUpdates?: string;
   images?: LeadImage[];
   status?: LeadStatus;
-}) {
+}): Promise<Lead> {
   const supabase = await createClient();
 
   const { data: tenant, error: tenantError } = await supabase
@@ -115,8 +126,10 @@ export async function createLead(input: {
       customer_updates: input.customerUpdates ?? null,
       images: input.images ?? [],
       status: input.status ?? "new",
+      created_at: new Date().toISOString(),
+      updated_at: new Date().toISOString(),
     })
-    .select()
+    .select("*")
     .single();
 
   if (error) {
@@ -127,9 +140,6 @@ export async function createLead(input: {
   return mapLead(data);
 }
 
-/**
- * Update an existing lead
- */
 export async function updateLead(
   leadId: string,
   updates: Partial<{
@@ -145,27 +155,36 @@ export async function updateLead(
     status: LeadStatus;
     images: LeadImage[];
   }>
-) {
+): Promise<Lead> {
   const supabase = await createClient();
+
+  const payload: Record<string, any> = {
+    updated_at: new Date().toISOString(),
+  };
+
+  if (typeof updates.phone !== "undefined") payload.phone = updates.phone;
+  if (typeof updates.email !== "undefined") payload.email = updates.email;
+  if (typeof updates.address !== "undefined") payload.address = updates.address;
+  if (typeof updates.projectType !== "undefined") {
+    payload.project_type = updates.projectType;
+  }
+  if (typeof updates.location !== "undefined") payload.location = updates.location;
+  if (typeof updates.timeline !== "undefined") payload.timeline = updates.timeline;
+  if (typeof updates.appointment !== "undefined") {
+    payload.appointment = updates.appointment;
+  }
+  if (typeof updates.notes !== "undefined") payload.notes = updates.notes;
+  if (typeof updates.customerUpdates !== "undefined") {
+    payload.customer_updates = updates.customerUpdates;
+  }
+  if (typeof updates.status !== "undefined") payload.status = updates.status;
+  if (typeof updates.images !== "undefined") payload.images = updates.images;
 
   const { data, error } = await supabase
     .from("leads")
-    .update({
-      phone: updates.phone,
-      email: updates.email,
-      address: updates.address,
-      project_type: updates.projectType,
-      location: updates.location,
-      timeline: updates.timeline,
-      appointment: updates.appointment,
-      notes: updates.notes,
-      customer_updates: updates.customerUpdates,
-      status: updates.status,
-      images: updates.images,
-      updated_at: new Date().toISOString(),
-    })
+    .update(payload)
     .eq("id", leadId)
-    .select()
+    .select("*")
     .single();
 
   if (error) {
@@ -174,36 +193,4 @@ export async function updateLead(
   }
 
   return mapLead(data);
-}
-
-/**
- * Map DB → app model
- *
- * Notes:
- * - notes: internal contractor notes
- * - customerUpdates: extra information added by the customer after the
- *   request was initially captured through chat
- */
-function mapLead(data: any): Lead {
-  return {
-    id: data.id,
-    leadNumber: data.lead_number ?? "",
-    tenantId: data.tenant_id ?? "",
-    tenantSlug: data.tenant_slug ?? "",
-    sessionId: data.session_id ?? undefined,
-    customerName: data.customer_name ?? "",
-    phone: data.phone ?? undefined,
-    email: data.email ?? undefined,
-    address: data.address ?? undefined,
-    projectType: data.project_type ?? "",
-    location: data.location ?? "",
-    timeline: data.timeline ?? "",
-    appointment: data.appointment ?? undefined,
-    notes: data.notes ?? undefined,
-    customerUpdates: data.customer_updates ?? undefined,
-    images: data.images ?? [],
-    status: data.status ?? "new",
-    createdAt: data.created_at ?? new Date().toISOString(),
-    updatedAt: data.updated_at ?? undefined,
-  };
 }
