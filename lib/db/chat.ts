@@ -267,11 +267,19 @@ async function safeCreateLeadActivity(input: {
   }
 }
 
-async function safeSendLeadNotification(lead: Awaited<ReturnType<typeof createLead>>) {
+async function safeSendLeadNotification(
+  lead: Awaited<ReturnType<typeof createLead>>
+) {
   try {
-    await sendLeadNotification(lead);
+    return await sendLeadNotification(lead);
   } catch (error) {
     console.error("Non-fatal lead notification error:", error);
+
+    return {
+      status: "skipped" as const,
+      channel: "sms" as const,
+      reason: "Unexpected error while sending lead notification.",
+    };
   }
 }
 
@@ -377,33 +385,75 @@ async function logStructuredLeadFieldActivity(input: {
   previousValue?: string | null;
   newValue: string;
 }) {
-  async function logStructuredLeadFieldActivity(input: {
-    leadId: string;
-    tenantSlug: string;
-    fieldName: "email" | "address" | "location" | "timeline" | "appointment";
-    previousValue?: string | null;
-    newValue: string;
-  }) {
-    const eventTypeMap = {
-      email: input.previousValue ? "lead.email_updated" : "lead.email_added",
-      address: "lead.address_updated",
-      location: "lead.location_updated",
-      timeline: "lead.timeline_updated",
-      appointment: "lead.appointment_updated",
-    } as const;
-  
-    await safeCreateLeadActivity({
-      leadId: input.leadId,
-      tenantSlug: input.tenantSlug,
-      eventType: eventTypeMap[input.fieldName],
-      eventSource: "customer",
-      metadata: {
-        fieldName: input.fieldName,
-        previousValue: input.previousValue ?? null,
-        newValue: input.newValue,
-      },
-    });
+  const eventTypeMap = {
+    email: input.previousValue ? "lead.email_updated" : "lead.email_added",
+    address: "lead.address_updated",
+    location: "lead.location_updated",
+    timeline: "lead.timeline_updated",
+    appointment: "lead.appointment_updated",
+  } as const;
+
+  await safeCreateLeadActivity({
+    leadId: input.leadId,
+    tenantSlug: input.tenantSlug,
+    eventType: eventTypeMap[input.fieldName],
+    eventSource: "customer",
+    metadata: {
+      fieldName: input.fieldName,
+      previousValue: input.previousValue ?? null,
+      newValue: input.newValue,
+    },
+  });
+}
+
+/**
+ * Centralized lead creation + notification flow.
+ *
+ * Why this helper exists:
+ * - avoids duplicating lead creation logic in multiple branches
+ * - only stores notificationSentAt when SMS actually succeeds
+ * - keeps lead capture working even if notification delivery fails
+ */
+async function createLeadAndNotifyOnce(session: ChatSession) {
+  if (session.leadId) {
+    return session;
   }
+
+  const intake = session.intakeData;
+
+  const lead = await createLead({
+    tenantId: session.tenantId,
+    tenantSlug: session.tenantSlug,
+    sessionId: session.id,
+    customerName: intake.name || "Unknown",
+    phone: intake.contact || "Unknown",
+    email: undefined,
+    address: undefined,
+    projectType: intake.projectType || "Unknown",
+    location: intake.location || "Unknown",
+    timeline: intake.timeline || "Unknown",
+    appointment: undefined,
+    notes: undefined,
+    customerUpdates: undefined,
+    images: [],
+  });
+
+  session.leadId = lead.id;
+
+  const notificationResult = await safeSendLeadNotification(lead);
+
+  if (notificationResult.status === "sent") {
+    session.notificationSentAt = new Date().toISOString();
+  } else {
+    console.error(
+      "Lead notification was skipped:",
+      notificationResult.reason
+    );
+  }
+
+  await updateSession(session);
+
+  return session;
 }
 
 export async function createChatSessionForTenantSlug(tenantSlug: string) {
@@ -551,31 +601,7 @@ export async function addUserMessage(sessionId: string, content: string) {
       updatedSession.leadCaptured &&
       !updatedSession.leadId
     ) {
-      const intake = updatedSession.intakeData;
-
-      const lead = await createLead({
-        tenantId: updatedSession.tenantId,
-        tenantSlug: updatedSession.tenantSlug,
-        sessionId: updatedSession.id,
-        customerName: intake.name || "Unknown",
-        phone: intake.contact || "Unknown",
-        email: undefined,
-        address: undefined,
-        projectType: intake.projectType || "Unknown",
-        location: intake.location || "Unknown",
-        timeline: intake.timeline || "Unknown",
-        appointment: undefined,
-        notes: undefined,
-        customerUpdates: undefined,
-        images: [],
-      });
-
-      await safeSendLeadNotification(lead);
-
-      updatedSession.leadId = lead.id;
-      updatedSession.notificationSentAt = new Date().toISOString();
-
-      await updateSession(updatedSession);
+      await createLeadAndNotifyOnce(updatedSession);
     }
 
     const prompt = getPromptForStep(
@@ -788,31 +814,7 @@ export async function addUserMessage(sessionId: string, content: string) {
     updatedSession.leadCaptured &&
     !updatedSession.leadId
   ) {
-    const intake = updatedSession.intakeData;
-
-    const lead = await createLead({
-      tenantId: updatedSession.tenantId,
-      tenantSlug: updatedSession.tenantSlug,
-      sessionId: updatedSession.id,
-      customerName: intake.name || "Unknown",
-      phone: intake.contact || "Unknown",
-      email: undefined,
-      address: undefined,
-      projectType: intake.projectType || "Unknown",
-      location: intake.location || "Unknown",
-      timeline: intake.timeline || "Unknown",
-      appointment: undefined,
-      notes: undefined,
-      customerUpdates: undefined,
-      images: [],
-    });
-
-    await sendLeadNotification(lead);
-
-    updatedSession.leadId = lead.id;
-    updatedSession.notificationSentAt = new Date().toISOString();
-
-    await updateSession(updatedSession);
+    await createLeadAndNotifyOnce(updatedSession);
   }
 
   const prompt = getPromptForStep(
