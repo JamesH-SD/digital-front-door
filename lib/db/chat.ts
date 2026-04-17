@@ -6,10 +6,13 @@ import {
   IntakeStep,
 } from "@/lib/types/chat";
 import { getTenantBySlug } from "@/lib/db/tenants";
-import { createLead } from "@/lib/db/leads";
+import { createLead, getLeadById } from "@/lib/db/leads";
 import { sendLeadNotification } from "@/lib/notifications/sendLeadNotification";
 import { createLeadActivity } from "@/lib/db/lead-activities";
 import { extractStructuredLeadUpdateFromMessage } from "@/lib/chat/extractStructuredLeadUpdate";
+import { generateChatTurn } from "@/lib/ai/generateChatTurn";
+import { generatePostCaptureTurn } from "@/lib/ai/generatePostCaptureTurn";
+import type { Tenant } from "@/lib/types/tenant";
 
 function generateId(prefix: string) {
   return `${prefix}_${Math.random().toString(36).slice(2, 10)}`;
@@ -29,10 +32,6 @@ function createMessageObject(
   };
 }
 
-/**
- * Basic email validation for optional email capture after the lead exists.
- * This is intentionally simple and practical for MVP use.
- */
 function normalizeEmail(input: string): string | null {
   const trimmed = input.trim().toLowerCase();
 
@@ -47,10 +46,6 @@ function normalizeEmail(input: string): string | null {
   return trimmed;
 }
 
-/**
- * Normalize US phone numbers to E.164 for consistency in the database
- * and compatibility with SMS providers like Twilio.
- */
 function normalizeUsPhone(input: string): string | null {
   const digitsOnly = input.replace(/\D/g, "");
 
@@ -112,73 +107,6 @@ function getPromptForStep(step: IntakeStep, businessName: string): string {
 
     default:
       return "How can we help you today?";
-  }
-}
-
-function applyAnswerToSession(
-  session: ChatSession,
-  userInput: string
-): ChatSession {
-  const trimmed = userInput.trim();
-
-  switch (session.currentStep) {
-    case "project_type":
-      return {
-        ...session,
-        currentStep: "location",
-        intakeData: {
-          ...session.intakeData,
-          projectType: trimmed,
-        },
-      };
-
-    case "location":
-      return {
-        ...session,
-        currentStep: "timeline",
-        intakeData: {
-          ...session.intakeData,
-          location: trimmed,
-        },
-      };
-
-    case "timeline":
-      return {
-        ...session,
-        currentStep: "name",
-        intakeData: {
-          ...session.intakeData,
-          timeline: trimmed,
-        },
-      };
-
-    case "name":
-      return {
-        ...session,
-        currentStep: "contact",
-        intakeData: {
-          ...session.intakeData,
-          name: trimmed,
-        },
-      };
-
-    case "contact":
-      return {
-        ...session,
-        currentStep: "complete",
-        leadCaptured: true,
-        status: "active",
-        intakeData: {
-          ...session.intakeData,
-          contact: trimmed,
-        },
-      };
-
-    case "complete":
-      return session;
-
-    default:
-      return session;
   }
 }
 
@@ -406,14 +334,6 @@ async function logStructuredLeadFieldActivity(input: {
   });
 }
 
-/**
- * Centralized lead creation + notification flow.
- *
- * Why this helper exists:
- * - avoids duplicating lead creation logic in multiple branches
- * - only stores notificationSentAt when SMS actually succeeds
- * - keeps lead capture working even if notification delivery fails
- */
 async function createLeadAndNotifyOnce(session: ChatSession) {
   if (session.leadId) {
     return session;
@@ -445,15 +365,212 @@ async function createLeadAndNotifyOnce(session: ChatSession) {
   if (notificationResult.status === "sent") {
     session.notificationSentAt = new Date().toISOString();
   } else {
-    console.error(
-      "Lead notification was skipped:",
-      notificationResult.reason
-    );
+    console.error("Lead notification was skipped:", notificationResult.reason);
   }
 
   await updateSession(session);
 
   return session;
+}
+
+function getMissingRequiredFields(session: ChatSession, tenant: Tenant) {
+  const intake = session.intakeData || {};
+  const missing: IntakeStep[] = [];
+
+  if (!intake.projectType?.trim()) {
+    missing.push("project_type");
+  }
+
+  if (!intake.location?.trim()) {
+    missing.push("location");
+  }
+
+  if (tenant.askForTimeline !== false && !intake.timeline?.trim()) {
+    missing.push("timeline");
+  }
+
+  if (!intake.name?.trim()) {
+    missing.push("name");
+  }
+
+  if (tenant.requirePhoneForLead !== false && !intake.contact?.trim()) {
+    missing.push("contact");
+  }
+
+  return missing;
+}
+
+function applyAiUpdatesToSession(
+  session: ChatSession,
+  updates: Partial<{
+    projectType: string;
+    location: string;
+    timeline: string;
+    name: string;
+    phone: string;
+    email: string;
+  }>
+): ChatSession {
+  const nextSession: ChatSession = {
+    ...session,
+    intakeData: {
+      ...session.intakeData,
+    },
+  };
+
+  if (typeof updates.projectType === "string" && updates.projectType.trim()) {
+    nextSession.intakeData.projectType = updates.projectType.trim();
+  }
+
+  if (typeof updates.location === "string" && updates.location.trim()) {
+    nextSession.intakeData.location = updates.location.trim();
+  }
+
+  if (typeof updates.timeline === "string" && updates.timeline.trim()) {
+    nextSession.intakeData.timeline = updates.timeline.trim();
+  }
+
+  if (typeof updates.name === "string" && updates.name.trim()) {
+    nextSession.intakeData.name = updates.name.trim();
+  }
+
+  if (typeof updates.email === "string" && updates.email.trim()) {
+    const normalizedEmail = normalizeEmail(updates.email);
+    if (normalizedEmail) {
+      nextSession.intakeData.email = normalizedEmail;
+    }
+  }
+
+  if (typeof updates.phone === "string" && updates.phone.trim()) {
+    const normalizedPhone = normalizeUsPhone(updates.phone);
+    if (normalizedPhone) {
+      nextSession.intakeData.contact = normalizedPhone;
+    }
+  }
+
+  return nextSession;
+}
+
+function finalizeSessionStep(session: ChatSession, tenant: Tenant): ChatSession {
+  const missing = getMissingRequiredFields(session, tenant);
+
+  if (missing.length === 0) {
+    return {
+      ...session,
+      currentStep: "complete",
+      leadCaptured: true,
+      status: "active",
+    };
+  }
+
+  return {
+    ...session,
+    currentStep: missing[0],
+    leadCaptured: false,
+    status: "active",
+  };
+}
+
+async function applyPostCaptureStructuredUpdates(input: {
+  leadId: string;
+  tenantSlug: string;
+  previous: Awaited<ReturnType<typeof getLeadFieldState>>;
+  updates: Partial<{
+    email: string;
+    address: string;
+    location: string;
+    timeline: string;
+    appointment: string;
+  }>;
+}) {
+  const { leadId, tenantSlug, previous, updates } = input;
+
+  const safeUpdates: Partial<{
+    email: string;
+    address: string;
+    location: string;
+    timeline: string;
+    appointment: string;
+  }> = {};
+
+  if (typeof updates.email === "string" && updates.email.trim()) {
+    const normalized = normalizeEmail(updates.email);
+    if (normalized) {
+      safeUpdates.email = normalized;
+    }
+  }
+
+  if (typeof updates.address === "string" && updates.address.trim()) {
+    safeUpdates.address = updates.address.trim();
+  }
+
+  if (typeof updates.location === "string" && updates.location.trim()) {
+    safeUpdates.location = updates.location.trim();
+  }
+
+  if (typeof updates.timeline === "string" && updates.timeline.trim()) {
+    safeUpdates.timeline = updates.timeline.trim();
+  }
+
+  if (typeof updates.appointment === "string" && updates.appointment.trim()) {
+    safeUpdates.appointment = updates.appointment.trim();
+  }
+
+  if (Object.keys(safeUpdates).length === 0) {
+    return;
+  }
+
+  await updateLeadFields(leadId, safeUpdates);
+
+  if (safeUpdates.email && safeUpdates.email !== previous.email) {
+    await logStructuredLeadFieldActivity({
+      leadId,
+      tenantSlug,
+      fieldName: "email",
+      previousValue: previous.email,
+      newValue: safeUpdates.email,
+    });
+  }
+
+  if (safeUpdates.address && safeUpdates.address !== previous.address) {
+    await logStructuredLeadFieldActivity({
+      leadId,
+      tenantSlug,
+      fieldName: "address",
+      previousValue: previous.address,
+      newValue: safeUpdates.address,
+    });
+  }
+
+  if (safeUpdates.location && safeUpdates.location !== previous.location) {
+    await logStructuredLeadFieldActivity({
+      leadId,
+      tenantSlug,
+      fieldName: "location",
+      previousValue: previous.location,
+      newValue: safeUpdates.location,
+    });
+  }
+
+  if (safeUpdates.timeline && safeUpdates.timeline !== previous.timeline) {
+    await logStructuredLeadFieldActivity({
+      leadId,
+      tenantSlug,
+      fieldName: "timeline",
+      previousValue: previous.timeline,
+      newValue: safeUpdates.timeline,
+    });
+  }
+
+  if (safeUpdates.appointment && safeUpdates.appointment !== previous.appointment) {
+    await logStructuredLeadFieldActivity({
+      leadId,
+      tenantSlug,
+      fieldName: "appointment",
+      previousValue: previous.appointment,
+      newValue: safeUpdates.appointment,
+    });
+  }
 }
 
 export async function createChatSessionForTenantSlug(tenantSlug: string) {
@@ -498,11 +615,11 @@ export async function createChatSessionForTenantSlug(tenantSlug: string) {
     throw sessionError;
   }
 
-  const greeting = createMessageObject(
-    session.id,
-    "assistant",
-    getPromptForStep("project_type", tenant.businessName)
-  );
+  const greetingContent =
+    tenant.greetingMessage?.trim() ||
+    getPromptForStep("project_type", tenant.businessName);
+
+  const greeting = createMessageObject(session.id, "assistant", greetingContent);
 
   await insertMessage(greeting);
 
@@ -574,14 +691,87 @@ export async function addUserMessage(sessionId: string, content: string) {
   const userMessage = createMessageObject(sessionId, "user", trimmedContent);
   await insertMessage(userMessage);
 
-  if (session.currentStep === "contact") {
-    const normalizedPhone = normalizeUsPhone(trimmedContent);
+  /**
+   * POST-CAPTURE AI MODE:
+   * Once a lead exists, use AI to interpret richer follow-up messages,
+   * update structured fields when possible, append narrative context,
+   * and ask the next helpful scope question.
+   */
+  if (session.currentStep === "complete" && session.leadId) {
+    const lead = await getLeadById(session.leadId);
+    const messages = await getMessagesForSession(sessionId);
 
-    if (!normalizedPhone) {
+    if (!lead) {
+      return {
+        sessionId,
+        messages,
+        session,
+      };
+    }
+
+    const previousLeadState = await getLeadFieldState(session.leadId);
+    const tenantSlug = previousLeadState.tenantSlug || session.tenantSlug;
+
+    const aiTurn = await generatePostCaptureTurn({
+      tenant,
+      lead,
+      messages,
+      latestUserMessage: trimmedContent,
+    });
+
+    if (aiTurn.status === "generated") {
+      await applyPostCaptureStructuredUpdates({
+        leadId: session.leadId,
+        tenantSlug,
+        previous: previousLeadState,
+        updates: aiTurn.updates || {},
+      });
+
+      const summaryParts: string[] = [];
+
+      if (aiTurn.customerUpdateSummary) {
+        summaryParts.push(aiTurn.customerUpdateSummary);
+      }
+
+      if (aiTurn.signals?.budget) {
+        summaryParts.push(`Budget: ${aiTurn.signals.budget}`);
+      }
+
+      if (aiTurn.signals?.urgency) {
+        summaryParts.push(`Urgency: ${aiTurn.signals.urgency}`);
+      }
+
+      if (aiTurn.signals?.shoppingQuotes) {
+        summaryParts.push("Customer is gathering quotes.");
+      }
+
+      if (aiTurn.signals?.scopeNotes?.length) {
+        summaryParts.push(`Scope notes: ${aiTurn.signals.scopeNotes.join("; ")}`);
+      }
+
+      const summaryText = summaryParts
+        .map((item) => item.trim())
+        .filter(Boolean)
+        .join(" ");
+
+      if (summaryText) {
+        await appendCustomerUpdateToLead(session.leadId, summaryText);
+
+        await safeCreateLeadActivity({
+          leadId: session.leadId,
+          tenantSlug,
+          eventType: "lead.customer_update_added",
+          eventSource: "customer",
+          metadata: {
+            message: summaryText,
+          },
+        });
+      }
+
       const assistantReply = createMessageObject(
         sessionId,
         "assistant",
-        "That doesn’t look like a valid phone number yet. Please send the best number for us to reach you by text or call."
+        aiTurn.reply
       );
 
       await insertMessage(assistantReply);
@@ -593,76 +783,49 @@ export async function addUserMessage(sessionId: string, content: string) {
       };
     }
 
-    const updatedSession = applyAnswerToSession(session, normalizedPhone);
-    await updateSession(updatedSession);
-
-    if (
-      updatedSession.currentStep === "complete" &&
-      updatedSession.leadCaptured &&
-      !updatedSession.leadId
-    ) {
-      await createLeadAndNotifyOnce(updatedSession);
-    }
-
-    const prompt = getPromptForStep(
-      updatedSession.currentStep,
-      tenant.businessName
-    );
-
-    if (prompt) {
-      const assistantReply = createMessageObject(sessionId, "assistant", prompt);
-      await insertMessage(assistantReply);
-    }
-
-    return {
-      sessionId,
-      messages: await getMessagesForSession(sessionId),
-      session: updatedSession,
-    };
-  }
-
-  if (session.currentStep === "complete" && session.leadId) {
+    /**
+     * Fallback if post-capture AI fails:
+     * preserve the previous extractor behavior.
+     */
     const extracted = extractStructuredLeadUpdateFromMessage(trimmedContent);
-    const leadState = await getLeadFieldState(session.leadId);
-    const tenantSlug = leadState.tenantSlug || session.tenantSlug;
-  
+
     if (extracted.invalidEmailAttempt) {
       const assistantReply = createMessageObject(
         sessionId,
         "assistant",
         "Ooops! That email doesn’t look complete yet. Please send the best email address for updates, quotes, or documents."
       );
-  
+
       await insertMessage(assistantReply);
-  
+
       return {
         sessionId,
         messages: await getMessagesForSession(sessionId),
         session,
       };
     }
-  
+
     if (extracted.email) {
       await updateLeadFields(session.leadId, { email: extracted.email });
-  
+
       await logStructuredLeadFieldActivity({
         leadId: session.leadId,
         tenantSlug,
         fieldName: "email",
-        previousValue: leadState.email,
+        previousValue: previousLeadState.email,
         newValue: extracted.email,
       });
-  
+
       const assistantReply = createMessageObject(
         sessionId,
         "assistant",
-        leadState.email
+        previousLeadState.email
           ? "Thanks — we’ve updated the email on your request."
           : "Thanks — we’ve added your email to your request."
       );
-  
+
       await insertMessage(assistantReply);
-  
+
       return {
         sessionId,
         messages: await getMessagesForSession(sessionId),
@@ -677,7 +840,7 @@ export async function addUserMessage(sessionId: string, content: string) {
         leadId: session.leadId,
         tenantSlug,
         fieldName: "address",
-        previousValue: leadState.address,
+        previousValue: previousLeadState.address,
         newValue: extracted.address,
       });
 
@@ -703,7 +866,7 @@ export async function addUserMessage(sessionId: string, content: string) {
         leadId: session.leadId,
         tenantSlug,
         fieldName: "location",
-        previousValue: leadState.location,
+        previousValue: previousLeadState.location,
         newValue: extracted.location,
       });
 
@@ -729,7 +892,7 @@ export async function addUserMessage(sessionId: string, content: string) {
         leadId: session.leadId,
         tenantSlug,
         fieldName: "timeline",
-        previousValue: leadState.timeline,
+        previousValue: previousLeadState.timeline,
         newValue: extracted.timeline,
       });
 
@@ -757,7 +920,7 @@ export async function addUserMessage(sessionId: string, content: string) {
         leadId: session.leadId,
         tenantSlug,
         fieldName: "appointment",
-        previousValue: leadState.appointment,
+        previousValue: previousLeadState.appointment,
         newValue: extracted.appointment,
       });
 
@@ -806,7 +969,66 @@ export async function addUserMessage(sessionId: string, content: string) {
     };
   }
 
-  const updatedSession = applyAnswerToSession(session, trimmedContent);
+  /**
+   * PRE-CAPTURE AI MODE
+   */
+  const messages = await getMessagesForSession(sessionId);
+
+  const aiTurn = await generateChatTurn({
+    tenant,
+    session,
+    messages,
+  });
+
+  let updatedSession = session;
+
+  if (aiTurn.status === "generated" && aiTurn.updates) {
+    updatedSession = applyAiUpdatesToSession(updatedSession, aiTurn.updates);
+  } else {
+    switch (updatedSession.currentStep) {
+      case "project_type":
+        updatedSession = applyAiUpdatesToSession(updatedSession, {
+          projectType: trimmedContent,
+        });
+        break;
+      case "location":
+        updatedSession = applyAiUpdatesToSession(updatedSession, {
+          location: trimmedContent,
+        });
+        break;
+      case "timeline":
+        updatedSession = applyAiUpdatesToSession(updatedSession, {
+          timeline: trimmedContent,
+        });
+        break;
+      case "name":
+        updatedSession = applyAiUpdatesToSession(updatedSession, {
+          name: trimmedContent,
+        });
+        break;
+      case "contact": {
+        const normalizedPhone = normalizeUsPhone(trimmedContent);
+
+        if (normalizedPhone) {
+          updatedSession = applyAiUpdatesToSession(updatedSession, {
+            phone: normalizedPhone,
+          });
+        }
+        break;
+      }
+      default:
+        break;
+    }
+  }
+
+  if (!updatedSession.intakeData.contact) {
+    const normalizedPhone = normalizeUsPhone(trimmedContent);
+    if (normalizedPhone) {
+      updatedSession.intakeData.contact = normalizedPhone;
+    }
+  }
+
+  updatedSession = finalizeSessionStep(updatedSession, tenant);
   await updateSession(updatedSession);
 
   if (
@@ -814,18 +1036,23 @@ export async function addUserMessage(sessionId: string, content: string) {
     updatedSession.leadCaptured &&
     !updatedSession.leadId
   ) {
-    await createLeadAndNotifyOnce(updatedSession);
+    updatedSession = await createLeadAndNotifyOnce(updatedSession);
   }
 
-  const prompt = getPromptForStep(
-    updatedSession.currentStep,
-    tenant.businessName
+  const assistantReplyContent =
+    aiTurn.status === "generated" && aiTurn.reply
+      ? aiTurn.reply
+      : updatedSession.currentStep === "complete"
+      ? "Thanks, I have enough information to get us started."
+      : getPromptForStep(updatedSession.currentStep, tenant.businessName);
+
+  const assistantReply = createMessageObject(
+    sessionId,
+    "assistant",
+    assistantReplyContent
   );
 
-  if (prompt) {
-    const assistantReply = createMessageObject(sessionId, "assistant", prompt);
-    await insertMessage(assistantReply);
-  }
+  await insertMessage(assistantReply);
 
   return {
     sessionId,

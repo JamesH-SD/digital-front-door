@@ -31,8 +31,22 @@ export async function POST(request: NextRequest, context: RouteContext) {
       );
     }
 
-    const allowedMimeTypes = ["image/jpeg", "image/png", "image/webp", "image/heic"];
-    const maxBytes = 5 * 1024 * 1024;
+    const allowedMimeTypes = [
+      "image/jpeg",
+      "image/png",
+      "image/webp",
+      "image/heic",
+      "application/pdf",
+      "text/plain",
+      "application/rtf",
+      "application/msword",
+      "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+      "application/vnd.ms-excel",
+      "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+      "text/csv",
+      "application/zip",
+    ];
+    const maxBytes = 15 * 1024 * 1024;
 
     if (!allowedMimeTypes.includes(file.type)) {
       return NextResponse.json(
@@ -43,7 +57,7 @@ export async function POST(request: NextRequest, context: RouteContext) {
 
     if (file.size > maxBytes) {
       return NextResponse.json(
-        { error: "File must be 5MB or smaller." },
+        { error: "File is too large. Max size is 15MB." },
         { status: 400 }
       );
     }

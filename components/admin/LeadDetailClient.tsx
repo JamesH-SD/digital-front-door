@@ -48,6 +48,48 @@ function formatPhoneForDisplay(value?: string) {
 }
 
 /**
+ * Normalize a phone number for use in tel: and sms: links.
+ *
+ * We keep this intentionally lightweight:
+ * - strips formatting characters
+ * - preserves a leading + when present
+ * - returns null when no usable value exists
+ */
+function normalizePhoneForLink(value?: string) {
+  if (!value || !value.trim()) {
+    return null;
+  }
+
+  const trimmed = value.trim();
+
+  if (trimmed.startsWith("+")) {
+    const normalized = `+${trimmed.slice(1).replace(/\D/g, "")}`;
+    return normalized.length > 1 ? normalized : null;
+  }
+
+  const digitsOnly = trimmed.replace(/\D/g, "");
+  return digitsOnly || null;
+}
+
+function buildTelHref(value?: string) {
+  const normalized = normalizePhoneForLink(value);
+  return normalized ? `tel:${normalized}` : null;
+}
+
+function buildSmsHref(value?: string) {
+  const normalized = normalizePhoneForLink(value);
+  return normalized ? `sms:${normalized}` : null;
+}
+
+function buildMailtoHref(value?: string) {
+  if (!value || !value.trim()) {
+    return null;
+  }
+
+  return `mailto:${value.trim()}`;
+}
+
+/**
  * Convert an ISO timestamp into a local, human-friendly value for display.
  */
 function formatTimestampForDisplay(value?: string | null) {
@@ -360,11 +402,22 @@ export default function LeadDetailClient({
     images: lead.images || [],
   });
 
-  const [isTimelineOpen, setIsTimelineOpen] = useState(true);
-  const [isDescriptionOpen, setIsDescriptionOpen] = useState(true);
+  const [isTimelineOpen, setIsTimelineOpen] = useState(false);
+  const [isDescriptionOpen, setIsDescriptionOpen] = useState(false);
   const [isNotesOpen, setIsNotesOpen] = useState(false);
   const [isCustomerUpdatesOpen, setIsCustomerUpdatesOpen] = useState(false);
   const [isImagesOpen, setIsImagesOpen] = useState(false);
+
+  const [aiSummary, setAiSummary] = useState<string | null>(null);
+  const [isGeneratingSummary, setIsGeneratingSummary] = useState(false);
+
+  const [suggestedReply, setSuggestedReply] = useState<string | null>(null);
+  const [isGeneratingReply, setIsGeneratingReply] = useState(false);
+  const [isAiToolsOpen, setIsAiToolsOpen] = useState(false);
+
+  const [missingInfo, setMissingInfo] = useState<string[]>([]);
+  const [suggestedNextStep, setSuggestedNextStep] = useState<string | null>(null);
+  const [isGeneratingInsights, setIsGeneratingInsights] = useState(false);
 
   const appointmentMissing = !form.appointment.trim();
   const customerUpdateEntries = parseCustomerUpdates(form.customerUpdates);
@@ -425,6 +478,55 @@ export default function LeadDetailClient({
     };
   }, [selectedImage, selectedIndex, form.images]);
 
+  useEffect(() => {
+    async function fetchSummary() {
+      try {
+        setIsGeneratingSummary(true);
+  
+        const response = await fetch("/api/ai/lead-summary", {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify({ lead }),
+        });
+  
+        const raw = await response.text();
+  
+        let result: any;
+  
+        try {
+          result = JSON.parse(raw);
+        } catch {
+          console.error("Non-JSON response from /api/ai/lead-summary:", raw);
+          throw new Error("Lead summary endpoint returned non-JSON output.");
+        }
+  
+        if (!response.ok) {
+          throw new Error(result.error || "Failed to generate summary");
+        }
+  
+        if (result.status === "generated") {
+          setAiSummary(result.summary);
+        } else {
+          console.log("AI summary skipped:", result.reason);
+          setAiSummary(null);
+        }
+      } catch (err) {
+        console.error("AI summary error:", err);
+        setAiSummary(null);
+      } finally {
+        setIsGeneratingSummary(false);
+      }
+    }
+  
+    if (lead && (lead.projectType || lead.customerUpdates || lead.notes)) {
+      void fetchSummary();
+    } else {
+      setAiSummary(null);
+    }
+  }, [lead.id]);
+
   async function saveLead() {
     try {
       setIsSaving(true);
@@ -484,6 +586,119 @@ export default function LeadDetailClient({
     }
   }
 
+  async function handleGenerateReply() {
+    try {
+      setIsGeneratingReply(true);
+      setSuggestedReply(null);
+
+      const response = await fetch("/api/ai/suggested-reply", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({ lead }),
+      });
+
+      const result = await response.json();
+
+      if (!response.ok) {
+        throw new Error(result.error || "Failed to generate reply");
+      }
+
+      if (result.status === "generated") {
+        setSuggestedReply(result.reply);
+        setIsAiToolsOpen(true);
+      } else {
+        console.log("Suggested reply skipped:", result.reason);
+      }
+    } catch (error) {
+      console.error("Suggested reply error:", error);
+    } finally {
+      setIsGeneratingReply(false);
+    }
+  }
+
+  async function handleGenerateInsights() {
+    try {
+      setIsGeneratingInsights(true);
+      setMissingInfo([]);
+      setSuggestedNextStep(null);
+
+      const response = await fetch("/api/ai/lead-insights", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({ lead }),
+      });
+
+      const result = await response.json();
+
+      if (!response.ok) {
+        throw new Error(result.error || "Failed to generate insights");
+      }
+
+      if (result.status === "generated") {
+        setMissingInfo(Array.isArray(result.missingInfo) ? result.missingInfo : []);
+        setSuggestedNextStep(result.nextStep || null);
+        setIsAiToolsOpen(true);
+      } else {
+        console.log("Lead insights skipped:", result.reason);
+      }
+    } catch (error) {
+      console.error("Lead insights error:", error);
+    } finally {
+      setIsGeneratingInsights(false);
+    }
+  }
+
+  function buildSmsReplyHref() {
+    const phone = buildSmsHref(form.phone);
+
+    if (!phone || !suggestedReply) {
+      return null;
+    }
+
+    return `${phone}?body=${encodeURIComponent(suggestedReply)}`;
+  }
+
+  function buildEmailReplyHref() {
+    const email = buildMailtoHref(form.email);
+
+    if (!email || !suggestedReply) {
+      return null;
+    }
+
+    const subject = encodeURIComponent(
+      `Re: ${form.projectType || "Your project request"}`
+    );
+
+    const body = encodeURIComponent(suggestedReply);
+
+    return `${email}?subject=${subject}&body=${body}`;
+  }
+
+  async function handleCopyReply() {
+    if (!suggestedReply) return;
+
+    try {
+      await navigator.clipboard.writeText(suggestedReply);
+      setSaveMessage("Reply copied.");
+    } catch (error) {
+      console.error("Failed to copy reply:", error);
+      setSaveMessage("Failed to copy reply.");
+    }
+  }
+
+  async function handleMarkContacted() {
+    if (form.status === "contacted") {
+      setSaveMessage("Lead is already marked as contacted.");
+      return;
+    }
+
+    await updateStatus("contacted");
+  }
+
   async function uploadImage(file: File) {
     try {
       setIsUploading(true);
@@ -524,33 +739,259 @@ export default function LeadDetailClient({
     <div className="space-y-6">
       <div className="rounded-3xl border bg-white p-5 shadow-sm sm:p-6">
         <div className="space-y-5">
-          <div className="flex flex-col gap-4 border-b pb-4 md:flex-row md:items-start md:justify-between">
-            <div>
-              <h2 className="text-base font-semibold text-gray-900">
-                Contact & Job Details
-              </h2>
-              <p className="mt-1 text-sm text-gray-500">
-                Review and manage lead information.
+        <div className="mb-4 rounded-2xl border bg-gray-50 p-4">
+          <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+            <div className="min-w-0">
+              <h3 className="text-sm font-semibold text-gray-900">
+                AI Assistant
+              </h3>
+              <p className="mt-1 text-xs text-gray-500">
+                Quick lead understanding and response help for busy mobile workflows.
               </p>
             </div>
 
-            <div className="w-full md:w-56">
-              <label className="text-xs font-medium uppercase tracking-wide text-gray-500">
-                Status
-              </label>
-              <select
-                value={form.status}
-                onChange={(e) => updateStatus(e.target.value as LeadStatus)}
-                className={`mt-1 w-full rounded-full border px-3 py-2 text-sm font-medium capitalize outline-none ${getStatusClasses(
-                  form.status
-                )}`}
+            <div className="flex flex-wrap gap-2">
+              <button
+                type="button"
+                onClick={() => void handleGenerateReply()}
+                disabled={isGeneratingReply}
+                className="inline-flex items-center justify-center rounded-xl border bg-white px-3 py-2 text-sm font-semibold text-gray-700 transition hover:bg-gray-50 disabled:cursor-not-allowed disabled:opacity-50"
               >
-                <option value="new">new</option>
-                <option value="contacted">contacted</option>
-                <option value="booked">booked</option>
-                <option value="closed">closed</option>
-              </select>
+                {isGeneratingReply ? "Generating..." : "Generate Reply"}
+              </button>
+
+              <button
+                type="button"
+                onClick={() => void handleGenerateInsights()}
+                disabled={isGeneratingInsights}
+                className="inline-flex items-center justify-center rounded-xl border bg-white px-3 py-2 text-sm font-semibold text-gray-700 transition hover:bg-gray-50 disabled:cursor-not-allowed disabled:opacity-50"
+              >
+                {isGeneratingInsights ? "Analyzing..." : "Generate Insights"}
+              </button>
+
+              <button
+                type="button"
+                onClick={() => setIsAiToolsOpen((prev) => !prev)}
+                className="inline-flex items-center justify-center rounded-xl border bg-white px-3 py-2 text-sm font-semibold text-gray-700 transition hover:bg-gray-50"
+              >
+                {isAiToolsOpen ? "Hide AI Tools" : "Show AI Tools"}
+              </button>
             </div>
+          </div>
+
+          <div className="mt-4 rounded-xl border bg-white p-3">
+            <p className="text-xs font-semibold uppercase tracking-wide text-gray-500">
+              Summary
+            </p>
+
+            {isGeneratingSummary ? (
+              <p className="mt-2 text-sm text-gray-500">
+                Generating summary...
+              </p>
+            ) : aiSummary ? (
+              <p className="mt-2 text-sm text-gray-700">
+                {aiSummary}
+              </p>
+            ) : (
+              <p className="mt-2 text-sm text-gray-400">
+                No summary available.
+              </p>
+            )}
+          </div>
+
+          {isAiToolsOpen ? (
+            <div className="mt-3 space-y-3">
+              <div className="rounded-xl border bg-white p-3">
+                <p className="text-xs font-semibold uppercase tracking-wide text-gray-500">
+                  Suggested Reply
+                </p>
+
+                {isGeneratingReply ? (
+                  <p className="mt-2 text-sm text-gray-500">
+                    Generating reply...
+                  </p>
+                ) : suggestedReply ? (
+                  <div className="mt-2 space-y-3">
+                    <p className="text-sm text-gray-700">
+                      {suggestedReply}
+                    </p>
+
+                    <div className="flex flex-wrap gap-2">
+                      {buildSmsReplyHref() ? (
+                        <a
+                          href={buildSmsReplyHref() || undefined}
+                          className="inline-flex items-center justify-center rounded-xl border bg-white px-3 py-2 text-sm font-semibold text-gray-700 transition hover:bg-gray-50 sm:hidden"
+                        >
+                          Text Reply
+                        </a>
+                      ) : null}
+
+                      {buildEmailReplyHref() ? (
+                        <a
+                          href={buildEmailReplyHref() || undefined}
+                          className="inline-flex items-center justify-center rounded-xl border bg-white px-3 py-2 text-sm font-semibold text-gray-700 transition hover:bg-gray-50"
+                        >
+                          Email Reply
+                        </a>
+                      ) : null}
+
+                      <button
+                        type="button"
+                        onClick={() => void handleCopyReply()}
+                        className="inline-flex items-center justify-center rounded-xl border bg-white px-3 py-2 text-sm font-semibold text-gray-700 transition hover:bg-gray-50"
+                      >
+                        Copy Reply
+                      </button>
+                    </div>
+
+                    <p className="text-xs text-gray-500">
+                      Text Reply is shown on smaller screens where contractors are most
+                      likely using their native texting app. Email Reply and Copy Reply
+                      remain available more broadly.
+                    </p>
+                  </div>
+                ) : (
+                  <p className="mt-2 text-sm text-gray-400">
+                    Generate a reply to help the contractor respond quickly.
+                  </p>
+                )}
+              </div>
+
+              <div className="rounded-xl border bg-white p-3">
+                <p className="text-xs font-semibold uppercase tracking-wide text-gray-500">
+                  Missing Info
+                </p>
+
+                {isGeneratingInsights ? (
+                  <p className="mt-2 text-sm text-gray-500">
+                    Analyzing missing info...
+                  </p>
+                ) : missingInfo.length > 0 ? (
+                  <ul className="mt-2 space-y-1 text-sm text-gray-700">
+                    {missingInfo.map((item) => (
+                      <li key={item}>• {item}</li>
+                    ))}
+                  </ul>
+                ) : (
+                  <p className="mt-2 text-sm text-gray-400">
+                    Generate insights to see what information may still be missing.
+                  </p>
+                )}
+              </div>
+
+              <div className="rounded-xl border bg-white p-3">
+                <p className="text-xs font-semibold uppercase tracking-wide text-gray-500">
+                  Suggested Next Step
+                </p>
+
+                {isGeneratingInsights ? (
+                  <p className="mt-2 text-sm text-gray-500">
+                    Generating next step...
+                  </p>
+                ) : suggestedNextStep ? (
+                  <p className="mt-2 text-sm text-gray-700">
+                    {suggestedNextStep}
+                  </p>
+                ) : (
+                  <p className="mt-2 text-sm text-gray-400">
+                    Generate insights to see the recommended next move.
+                  </p>
+                )}
+              </div>
+            </div>
+          ) : null}
+        </div>
+        <div className="flex flex-col gap-4 border-b pb-4">
+            <div className="flex flex-col gap-4 md:flex-row md:items-start md:justify-between">
+              <div>
+                <h2 className="text-base font-semibold text-gray-900">
+                  Contact & Job Details
+                </h2>
+                <p className="mt-1 text-sm text-gray-500">
+                  Review and manage lead information.
+                </p>
+              </div>
+              <div className="w-full md:w-56">
+                <label className="text-xs font-medium uppercase tracking-wide text-gray-500">
+                  Status
+                </label>
+                <select
+                  value={form.status}
+                  onChange={(e) => updateStatus(e.target.value as LeadStatus)}
+                  className={`mt-1 w-full rounded-full border px-3 py-2 text-sm font-medium capitalize outline-none ${getStatusClasses(
+                    form.status
+                  )}`}
+                >
+                  <option value="new">new</option>
+                  <option value="contacted">contacted</option>
+                  <option value="booked">booked</option>
+                  <option value="closed">closed</option>
+                </select>
+              </div>
+            </div>
+            <div className="flex flex-wrap gap-2">
+              {buildTelHref(form.phone) ? (
+                <a
+                  href={buildTelHref(form.phone) || undefined}
+                  className="inline-flex items-center justify-center rounded-xl border bg-white px-4 py-2 text-sm font-semibold text-gray-700 transition hover:bg-gray-50"
+                >
+                  Call
+                </a>
+              ) : (
+                <button
+                  type="button"
+                  disabled
+                  className="inline-flex items-center justify-center rounded-xl border bg-gray-100 px-4 py-2 text-sm font-semibold text-gray-400"
+                >
+                  Call
+                </button>
+              )}
+              {buildSmsHref(form.phone) ? (
+                <a
+                  href={buildSmsHref(form.phone) || undefined}
+                  className="inline-flex items-center justify-center rounded-xl border bg-white px-4 py-2 text-sm font-semibold text-gray-700 transition hover:bg-gray-50"
+                >
+                  Text
+                </a>
+              ) : (
+                <button
+                  type="button"
+                  disabled
+                  className="inline-flex items-center justify-center rounded-xl border bg-gray-100 px-4 py-2 text-sm font-semibold text-gray-400"
+                >
+                  Text
+                </button>
+              )}
+              {buildMailtoHref(form.email) ? (
+                <a
+                  href={buildMailtoHref(form.email) || undefined}
+                  className="inline-flex items-center justify-center rounded-xl border bg-white px-4 py-2 text-sm font-semibold text-gray-700 transition hover:bg-gray-50"
+                >
+                  Email
+                </a>
+              ) : (
+                <button
+                  type="button"
+                  disabled
+                  className="inline-flex items-center justify-center rounded-xl border bg-gray-100 px-4 py-2 text-sm font-semibold text-gray-400"
+                >
+                  Email
+                </button>
+              )}
+              <button
+                type="button"
+                onClick={() => void handleMarkContacted()}
+                disabled={form.status === "contacted"}
+                className="inline-flex items-center justify-center rounded-xl bg-gray-900 px-4 py-2 text-sm font-semibold text-white transition hover:bg-gray-800 disabled:cursor-not-allowed disabled:opacity-50"
+              >
+                Mark Contacted
+              </button>
+            </div>
+            <p className="text-xs text-gray-500">
+              On mobile, Call, Text, and Email will usually open the device’s
+              native apps. On desktop, behavior depends on the machine’s app
+              setup.
+            </p>
           </div>
 
           <div className="grid gap-3 md:grid-cols-2">
@@ -562,10 +1003,7 @@ export default function LeadDetailClient({
                 setForm((prev) => ({ ...prev, phone: value }))
               }
               displayFormatter={formatPhoneForDisplay}
-              hrefBuilder={(value) => {
-                if (!value || !value.trim()) return null;
-                return `tel:${value}`;
-              }}
+              hrefBuilder={buildTelHref}
             />
 
             <CompactField
@@ -575,10 +1013,7 @@ export default function LeadDetailClient({
               onChange={(value) =>
                 setForm((prev) => ({ ...prev, email: value }))
               }
-              hrefBuilder={(value) => {
-                if (!value || !value.trim()) return null;
-                return `mailto:${value}`;
-              }}
+              hrefBuilder={buildMailtoHref}
             />
 
             <CompactField
@@ -648,249 +1083,247 @@ export default function LeadDetailClient({
             />
           </div>
 
-          <CollapsibleSection
-            title="Activity Timeline"
-            isOpen={isTimelineOpen}
-            onToggle={() => setIsTimelineOpen((prev) => !prev)}
-            rightLabel={`${visibleActivities.length} event${
-              visibleActivities.length === 1 ? "" : "s"
-            }`}
-          >
-            {visibleActivities.length > 0 ? (
-              <div className="rounded-xl border bg-white px-4 py-2">
-                <div className="space-y-4">
-                  {orderedGroups.map((group) => (
-                    <div key={group}>
-                      <div className="mb-2 flex items-center gap-2">
-                        <div className="h-px flex-1 bg-gray-200" />
-                        <p className="shrink-0 text-[11px] font-semibold uppercase tracking-wide text-gray-500">
-                          {group}
-                        </p>
-                        <div className="h-px flex-1 bg-gray-200" />
-                      </div>
+          {/* DESCRIPTION */}
+            <CollapsibleSection
+              title="Description"
+              isOpen={isDescriptionOpen}
+              onToggle={() => setIsDescriptionOpen((prev) => !prev)}
+            >
+              {isEditing ? (
+                <textarea
+                  value={form.projectType}
+                  onChange={(e) =>
+                    setForm((prev) => ({
+                      ...prev,
+                      projectType: e.target.value,
+                    }))
+                  }
+                  rows={4}
+                  className="w-full rounded-md border border-gray-300 bg-white px-3 py-2 text-sm text-gray-900 outline-none focus:border-gray-500"
+                  placeholder="Enter description"
+                />
+              ) : (
+                <p className="whitespace-pre-wrap text-sm text-gray-900">
+                  {displayValue(form.projectType)}
+                </p>
+              )}
+            </CollapsibleSection>
 
-                      <div className="space-y-0">
-                        {groupedActivities[group].map((activity, index, arr) => {
-                          const label = getActivityLabel(activity);
-                          const description = getActivityDescription(activity);
-                          const showDescription =
-                            description !== "Activity recorded." &&
-                            activity.eventType !== "lead.viewed";
+            {/* IMAGES (moved up) */}
+            <CollapsibleSection
+              title="Images"
+              isOpen={isImagesOpen}
+              onToggle={() => setIsImagesOpen((prev) => !prev)}
+              rightLabel={`${form.images.length} image${
+                form.images.length === 1 ? "" : "s"
+              }`}
+            >
+              <div className="flex items-center justify-between gap-3">
+                <p className="text-sm font-semibold text-gray-700">Images:</p>
 
-                          return (
-                            <div
-                              key={activity.id}
-                              className="relative flex gap-3 py-3"
-                            >
-                              {index < arr.length - 1 ? (
-                                <div className="absolute left-[7px] top-7 bottom-0 w-px bg-gray-200" />
-                              ) : null}
+                <div className="flex items-center gap-2">
+                  <input
+                    ref={fileInputRef}
+                    type="file"
+                    accept="image/*"
+                    className="hidden"
+                    onChange={(e) => {
+                      const file = e.target.files?.[0];
+                      if (file) {
+                        void uploadImage(file);
+                      }
+                      e.currentTarget.value = "";
+                    }}
+                  />
 
-                              <div
-                                className={`relative z-10 mt-1 h-3.5 w-3.5 shrink-0 rounded-full border-2 border-white shadow-sm ${getActivityDotClasses(
-                                  activity
-                                )}`}
-                              />
+                  <button
+                    type="button"
+                    onClick={() => fileInputRef.current?.click()}
+                    disabled={isUploading}
+                    className="rounded-lg border px-3 py-1.5 text-xs font-semibold text-gray-700 transition hover:bg-gray-100 disabled:cursor-not-allowed disabled:opacity-60"
+                  >
+                    {isUploading ? "Uploading..." : "Upload Image"}
+                  </button>
+                </div>
+              </div>
 
-                              <div className="min-w-0 flex-1">
-                                <div className="flex flex-col gap-1 sm:flex-row sm:items-start sm:justify-between">
-                                  <div className="min-w-0">
-                                    <p className="text-sm font-medium text-gray-900">
-                                      {label}
-                                    </p>
-
-                                    {showDescription ? (
-                                      <p className="mt-0.5 whitespace-pre-wrap text-xs text-gray-600">
-                                        {description}
-                                      </p>
-                                    ) : null}
-                                  </div>
-
-                                  <div className="shrink-0 sm:pl-4">
-                                    <p className="text-xs text-gray-500">
-                                      {formatTimestampForDisplay(activity.createdAt)}
-                                    </p>
-                                    <p className="mt-0.5 text-[11px] uppercase tracking-wide text-gray-400">
-                                      {activity.eventSource}
-                                    </p>
-                                  </div>
-                                </div>
-                              </div>
-                            </div>
-                          );
-                        })}
-                      </div>
+              {form.images.length > 0 ? (
+                <div className="mt-3 grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+                  {form.images.map((image, index) => (
+                    <div key={image.id} className="rounded-xl border bg-gray-50 p-3">
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setSelectedImage(image);
+                          setSelectedIndex(index);
+                        }}
+                        className="block w-full overflow-hidden rounded-lg bg-white text-left"
+                      >
+                        <img
+                          src={image.url}
+                          alt={image.filename || "Lead image"}
+                          className="aspect-video w-full cursor-zoom-in object-cover transition hover:scale-105"
+                        />
+                      </button>
+                      <p className="mt-2 truncate text-xs text-gray-600">
+                        {image.filename || image.url}
+                      </p>
                     </div>
                   ))}
                 </div>
-              </div>
-            ) : (
-              <div className="rounded-md border border-gray-300 bg-gray-100 px-3 py-2 text-sm text-gray-900">
-                No activity recorded yet.
-              </div>
-            )}
-          </CollapsibleSection>
+              ) : (
+                <p className="mt-3 text-sm text-gray-900">Not provided</p>
+              )}
+            </CollapsibleSection>
 
-          <CollapsibleSection
-            title="Description"
-            isOpen={isDescriptionOpen}
-            onToggle={() => setIsDescriptionOpen((prev) => !prev)}
-          >
-            {isEditing ? (
-              <textarea
-                value={form.projectType}
-                onChange={(e) =>
-                  setForm((prev) => ({
-                    ...prev,
-                    projectType: e.target.value,
-                  }))
-                }
-                rows={4}
-                className="w-full rounded-md border border-gray-300 bg-white px-3 py-2 text-sm text-gray-900 outline-none focus:border-gray-500"
-                placeholder="Enter description"
-              />
-            ) : (
-              <p className="whitespace-pre-wrap text-sm text-gray-900">
-                {displayValue(form.projectType)}
-              </p>
-            )}
-          </CollapsibleSection>
+            {/* CUSTOMER UPDATES */}
+            <CollapsibleSection
+              title="Customer Updates"
+              isOpen={isCustomerUpdatesOpen}
+              onToggle={() => setIsCustomerUpdatesOpen((prev) => !prev)}
+              rightLabel={`${customerUpdateEntries.length} update${
+                customerUpdateEntries.length === 1 ? "" : "s"
+              }`}
+            >
+              {customerUpdateEntries.length > 0 ? (
+                <div className="space-y-3">
+                  {customerUpdateEntries.map((entry, index) => (
+                    <div
+                      key={`${entry.timestamp ?? "no-time"}_${index}`}
+                      className="rounded-xl border bg-white p-3"
+                    >
+                      <div className="mb-2 flex items-center justify-between gap-3">
+                        <p className="text-xs font-semibold uppercase tracking-wide text-gray-500">
+                          Customer Update
+                        </p>
+                        <p className="text-xs text-gray-500">
+                          {formatTimestampForDisplay(entry.timestamp)}
+                        </p>
+                      </div>
 
-          <CollapsibleSection
-            title="Contractor Notes"
-            isOpen={isNotesOpen}
-            onToggle={() => setIsNotesOpen((prev) => !prev)}
-            rightLabel="Internal company notes"
-          >
-            <textarea
-              value={form.notes}
-              onChange={(e) =>
-                setForm((prev) => ({ ...prev, notes: e.target.value }))
-              }
-              rows={5}
-              className="w-full rounded-md border border-gray-300 bg-white px-3 py-2 text-sm text-gray-900 outline-none focus:border-gray-500 disabled:bg-gray-100 disabled:text-gray-500"
-              placeholder="Add contractor notes here"
-              disabled={!isEditing}
-            />
-
-            {!isEditing && (
-              <p className="mt-2 text-xs text-gray-500">
-                Click Edit to update contractor notes and lead details.
-              </p>
-            )}
-          </CollapsibleSection>
-
-          <CollapsibleSection
-            title="Customer Updates"
-            isOpen={isCustomerUpdatesOpen}
-            onToggle={() => setIsCustomerUpdatesOpen((prev) => !prev)}
-            rightLabel={`${customerUpdateEntries.length} update${
-              customerUpdateEntries.length === 1 ? "" : "s"
-            }`}
-          >
-            {customerUpdateEntries.length > 0 ? (
-              <div className="space-y-3">
-                {customerUpdateEntries.map((entry, index) => (
-                  <div
-                    key={`${entry.timestamp ?? "no-time"}_${index}`}
-                    className="rounded-xl border bg-white p-3"
-                  >
-                    <div className="mb-2 flex items-center justify-between gap-3">
-                      <p className="text-xs font-semibold uppercase tracking-wide text-gray-500">
-                        Customer Update
-                      </p>
-                      <p className="text-xs text-gray-500">
-                        {formatTimestampForDisplay(entry.timestamp)}
+                      <p className="whitespace-pre-wrap text-sm text-gray-900">
+                        {entry.content || "No details provided."}
                       </p>
                     </div>
+                  ))}
+                </div>
+              ) : (
+                <div className="rounded-md border border-gray-300 bg-gray-100 px-3 py-2 text-sm text-gray-900">
+                  Customer follow-up messages will appear here.
+                </div>
+              )}
 
-                    <p className="whitespace-pre-wrap text-sm text-gray-900">
-                      {entry.content || "No details provided."}
-                    </p>
+              <p className="mt-2 text-xs text-gray-500">
+                These are follow-up details submitted through chat after the
+                original request was captured.
+              </p>
+            </CollapsibleSection>
+
+            {/* CONTRACTOR NOTES */}
+            <CollapsibleSection
+              title="Contractor Notes"
+              isOpen={isNotesOpen}
+              onToggle={() => setIsNotesOpen((prev) => !prev)}
+              rightLabel="Internal company notes"
+            >
+              <textarea
+                value={form.notes}
+                onChange={(e) =>
+                  setForm((prev) => ({ ...prev, notes: e.target.value }))
+                }
+                rows={5}
+                className="w-full rounded-md border border-gray-300 bg-white px-3 py-2 text-sm text-gray-900 outline-none focus:border-gray-500 disabled:bg-gray-100 disabled:text-gray-500"
+                placeholder="Add contractor notes here"
+                disabled={!isEditing}
+              />
+
+              {!isEditing && (
+                <p className="mt-2 text-xs text-gray-500">
+                  Click Edit to update contractor notes and lead details.
+                </p>
+              )}
+            </CollapsibleSection>
+
+            {/* ACTIVITY TIMELINE (moved to bottom) */}
+            <CollapsibleSection
+              title="Activity Timeline"
+              isOpen={isTimelineOpen}
+              onToggle={() => setIsTimelineOpen((prev) => !prev)}
+              rightLabel={`${visibleActivities.length} event${
+                visibleActivities.length === 1 ? "" : "s"
+              }`}
+            >
+              {visibleActivities.length > 0 ? (
+                <div className="rounded-xl border bg-white px-4 py-2">
+                  <div className="space-y-4">
+                    {orderedGroups.map((group) => (
+                      <div key={group}>
+                        <div className="mb-2 flex items-center gap-2">
+                          <div className="h-px flex-1 bg-gray-200" />
+                          <p className="shrink-0 text-[11px] font-semibold uppercase tracking-wide text-gray-500">
+                            {group}
+                          </p>
+                          <div className="h-px flex-1 bg-gray-200" />
+                        </div>
+
+                        <div className="space-y-0">
+                          {groupedActivities[group].map((activity, index, arr) => {
+                            const label = getActivityLabel(activity);
+                            const description = getActivityDescription(activity);
+                            const showDescription =
+                              description !== "Activity recorded." &&
+                              activity.eventType !== "lead.viewed";
+
+                            return (
+                              <div key={activity.id} className="relative flex gap-3 py-3">
+                                {index < arr.length - 1 ? (
+                                  <div className="absolute left-[7px] top-7 bottom-0 w-px bg-gray-200" />
+                                ) : null}
+
+                                <div
+                                  className={`relative z-10 mt-1 h-3.5 w-3.5 shrink-0 rounded-full border-2 border-white shadow-sm ${getActivityDotClasses(
+                                    activity
+                                  )}`}
+                                />
+
+                                <div className="min-w-0 flex-1">
+                                  <div className="flex flex-col gap-1 sm:flex-row sm:items-start sm:justify-between">
+                                    <div className="min-w-0">
+                                      <p className="text-sm font-medium text-gray-900">
+                                        {label}
+                                      </p>
+
+                                      {showDescription ? (
+                                        <p className="mt-0.5 whitespace-pre-wrap text-xs text-gray-600">
+                                          {description}
+                                        </p>
+                                      ) : null}
+                                    </div>
+
+                                    <div className="shrink-0 sm:pl-4">
+                                      <p className="text-xs text-gray-500">
+                                        {formatTimestampForDisplay(activity.createdAt)}
+                                      </p>
+                                      <p className="mt-0.5 text-[11px] uppercase tracking-wide text-gray-400">
+                                        {activity.eventSource}
+                                      </p>
+                                    </div>
+                                  </div>
+                                </div>
+                              </div>
+                            );
+                          })}
+                        </div>
+                      </div>
+                    ))}
                   </div>
-                ))}
-              </div>
-            ) : (
-              <div className="rounded-md border border-gray-300 bg-gray-100 px-3 py-2 text-sm text-gray-900">
-                Customer follow-up messages will appear here.
-              </div>
-            )}
-
-            <p className="mt-2 text-xs text-gray-500">
-              These are follow-up details submitted through chat after the
-              original request was captured.
-            </p>
-          </CollapsibleSection>
-
-          <CollapsibleSection
-            title="Images"
-            isOpen={isImagesOpen}
-            onToggle={() => setIsImagesOpen((prev) => !prev)}
-            rightLabel={`${form.images.length} image${
-              form.images.length === 1 ? "" : "s"
-            }`}
-          >
-            <div className="flex items-center justify-between gap-3">
-              <p className="text-sm font-semibold text-gray-700">Images:</p>
-
-              <div className="flex items-center gap-2">
-                <input
-                  ref={fileInputRef}
-                  type="file"
-                  accept="image/*"
-                  className="hidden"
-                  onChange={(e) => {
-                    const file = e.target.files?.[0];
-                    if (file) {
-                      void uploadImage(file);
-                    }
-
-                    e.currentTarget.value = "";
-                  }}
-                />
-
-                <button
-                  type="button"
-                  onClick={() => fileInputRef.current?.click()}
-                  disabled={isUploading}
-                  className="rounded-lg border px-3 py-1.5 text-xs font-semibold text-gray-700 transition hover:bg-gray-100 disabled:cursor-not-allowed disabled:opacity-60"
-                >
-                  {isUploading ? "Uploading..." : "Upload Image"}
-                </button>
-              </div>
-            </div>
-
-            {form.images.length > 0 ? (
-              <div className="mt-3 grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
-                {form.images.map((image, index) => (
-                  <div
-                    key={image.id}
-                    className="rounded-xl border bg-gray-50 p-3"
-                  >
-                    <button
-                      type="button"
-                      onClick={() => {
-                        setSelectedImage(image);
-                        setSelectedIndex(index);
-                      }}
-                      className="block w-full overflow-hidden rounded-lg bg-white text-left"
-                    >
-                      <img
-                        src={image.url}
-                        alt={image.filename || "Lead image"}
-                        className="aspect-video w-full cursor-zoom-in object-cover transition hover:scale-105"
-                      />
-                    </button>
-                    <p className="mt-2 truncate text-xs text-gray-600">
-                      {image.filename || image.url}
-                    </p>
-                  </div>
-                ))}
-              </div>
-            ) : (
-              <p className="mt-3 text-sm text-gray-900">Not provided</p>
-            )}
-          </CollapsibleSection>
+                </div>
+              ) : (
+                <div className="rounded-md border border-gray-300 bg-gray-100 px-3 py-2 text-sm text-gray-900">
+                  No activity recorded yet.
+                </div>
+              )}
+            </CollapsibleSection>
 
           {saveMessage ? (
             <p className="text-sm text-gray-600">{saveMessage}</p>

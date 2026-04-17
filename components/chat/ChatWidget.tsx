@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useRef, useState } from "react";
+import { Plus } from "lucide-react";
 import { Tenant } from "@/lib/types/tenant";
 import { ChatMessage, IntakeStep } from "@/lib/types/chat";
 import type { LeadImage } from "@/lib/types/lead";
@@ -9,14 +10,22 @@ type Props = {
   tenant: Tenant;
 };
 
-type PostCaptureChoice = "idle" | "awaiting_choice" | "adding_more" | "standby";
-
 type LocalAssistantMessage = {
   id: string;
   role: "assistant";
   content: string;
   createdAt: string;
 };
+
+type LocalUploadMessage = {
+  id: string;
+  role: "upload";
+  createdAt: string;
+  attachment?: LeadImage;
+  image?: LeadImage;
+};
+
+type LocalMessage = LocalAssistantMessage | LocalUploadMessage;
 
 function createLocalAssistantMessage(content: string): LocalAssistantMessage {
   return {
@@ -27,22 +36,63 @@ function createLocalAssistantMessage(content: string): LocalAssistantMessage {
   };
 }
 
+function createLocalUploadMessage(attachment: LeadImage): LocalUploadMessage {
+  return {
+    id: `upload_${attachment.id}`,
+    role: "upload",
+    createdAt: new Date().toISOString(),
+    attachment,
+  };
+}
+
+function getAttachmentExtension(filename?: string) {
+  if (!filename) return "";
+
+  const parts = filename.split(".");
+  return parts.length > 1 ? parts.pop()!.toLowerCase() : "";
+}
+
+function isImageAttachment(filename?: string, url?: string) {
+  const extension = getAttachmentExtension(filename);
+
+  if (["jpg", "jpeg", "png", "webp", "heic"].includes(extension)) {
+    return true;
+  }
+
+  if (url) {
+    return /\.(jpg|jpeg|png|webp|heic)(\?|$)/i.test(url);
+  }
+
+  return false;
+}
+
+function getFileBadge(extension: string) {
+  switch (extension) {
+    case "pdf":
+      return "PDF";
+    case "doc":
+    case "docx":
+      return "DOC";
+    case "xls":
+    case "xlsx":
+      return "XLS";
+    case "csv":
+      return "CSV";
+    case "zip":
+      return "ZIP";
+    case "txt":
+      return "TXT";
+    default:
+      return "FILE";
+  }
+}
+
 export function ChatWidget({ tenant }: Props) {
   const [sessionId, setSessionId] = useState<string | null>(null);
   const [leadId, setLeadId] = useState<string | null>(null);
 
-  /**
-   * Server-backed messages returned from the API.
-   */
   const [messages, setMessages] = useState<ChatMessage[]>([]);
-
-  /**
-   * Local-only assistant messages used to shape the conversational UX
-   * after lead capture.
-   */
-  const [localMessages, setLocalMessages] = useState<LocalAssistantMessage[]>(
-    []
-  );
+  const [localMessages, setLocalMessages] = useState<LocalMessage[]>([]);
 
   const [input, setInput] = useState("");
   const [isStarting, setIsStarting] = useState(false);
@@ -51,34 +101,24 @@ export function ChatWidget({ tenant }: Props) {
   const [error, setError] = useState<string | null>(null);
   const [currentStep, setCurrentStep] = useState<IntakeStep | null>(null);
   const [leadCaptured, setLeadCaptured] = useState(false);
-  const [uploadedImages, setUploadedImages] = useState<LeadImage[]>([]);
-
-  /**
-   * Controls the conversational flow after the lead has already been created.
-   */
-  const [postCaptureChoice, setPostCaptureChoice] =
-    useState<PostCaptureChoice>("idle");
+  const [isAttachMenuOpen, setIsAttachMenuOpen] = useState(false);
 
   const hasStartedRef = useRef(false);
+  const photoLibraryInputRef = useRef<HTMLInputElement | null>(null);
+  const cameraInputRef = useRef<HTMLInputElement | null>(null);
+  const scrollContainerRef = useRef<HTMLDivElement | null>(null);
+  const composerRef = useRef<HTMLDivElement | null>(null);
   const fileInputRef = useRef<HTMLInputElement | null>(null);
-  const leadCapturedRef = useRef(false);
 
   const visibleMessages = useMemo(() => {
     const serverVisible = messages.filter((message) => message.role !== "system");
+
     const combined = [...serverVisible, ...localMessages];
 
     return combined.sort((a, b) => {
       return new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime();
     });
   }, [messages, localMessages]);
-
-  const showPostCaptureButtons =
-    leadCaptured && postCaptureChoice === "awaiting_choice";
-
-  const showImageUpload =
-    leadCaptured &&
-    Boolean(leadId) &&
-    postCaptureChoice === "adding_more";
 
   function resetClientConversationState() {
     setInput("");
@@ -88,9 +128,7 @@ export function ChatWidget({ tenant }: Props) {
     setLeadCaptured(false);
     setSessionId(null);
     setLeadId(null);
-    setUploadedImages([]);
-    setPostCaptureChoice("idle");
-    leadCapturedRef.current = false;
+    setIsAttachMenuOpen(false);
   }
 
   async function handleStartChat() {
@@ -174,22 +212,25 @@ export function ChatWidget({ tenant }: Props) {
     }
   }
 
-  /**
-   * Public chat-side image upload.
-   *
-   * Images are only uploaded after a lead exists so they can be tied to a
-   * real lead record and stored in the same images field already used by
-   * the admin lead UI.
-   */
   async function handleUploadImage(file: File) {
+    // ✅ Frontend file size validation
+    setError(null);
+
+    if (file.size > 15 * 1024 * 1024) {
+      setError("File is too large. Max size is 15MB.");
+      return;
+    }
+  
     if (!leadId) {
       setError("Please finish the initial request before uploading photos.");
+      setIsAttachMenuOpen(false);
       return;
     }
 
     try {
       setIsUploading(true);
       setError(null);
+      setIsAttachMenuOpen(false);
 
       const formData = new FormData();
       formData.append("file", file);
@@ -207,15 +248,16 @@ export function ChatWidget({ tenant }: Props) {
       }
 
       if (result.image) {
-        setUploadedImages((prev) => [...prev, result.image]);
-      }
+        const uploadedAttachment: LeadImage = result.image;
 
-      setLocalMessages((prev) => [
-        ...prev,
-        createLocalAssistantMessage(
-          "Thanks — we’ve added that photo to your request. If you’d like, you can upload more photos, share an email, or send any extra details here."
-        ),
-      ]);
+        setLocalMessages((prev) => [
+          ...prev,
+          createLocalUploadMessage(uploadedAttachment),
+          createLocalAssistantMessage(
+            "Got it, added to your request."
+          ),
+        ]);
+      }
     } catch (err) {
       setError(err instanceof Error ? err.message : "Failed to upload image.");
     } finally {
@@ -223,54 +265,39 @@ export function ChatWidget({ tenant }: Props) {
     }
   }
 
-  function handleAddMoreDetailsChoice() {
-    setPostCaptureChoice("adding_more");
-
-    setLocalMessages((prev) => [
-      ...prev,
-      createLocalAssistantMessage(
-        "You can share an email here if you'd like us to send updates, quotes, or documents. You can also upload photos or send any extra details that would help us understand your project better."
-      ),
-    ]);
+  function handleAttachmentButtonClick() {
+    setIsAttachMenuOpen((prev) => !prev);
   }
-
-  function handleNoMoreDetailsChoice() {
-    setPostCaptureChoice("standby");
-
-    setLocalMessages((prev) => [
-      ...prev,
-      createLocalAssistantMessage(
-        "Feel free to keep browsing and ask questions anytime. If anything else comes to mind, send it here and we’ll add it to your request."
-      ),
-    ]);
-  }
-
-  /**
-   * When the lead is captured for the first time in this session,
-   * inject the post-capture conversational bubbles.
-   */
-  useEffect(() => {
-    if (!leadCaptured || leadCapturedRef.current) return;
-
-    leadCapturedRef.current = true;
-    setPostCaptureChoice("awaiting_choice");
-
-    setLocalMessages((prev) => [
-      ...prev,
-      createLocalAssistantMessage(
-        "Thanks, I have enough information to get us started."
-      ),
-      createLocalAssistantMessage(
-        "If you'd like, you can also share an email so we can send updates, quotes, or documents. You can also add more details or upload photos to help us understand your project better."
-      ),
-    ]);
-  }, [leadCaptured]);
 
   useEffect(() => {
     if (hasStartedRef.current) return;
     hasStartedRef.current = true;
     void handleStartChat();
     // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  useEffect(() => {
+    const container = scrollContainerRef.current;
+    if (!container) return;
+
+    requestAnimationFrame(() => {
+      container.scrollTop = container.scrollHeight;
+    });
+  }, [visibleMessages, isSending, isUploading]);
+
+  useEffect(() => {
+    function handleClickOutside(event: MouseEvent) {
+      if (!composerRef.current) return;
+
+      if (!composerRef.current.contains(event.target as Node)) {
+        setIsAttachMenuOpen(false);
+      }
+    }
+
+    document.addEventListener("mousedown", handleClickOutside);
+    return () => {
+      document.removeEventListener("mousedown", handleClickOutside);
+    };
   }, []);
 
   return (
@@ -286,136 +313,212 @@ export function ChatWidget({ tenant }: Props) {
         </div>
       ) : (
         <div className="mt-6">
-          <div className="h-80 space-y-3 overflow-y-auto rounded-xl border bg-gray-50 p-4">
-            {visibleMessages.map((message) => (
-              <div
-                key={message.id}
-                className={`max-w-[85%] rounded-2xl px-4 py-3 text-sm ${
-                  message.role === "user"
-                    ? "ml-auto bg-gray-900 text-white"
-                    : "border bg-white text-gray-800"
-                }`}
-              >
-                {message.content}
+          <div
+            ref={scrollContainerRef}
+            className="h-[420px] space-y-3 overflow-y-auto rounded-xl border bg-gray-50 p-4"
+          >
+            {visibleMessages.map((message) => {
+              if ("role" in message && message.role === "upload") {
+                const attachment = message.attachment ?? message.image ?? null;
+
+                if (!attachment) {
+                  return null;
+                }
+
+                const filename = attachment.filename || "Uploaded file";
+                const extension = getAttachmentExtension(filename);
+                const isImage = isImageAttachment(filename, attachment.url);
+
+                if (isImage) {
+                  return (
+                    <div
+                      key={message.id}
+                      className="max-w-[85%] rounded-2xl border bg-white p-3 text-sm text-gray-800"
+                    >
+                      <a
+                        href={attachment.url}
+                        target="_blank"
+                        rel="noreferrer"
+                        className="block overflow-hidden rounded-xl border bg-gray-100"
+                      >
+                        {/* eslint-disable-next-line @next/next/no-img-element */}
+                        <img
+                          src={attachment.url}
+                          alt={filename}
+                          className="max-h-72 w-full object-cover"
+                        />
+                      </a>
+
+                      <p className="mt-2 text-xs text-gray-500">{filename}</p>
+                    </div>
+                  );
+                }
+
+                return (
+                  <a
+                    key={message.id}
+                    href={attachment.url}
+                    target="_blank"
+                    rel="noreferrer"
+                    className="block max-w-[85%] rounded-2xl border bg-white p-3 text-sm text-gray-800 transition hover:bg-gray-50"
+                  >
+                    <div className="flex items-center gap-3">
+                      <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-gray-900 text-xs font-semibold text-white">
+                        {getFileBadge(extension)}
+                      </div>
+
+                      <div className="min-w-0">
+                        <p className="truncate font-medium text-gray-900">{filename}</p>
+                        <p className="mt-1 text-xs text-gray-500">Click to open</p>
+                      </div>
+                    </div>
+                  </a>
+                );
+              }
+
+              return (
+                <div
+                  key={message.id}
+                  className={`max-w-[85%] rounded-2xl px-4 py-3 text-sm ${
+                    message.role === "user"
+                      ? "ml-auto bg-gray-900 text-white"
+                      : "border bg-white text-gray-800"
+                  }`}
+                >
+                  {message.content}
+                </div>
+              );
+            })}
+
+            {isSending ? (
+              <div className="max-w-[85%] rounded-2xl border bg-white px-4 py-3 text-sm text-gray-500">
+                <span className="inline-flex items-center gap-1">
+                  <span className="h-2 w-2 animate-bounce rounded-full bg-gray-400 [animation-delay:-0.3s]" />
+                  <span className="h-2 w-2 animate-bounce rounded-full bg-gray-400 [animation-delay:-0.15s]" />
+                  <span className="h-2 w-2 animate-bounce rounded-full bg-gray-400" />
+                </span>
               </div>
-            ))}
+            ) : null}
           </div>
 
-          {showPostCaptureButtons && (
-            <div className="mt-4 flex flex-wrap gap-2">
+          {error ? (
+            <div className="mt-4 rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
+              {error}
+            </div>
+          ) : null}
+
+          <div ref={composerRef} className="relative mt-4">
+          {isAttachMenuOpen ? (
+            <div className="absolute bottom-full left-0 z-20 mb-2 w-44 rounded-xl border bg-white p-2 shadow-lg">
               <button
                 type="button"
-                onClick={handleAddMoreDetailsChoice}
-                className="rounded-xl border px-4 py-2 text-sm font-medium text-gray-700 transition hover:bg-gray-50"
+                onClick={() => photoLibraryInputRef.current?.click()}
+                className="flex w-full items-center rounded-lg px-3 py-2 text-left text-sm text-gray-700 transition hover:bg-gray-50"
               >
-                Add Email / Details / Photos
+                Upload Photo
               </button>
 
               <button
                 type="button"
-                onClick={handleNoMoreDetailsChoice}
-                className="rounded-xl border px-4 py-2 text-sm font-medium text-gray-700 transition hover:bg-gray-50"
+                onClick={() => cameraInputRef.current?.click()}
+                className="mt-1 flex w-full items-center rounded-lg px-3 py-2 text-left text-sm text-gray-700 transition hover:bg-gray-50"
               >
-                No, That&apos;s All
+                Take Photo
+              </button>
+
+              <button
+                type="button"
+                onClick={() => fileInputRef.current?.click()}
+                className="mt-1 flex w-full items-center rounded-lg px-3 py-2 text-left text-sm text-gray-700 transition hover:bg-gray-50"
+              >
+                Upload File
               </button>
             </div>
-          )}
+          ) : null}
 
-          {showImageUpload && (
-            <div className="mt-4 rounded-2xl border bg-gray-50/60 p-4">
-              <div className="flex items-center justify-between gap-3">
-                <div>
-                  <p className="text-sm font-semibold text-gray-700">
-                    Photos
-                  </p>
-                  <p className="mt-1 text-xs text-gray-500">
-                    Upload any photos you’d like us to review with your request.
-                  </p>
-                </div>
+            <div className="flex items-end gap-3">
+              <button
+                type="button"
+                onClick={handleAttachmentButtonClick}
+                className="flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl border bg-white text-gray-700 transition hover:bg-gray-50"
+                aria-label="Upload"
+                title="Upload"
+              >
+                <Plus className="h-5 w-5" />
+              </button>
 
-                <div className="flex items-center gap-2">
-                  <input
-                    ref={fileInputRef}
-                    type="file"
-                    accept="image/*"
-                    className="hidden"
-                    onChange={(e) => {
-                      const file = e.target.files?.[0];
-                      if (file) {
-                        void handleUploadImage(file);
-                      }
+              <textarea
+                value={input}
+                onChange={(e) => setInput(e.target.value)}
+                onKeyDown={(e) => {
+                  if (e.key === "Enter" && !e.shiftKey) {
+                    e.preventDefault();
 
-                      e.currentTarget.value = "";
-                    }}
-                  />
+                    if (!isSending && input.trim()) {
+                      void handleSendMessage();
+                    }
+                  }
+                }}
+                placeholder="Type your message..."
+                rows={1}
+                className="h-12 min-h-[48px] max-h-28 flex-1 resize-none rounded-2xl border px-4 py-3 text-sm outline-none transition focus:border-gray-400"
+              />
 
-                  <button
-                    type="button"
-                    onClick={() => fileInputRef.current?.click()}
-                    disabled={isUploading}
-                    className="rounded-lg border px-3 py-1.5 text-xs font-semibold text-gray-700 transition hover:bg-gray-100 disabled:cursor-not-allowed disabled:opacity-60"
-                  >
-                    {isUploading ? "Uploading..." : "Upload Photo"}
-                  </button>
-                </div>
-              </div>
-
-              {uploadedImages.length > 0 ? (
-                <div className="mt-3 grid gap-3 sm:grid-cols-2">
-                  {uploadedImages.map((image) => (
-                    <div
-                      key={image.id}
-                      className="rounded-xl border bg-white p-3"
-                    >
-                      <img
-                        src={image.url}
-                        alt={image.filename || "Uploaded project image"}
-                        className="aspect-video w-full rounded-lg object-cover"
-                      />
-                      <p className="mt-2 truncate text-xs text-gray-600">
-                        {image.filename || image.url}
-                      </p>
-                    </div>
-                  ))}
-                </div>
-              ) : (
-                <p className="mt-3 text-sm text-gray-900">
-                  No photos uploaded yet.
-                </p>
-              )}
+              <button
+                type="button"
+                onClick={() => void handleSendMessage()}
+                disabled={isSending || !input.trim()}
+                className="h-12 shrink-0 rounded-2xl bg-gray-900 px-5 text-sm font-medium text-white transition hover:bg-gray-800 disabled:cursor-not-allowed disabled:opacity-60"
+              >
+                {isSending ? "Sending..." : "Send"}
+              </button>
             </div>
-          )}
 
-          <div className="mt-4 flex gap-2">
             <input
-              type="text"
-              value={input}
-              onChange={(e) => setInput(e.target.value)}
-              onKeyDown={(e) => {
-                if (e.key === "Enter" && !isSending) {
-                  void handleSendMessage();
+              ref={photoLibraryInputRef}
+              type="file"
+              accept="image/jpeg,image/png,image/webp,image/heic,image/*"
+              className="hidden"
+              onChange={(e) => {
+                const file = e.target.files?.[0];
+                if (file) {
+                  void handleUploadImage(file);
                 }
+                e.currentTarget.value = "";
               }}
-              placeholder={
-                currentStep === "complete"
-                  ? "Share an email or add more details..."
-                  : "Type your message..."
-              }
-              className="flex-1 rounded-xl border px-4 py-3 text-sm outline-none focus:ring-2"
             />
-            <button
-              onClick={() => void handleSendMessage()}
-              disabled={isSending}
-              className="rounded-xl px-4 py-3 text-sm font-medium text-white disabled:opacity-60"
-              style={{ backgroundColor: tenant.primaryColor || "#111827" }}
-            >
-              {isSending ? "Sending..." : "Send"}
-            </button>
+
+            <input
+              ref={fileInputRef}
+              type="file"
+              accept=".pdf,.doc,.docx,.txt,.rtf,.xls,.xlsx,.csv,.zip,.heic,.jpg,.jpeg,.png,.webp"
+              className="hidden"
+              onChange={(e) => {
+                const file = e.target.files?.[0];
+                if (file) {
+                  void handleUploadImage(file);
+                }
+                e.currentTarget.value = "";
+              }}
+            />
+
+            <input
+              ref={cameraInputRef}
+              type="file"
+              accept="image/*"
+              capture="environment"
+              className="hidden"
+              onChange={(e) => {
+                const file = e.target.files?.[0];
+                if (file) {
+                  void handleUploadImage(file);
+                }
+                e.currentTarget.value = "";
+              }}
+            />
           </div>
         </div>
       )}
-
-      {error && <p className="mt-4 text-sm text-red-600">{error}</p>}
     </div>
   );
 }
