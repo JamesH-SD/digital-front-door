@@ -167,10 +167,11 @@ export function ChatWidget({ tenant }: Props) {
 
   async function handleSendMessage() {
     if (!sessionId) return;
-
+  
     const trimmed = input.trim();
     if (!trimmed) return;
-
+  
+    setInput("");
     setIsSending(true);
     setError(null);
 
@@ -204,7 +205,6 @@ export function ChatWidget({ tenant }: Props) {
       setCurrentStep(data.session?.currentStep ?? null);
       setLeadCaptured(Boolean(data.session?.leadCaptured));
       setLeadId(data.session?.leadId ?? null);
-      setInput("");
     } catch (err) {
       setError(err instanceof Error ? err.message : "Something went wrong");
     } finally {
