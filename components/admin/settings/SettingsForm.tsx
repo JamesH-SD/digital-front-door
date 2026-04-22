@@ -120,6 +120,8 @@ function createInitialFormState(tenant: Tenant) {
     tagline: tenant.tagline || "",
     aboutUs: tenant.aboutUs || "",
     licenseNumber: tenant.licenseNumber || "",
+    isInsured: tenant.isInsured ?? false,
+    shareBusinessAddressInChat: tenant.shareBusinessAddressInChat ?? false,
 
     servicesOffered: (tenant.servicesOffered || []).join("\n"),
 
@@ -436,27 +438,54 @@ export default function SettingsForm({ tenant }: SettingsFormProps) {
               )}
             </div>
 
-            <div>
-              <label className="text-sm font-medium text-gray-700">
-                License Number
-              </label>
-              {editingSections.businessIdentity ? (
-                <input
-                  value={form.licenseNumber}
-                  onChange={(e) =>
-                    setForm((prev) => ({
-                      ...prev,
-                      licenseNumber: e.target.value,
-                    }))
-                  }
-                  className="mt-1 w-full rounded-lg border bg-white px-3 py-2 text-sm"
-                  placeholder="License number"
-                />
-              ) : (
-                <div className="mt-1 rounded-lg border bg-white px-3 py-2 text-sm">
-                  {displayValue(form.licenseNumber)}
-                </div>
-              )}
+            <div className="grid gap-4 md:grid-cols-3 md:items-end">
+              <div className="md:col-span-2">
+                <label className="text-sm font-medium text-gray-700">
+                  License Number
+                </label>
+                {editingSections.businessIdentity ? (
+                  <input
+                    value={form.licenseNumber}
+                    onChange={(e) =>
+                      setForm((prev) => ({
+                        ...prev,
+                        licenseNumber: e.target.value,
+                      }))
+                    }
+                    className="mt-1 w-full rounded-lg border bg-white px-3 py-2 text-sm"
+                    placeholder="License number"
+                  />
+                ) : (
+                  <div className="mt-1 rounded-lg border bg-white px-3 py-2 text-sm">
+                    {displayValue(form.licenseNumber)}
+                  </div>
+                )}
+              </div>
+
+              <div>
+                <label className="text-sm font-medium text-gray-700">
+                  Insured
+                </label>
+                {editingSections.businessIdentity ? (
+                  <label className="mt-1 flex min-h-[42px] items-center gap-2 rounded-lg border bg-white px-3 py-2 text-sm text-gray-700">
+                    <input
+                      type="checkbox"
+                      checked={form.isInsured}
+                      onChange={(e) =>
+                        setForm((prev) => ({
+                          ...prev,
+                          isInsured: e.target.checked,
+                        }))
+                      }
+                    />
+                    Yes
+                  </label>
+                ) : (
+                  <div className="mt-1 rounded-lg border bg-white px-3 py-2 text-sm">
+                    {form.isInsured ? "Yes" : "No"}
+                  </div>
+                )}
+              </div>
             </div>
 
             <div className="md:col-span-2">
@@ -534,28 +563,57 @@ export default function SettingsForm({ tenant }: SettingsFormProps) {
             )}
 
             <div className="grid gap-4 md:grid-cols-2">
-              <div className="md:col-span-2">
-                <label className="text-sm font-medium text-gray-700">
-                  Address Line 1
-                </label>
-                {editingSections.locationServiceArea ? (
-                  <input
-                    value={form.addressLine1}
-                    onChange={(e) =>
-                      setForm((prev) => ({
-                        ...prev,
-                        addressLine1: e.target.value,
-                      }))
-                    }
-                    className="mt-1 w-full rounded-lg border bg-white px-3 py-2 text-sm"
-                    placeholder="Street address"
-                  />
-                ) : (
-                  <div className="mt-1 rounded-lg border bg-white px-3 py-2 text-sm">
-                    {displayValue(form.addressLine1)}
-                  </div>
-                )}
+            <div className="md:col-span-2">
+              <div className="grid gap-4 md:grid-cols-3 md:items-end">
+                <div className="md:col-span-2">
+                  <label className="text-sm font-medium text-gray-700">
+                    Address Line 1
+                  </label>
+                  {editingSections.locationServiceArea ? (
+                    <input
+                      value={form.addressLine1}
+                      onChange={(e) =>
+                        setForm((prev) => ({
+                          ...prev,
+                          addressLine1: e.target.value,
+                        }))
+                      }
+                      className="mt-1 w-full rounded-lg border bg-white px-3 py-2 text-sm"
+                      placeholder="Street address"
+                    />
+                  ) : (
+                    <div className="mt-1 rounded-lg border bg-white px-3 py-2 text-sm">
+                      {displayValue(form.addressLine1)}
+                    </div>
+                  )}
+                </div>
+
+                <div>
+                  <label className="text-sm font-medium text-gray-700">
+                    Share Address in Chat
+                  </label>
+                  {editingSections.locationServiceArea ? (
+                    <label className="mt-1 flex min-h-[42px] items-center gap-2 rounded-lg border bg-white px-3 py-2 text-sm text-gray-700">
+                      <input
+                        type="checkbox"
+                        checked={form.shareBusinessAddressInChat}
+                        onChange={(e) =>
+                          setForm((prev) => ({
+                            ...prev,
+                            shareBusinessAddressInChat: e.target.checked,
+                          }))
+                        }
+                      />
+                      Yes
+                    </label>
+                  ) : (
+                    <div className="mt-1 rounded-lg border bg-white px-3 py-2 text-sm">
+                      {form.shareBusinessAddressInChat ? "Yes" : "No"}
+                    </div>
+                  )}
+                </div>
               </div>
+            </div>
 
               <div>
                 <label className="text-sm font-medium text-gray-700">City</label>

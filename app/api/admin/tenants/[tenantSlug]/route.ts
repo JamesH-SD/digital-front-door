@@ -38,12 +38,14 @@ export async function PATCH(request: Request, context: RouteContext) {
         service_cities: body.serviceCities,
         out_of_area_message: body.outOfAreaMessage,
 
-        // ===============================
+                // ===============================
         // GBP_COMPATIBLE: Business Profile
         // ===============================
         tagline: body.tagline,
         about_us: body.aboutUs,
         license_number: body.licenseNumber,
+        is_insured: body.isInsured,
+        share_business_address_in_chat: body.shareBusinessAddressInChat,
 
         // ===============================
         // GBP_COMPATIBLE: Services + Hours

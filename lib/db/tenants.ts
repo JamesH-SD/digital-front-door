@@ -46,6 +46,8 @@ export async function getTenantBySlug(
     tagline: data.tagline,
     aboutUs: data.about_us,
     licenseNumber: data.license_number,
+    isInsured: data.is_insured ?? false,
+    shareBusinessAddressInChat: data.share_business_address_in_chat ?? false,
     servicesOffered: data.services_offered || [],
     hours: data.hours || {},
     greetingMessage: data.greeting_message,

@@ -22,6 +22,8 @@ export type Tenant = {
   serviceAreaSummary?: string;
   serviceCities?: string[];
   outOfAreaMessage?: string;
+  isInsured?: boolean;
+  shareBusinessAddressInChat?: boolean; 
 
   // ===============================
   // GBP_COMPATIBLE: Business Profile

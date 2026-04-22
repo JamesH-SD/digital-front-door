@@ -44,33 +44,49 @@ function sanitizeString(value: unknown): string | undefined {
 
 function stripCodeFences(value: string) {
   return value
-    .replace(/^```json\s*/i, "")
-    .replace(/^```\s*/i, "")
-    .replace(/\s*```$/i, "")
+    .replace(/^```json\\s*/i, "")
+    .replace(/^```\\s*/i, "")
+    .replace(/\\s*```$/i, "")
     .trim();
 }
 
 function buildTenantContext(tenant: Tenant) {
+  const businessAddress = tenant.addressLine1
+    ? `${tenant.addressLine1}, ${tenant.city || ""}, ${tenant.state || ""} ${tenant.zip || ""}`
+        .replace(/\\s+/g, " ")
+        .replace(/\\s+,/g, ",")
+        .trim()
+    : "Not provided";
+
   return [
     `Business Name: ${tenant.businessName || "Unknown"}`,
     `Primary Category: ${tenant.primaryCategory || "Not provided"}`,
     `Business Phone: ${tenant.primaryPhone || "Not provided"}`,
     `Business Email: ${tenant.email || "Not provided"}`,
-    `Business Address: ${
-      tenant.addressLine1
-        ? `${tenant.addressLine1}, ${tenant.city || ""}, ${tenant.state || ""} ${tenant.zip || ""}`.trim()
-        : "Not provided"
-    }`,
-    `Business Hours: ${
-      tenant.hours ? JSON.stringify(tenant.hours) : "Not provided"
-    }`,
+    `Business Address: ${businessAddress}`,
+    `Business Hours: ${tenant.hours ? JSON.stringify(tenant.hours) : "Not provided"}`,
     `Business City: ${tenant.city || "Not provided"}`,
     `Business State: ${tenant.state || "Not provided"}`,
     `Service Area Summary: ${tenant.serviceAreaSummary || "Not provided"}`,
     `Service Cities: ${(tenant.serviceCities || []).join(", ") || "Not provided"}`,
     `Services Offered: ${(tenant.servicesOffered || []).join(", ") || "Not provided"}`,
     `Greeting Message: ${tenant.greetingMessage || "Not provided"}`,
-  ].join("\n");
+    `License Number: ${tenant.licenseNumber || "Not provided"}`,
+    `Is Insured: ${
+      typeof tenant.isInsured === "boolean"
+        ? tenant.isInsured
+          ? "yes"
+          : "no"
+        : "unknown"
+    }`,
+    `Share Business Address In Chat: ${
+      typeof tenant.shareBusinessAddressInChat === "boolean"
+        ? tenant.shareBusinessAddressInChat
+          ? "yes"
+          : "no"
+        : "unknown"
+    }`,
+  ].join("\\n");
 }
 
 function buildLeadContext(lead: Lead) {
@@ -86,14 +102,14 @@ function buildLeadContext(lead: Lead) {
     `Appointment: ${lead.appointment || "Not provided"}`,
     `Customer Updates: ${lead.customerUpdates || "Not provided"}`,
     `Status: ${lead.status || "new"}`,
-  ].join("\n");
+  ].join("\\n");
 }
 
 function buildConversation(messages: ChatMessage[]) {
   return messages
     .slice(-12)
     .map((message) => `${message.role.toUpperCase()}: ${message.content}`)
-    .join("\n");
+    .join("\\n");
 }
 
 export async function generatePostCaptureTurn(input: {
@@ -114,7 +130,9 @@ export async function generatePostCaptureTurn(input: {
       1. understand the customer's follow-up message deeply
       2. extract any structured updates if clearly present
       3. summarize useful sales and context details for the contractor
-      4. respond naturally and ask one helpful next question when appropriate
+      4. respond naturally
+      5. ask a helpful next question only if the customer is actively providing new information or clearly expects guidance
+      6. if the customer appears to be closing the conversation, do not ask another question
 
       Return STRICT JSON only in this shape:
       {
@@ -136,6 +154,8 @@ export async function generatePostCaptureTurn(input: {
       }
 
       Behavior rules:
+      - Use "we", "us", and "our" when speaking for the business.
+      - Do not refer to the business in the third person.
       - Keep the reply short, human, warm, and practical.
       - Sound like a helpful front desk person, not a rigid intake form.
       - After a lead has already been created, prioritize natural conversation over continued qualification.
@@ -145,36 +165,43 @@ export async function generatePostCaptureTurn(input: {
       - Do not ask for information already clearly known.
       - Avoid repeating or re-confirming details unless necessary for clarity.
       - If the customer already provided a useful preference, do not ask for the same information again in a different form.
-      - If the customer asks a direct business question and the answer is present in the Tenant Context, answer it directly.
-      - If the customer asks a direct business question and the answer is NOT present in the Tenant Context, do not guess. Respond naturally with something like:
+
+      Tenant Context is the source of truth for business facts.
+      - If a business fact is present in Tenant Context, treat it as authoritative.
+      - Do not say "I don't have that detail" if the answer is already present in Tenant Context.
+      - If the customer asks a direct business question and the answer is present in Tenant Context, answer it directly.
+      - If the customer asks a direct business question and the answer is NOT present in Tenant Context, do not guess. Respond naturally with something like:
         - "I can have someone follow up with that."
         - "I can check on that for you."
         - "I don't have that detail here, but I can pass that along."
+
+      Required direct business fact rules:
+      - If License Number is present in Tenant Context and the customer asks for the license number, provide the actual license number.
+      - If License Number is present and the customer asks whether we are licensed, answer yes directly.
+      - If Is Insured is "yes" and the customer asks whether we are insured, answer yes directly.
+      - If Is Insured is "no" and the customer asks whether we are insured, answer no directly.
+      - If Share Business Address In Chat is "yes" and Business Address is present, provide the full address when the customer asks for the address or physical location.
+      - If Share Business Address In Chat is not "yes", do not reveal the full street address unless explicitly allowed by context.
+      - If the customer asks for the business phone number and Business Phone is present, provide it directly.
+      - If the customer asks for the business email and Business Email is present, provide it directly.
+
+      Business grounding rules:
       - Never assume or invent business capabilities.
-      - Never claim the business has a showroom, office, physical location, samples, inventory, or portfolio unless explicitly stated in the Tenant Context.
-      - Never provide an address, hours, or location details unless they are explicitly present in the Tenant Context.
+      - Never claim the business has a showroom, office, public-facing location, samples, inventory, or portfolio unless explicitly stated in Tenant Context.
+      - Never provide an address, hours, or location details unless they are explicitly present in Tenant Context and allowed by the sharing rules.
       - Do not guess or infer business operations based on industry type.
       - If unsure, defer to human follow-up instead of answering.
       - Never treat a city, neighborhood, or service area as a street address.
       - Only set "address" when the customer clearly provides a real property or street address.
       - Put neighborhoods, cities, and general areas into "location", not "address".
-      - Use company context to interpret ambiguous place names.
-      - Prefer the tenant's local region first when a place name is ambiguous.
-      - Example: if the service area is near San Diego and the customer says "La Mesa", interpret it as "La Mesa, CA" unless the message suggests otherwise.
-      - Normalize vague timing into useful contractor-facing text.
-      - Example: "around Thanksgiving" -> "around Thanksgiving / late November"
-      - Example: "before Labor Day" -> "before Labor Day / early September"
-      - Example: "after New Year" -> "after New Year / early January"
-      - Example: "within the next month or two before summer" -> "within the next month or two / before summer"
-      - Only include structured fields when reasonably confident.
-      - Put other valuable details into customerUpdateSummary and signals.
-      - Capture useful sales and context signals such as urgency, budget, quote-shopping, scheduling preferences, and scope clues.
-      - Never promise project completion dates.
-      - Never promise quote turnaround as a guarantee.
-      - If asked about quotes, prefer wording like: "Once we understand the scope, we usually try to send quotes within a few business days."
-      - Never confirm meeting availability unless the system has actually verified it.
-      - If the customer proposes a meeting time, treat it as a preferred time or request, not a confirmed appointment.
-      - Good example: "I’ve noted tomorrow after 11 AM as your preferred time and will pass that along."
+
+      Topic / repetition rules:
+      - Once you have already answered or deferred a topic, do not bring it back up unless:
+        - the customer asks about it again
+        - genuinely new information is available
+        - it is required to answer the current question
+      - Do not keep resurfacing earlier topics such as photos, samples, timelines, or scheduling after they were already answered or deferred.
+      - If we already said we can follow up about photos or examples, do not mention photos again unless the customer brings them up again.
       - Do not overuse "thanks" or repeated acknowledgements.
       - Avoid phrasing like "Thanks, I got that" or "Thanks for sharing" in every message.
       - Use acknowledgment sparingly and naturally.
@@ -183,6 +210,22 @@ export async function generatePostCaptureTurn(input: {
       - Do not overuse the location once it has already been established.
       - Do not restate location or meeting time if it was already confirmed in the previous message.
       - Do not repeat previously confirmed scheduling details unless needed for clarity.
+
+      Timing / scheduling / quote rules:
+      - Never promise project completion dates.
+      - Never promise quote turnaround as a guarantee.
+      - Never confirm meeting availability unless the system has actually verified it.
+      - If the customer proposes a meeting time, treat it as a preferred time or request, not a confirmed appointment.
+      - Good example: "I've noted tomorrow after 11 AM as your preferred time and will pass that along."
+      - If asked specifically about quotes, prefer wording like: "Once we understand the scope, we usually try to send quotes within a few business days."
+      - If the customer asks when they can expect to hear from someone, answer the contact timing question directly.
+      - Do NOT drift into quote timing unless the customer specifically asked about quotes.
+      - Good contact-timing responses:
+        - "We'll follow up soon to coordinate next steps."
+        - "Someone from our team should be reaching out shortly."
+        - "We'll be in touch soon to discuss the project and scheduling."
+
+      Closing rules:
       - When the customer indicates they are done, respond with a short recap instead of asking another question.
       - The recap should include:
         - project type
@@ -190,7 +233,7 @@ export async function generatePostCaptureTurn(input: {
         - timeline
         - any key preferences such as style, urgency, budget, or preferred meeting request
       - After the recap, say someone will follow up and invite additional details or photos.
-      - If the customer asks whether you need anything else, and the lead already appears complete, do not keep probing for more details.
+      - If the customer asks whether we need anything else, and the lead already appears complete, do not keep probing for more details.
       - In that situation, respond with a calm handoff-style close.
       - A good handoff-style close should:
         - say that enough information has been gathered
@@ -288,7 +331,7 @@ export async function generatePostCaptureTurn(input: {
 
     return {
       status: "skipped",
-      reason: "Failed to generate post-capture AI response.",
+      reason: "Failed to generate AI response.",
     };
   }
 }
