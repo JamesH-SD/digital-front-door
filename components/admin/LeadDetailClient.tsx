@@ -3,6 +3,8 @@
 import { useEffect, useRef, useState } from "react";
 import type { Lead } from "@/lib/types/lead";
 import type { LeadActivity } from "@/lib/types/lead-activity";
+import AppointmentModal from "@/components/leads/AppointmentModal";
+import ScheduleModal from "@/components/leads/ScheduleModal";
 
 type LeadStatus = "new" | "contacted" | "booked" | "closed";
 
@@ -419,6 +421,15 @@ export default function LeadDetailClient({
   const [suggestedNextStep, setSuggestedNextStep] = useState<string | null>(null);
   const [isGeneratingInsights, setIsGeneratingInsights] = useState(false);
 
+  const [showSchedule, setShowSchedule] = useState(false);
+  const [showAppointmentModal, setShowAppointmentModal] = useState(false);
+  const [latestAppointment, setLatestAppointment] = useState<any | null>(null);
+  const [isLoadingAppointment, setIsLoadingAppointment] = useState(false);
+
+  useEffect(() => {
+    void loadLatestAppointment();
+  }, [lead.id]);
+
   const appointmentMissing = !form.appointment.trim();
   const customerUpdateEntries = parseCustomerUpdates(form.customerUpdates);
 
@@ -735,6 +746,33 @@ export default function LeadDetailClient({
     }
   }
 
+    /**
+   * Load the latest appointment for this lead.
+   *
+   * Why:
+   * - allows the UI to switch from "Schedule" to "View"
+   * - keeps appointment details current after booking/rescheduling/canceling
+   */
+    async function loadLatestAppointment() {
+      try {
+        setIsLoadingAppointment(true);
+  
+        const response = await fetch(`/api/leads/${lead.id}/appointment`);
+        const result = await response.json();
+  
+        if (!response.ok) {
+          throw new Error(result.error || "Failed to load appointment");
+        }
+  
+        setLatestAppointment(result.appointment || null);
+      } catch (error) {
+        console.error("loadLatestAppointment error:", error);
+        setLatestAppointment(null);
+      } finally {
+        setIsLoadingAppointment(false);
+      }
+    }
+
   return (
     <div className="space-y-6">
       <div className="rounded-3xl border bg-white p-5 shadow-sm sm:p-6">
@@ -1049,12 +1087,30 @@ export default function LeadDetailClient({
                     <span className="font-semibold text-gray-700">
                       Appointment:
                     </span>{" "}
-                    <span>{displayValue(form.appointment)}</span>
+                    <span>
+                      {isLoadingAppointment
+                        ? "Loading..."
+                        : latestAppointment?.confirmedStartAt
+                        ? formatTimestampForDisplay(
+                            latestAppointment.confirmedStartAt
+                          )
+                        : displayValue(form.appointment)}
+                    </span>
                   </div>
 
-                  {appointmentMissing && (
+                  {latestAppointment &&
+                  latestAppointment.status !== "cancelled" ? (
                     <button
                       type="button"
+                      onClick={() => setShowAppointmentModal(true)}
+                      className="shrink-0 rounded-lg border px-3 py-1.5 text-xs font-semibold text-gray-700 transition hover:bg-gray-100"
+                    >
+                      View
+                    </button>
+                  ) : (
+                    <button
+                      type="button"
+                      onClick={() => setShowSchedule(true)}
                       className="shrink-0 rounded-lg border px-3 py-1.5 text-xs font-semibold text-gray-700 transition hover:bg-gray-100"
                     >
                       Schedule
@@ -1414,6 +1470,22 @@ export default function LeadDetailClient({
             </div>
           </div>
         </div>
+      ) : null}
+            {showSchedule && (
+        <ScheduleModal
+          leadId={lead.id}
+          tenantSlug={lead.tenantSlug}
+          onClose={() => setShowSchedule(false)}
+        />
+      )}
+
+      {showAppointmentModal && latestAppointment ? (
+        <AppointmentModal
+          appointment={latestAppointment}
+          tenantSlug={lead.tenantSlug}
+          onClose={() => setShowAppointmentModal(false)}
+          onUpdated={() => void loadLatestAppointment()}
+        />
       ) : null}
     </div>
   );
