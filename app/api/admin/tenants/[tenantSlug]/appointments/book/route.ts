@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getTenantBySlug } from "@/lib/db/tenants";
-import { getLeadById } from "@/lib/db/leads";
+import { getLeadById, updateLead } from "@/lib/db/leads";
 import { getPrimaryCalendarConnectionByTenantSlug } from "@/lib/calendar/calendarConnectionService";
 import { createGoogleCalendarEvent } from "@/lib/calendar/googleCalendar";
 import {
@@ -178,14 +178,27 @@ export async function POST(
       googleEventId: event.eventId,
     });
 
+    /**
+     * Booking an appointment should move the lead into the booked stage.
+     *
+     * Why:
+     * - the appointment is now confirmed in our DB
+     * - the Google event exists
+     * - the contractor workflow should reflect that this lead is no longer just new/contacted
+     */
+    const updatedLead = await updateLead(lead.id, {
+      status: "booked",
+    });
+
     return NextResponse.json(
       {
         success: true,
         tenantSlug,
         lead: {
-          id: lead.id,
-          leadNumber: lead.leadNumber,
-          customerName: lead.customerName,
+          id: updatedLead.id,
+          leadNumber: updatedLead.leadNumber,
+          customerName: updatedLead.customerName,
+          status: updatedLead.status,
         },
         event,
         appointment: confirmedAppointment,

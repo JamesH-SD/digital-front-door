@@ -1,208 +1,267 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useMemo, useState } from "react";
+import AppointmentSlotPicker from "@/components/leads/AppointmentSlotPicker";
 
-/**
- * Convert free windows into fixed-duration slots
- */
-function buildSlotsFromWindows(windows: any[], slotMinutes = 60) {
-  const slots: any[] = [];
+type AppointmentType = "call" | "site_visit";
 
-  for (const w of windows) {
-    const start = new Date(w.startAt);
-    const end = new Date(w.endAt);
+function formatSelectedSlot(slot: any | null) {
+  if (!slot?.startAt || !slot?.endAt) return "No time selected";
 
-    let cursor = new Date(start);
+  const start = new Date(slot.startAt);
+  const end = new Date(slot.endAt);
 
-    while (cursor.getTime() + slotMinutes * 60000 <= end.getTime()) {
-      const slotEnd = new Date(cursor.getTime() + slotMinutes * 60000);
-
-      slots.push({
-        startAt: cursor.toISOString(),
-        endAt: slotEnd.toISOString(),
-        timezone: w.timezone,
-      });
-
-      cursor = slotEnd;
-    }
-  }
-
-  return slots;
-}
-
-/**
- * Format date (Mon, Apr 23)
- */
-function formatDate(dateStr: string) {
-  return new Date(dateStr).toLocaleDateString(undefined, {
-    weekday: "short",
-    month: "short",
-    day: "numeric",
-  });
-}
-
-/**
- * Format time (10:00 AM)
- */
-function formatTime(dateStr: string) {
-  return new Date(dateStr).toLocaleTimeString(undefined, {
-    hour: "numeric",
-    minute: "2-digit",
-  });
+  return `${new Intl.DateTimeFormat(undefined, {
+    dateStyle: "medium",
+    timeStyle: "short",
+  }).format(start)} → ${new Intl.DateTimeFormat(undefined, {
+    timeStyle: "short",
+  }).format(end)}`;
 }
 
 export default function ScheduleModal({
   leadId,
   tenantSlug,
   onClose,
+  initialTitle,
+  initialDescription,
+  initialAddress,
 }: {
   leadId: string;
   tenantSlug: string;
   onClose: () => void;
+  initialTitle?: string;
+  initialDescription?: string;
+  initialAddress?: string;
 }) {
-  const [slots, setSlots] = useState<any[]>([]);
-  const [selectedDate, setSelectedDate] = useState<string | null>(null);
+  const [step, setStep] = useState<1 | 2>(1);
   const [selectedSlot, setSelectedSlot] = useState<any | null>(null);
-  const [loading, setLoading] = useState(true);
 
-  useEffect(() => {
-    loadAvailability();
-  }, []);
+  const [appointmentType, setAppointmentType] =
+    useState<AppointmentType>("site_visit");
 
-  async function loadAvailability() {
-    setLoading(true);
+  const [address, setAddress] = useState(initialAddress || "");
+  const [title, setTitle] = useState(initialTitle || "On-site Estimate");
+  const [description, setDescription] = useState(initialDescription || "");
 
-    const now = new Date();
-    const future = new Date();
-    future.setDate(now.getDate() + 30); // 🔥 30-day window
+  const [isBooking, setIsBooking] = useState(false);
+  const [error, setError] = useState("");
 
-    const params = new URLSearchParams({
-      from: now.toISOString(),
-      to: future.toISOString(),
-      timezone: "America/Los_Angeles",
-      minSlotMinutes: "30",
-    });
+  const requiresAddress = appointmentType === "site_visit";
 
-    const res = await fetch(
-      `/api/admin/tenants/${tenantSlug}/calendar-connections/google/availability?${params.toString()}`
-    );
+  const canContinue = Boolean(selectedSlot);
 
-    const data = await res.json();
+  const canBook = useMemo(() => {
+    if (!selectedSlot) return false;
+    if (!title.trim()) return false;
+    if (requiresAddress && !address.trim()) return false;
 
-    // Convert windows → 60-minute slots
-    const built = buildSlotsFromWindows(data.slots || [], 60);
-
-    setSlots(built);
-
-    // Default to first available date
-    if (built.length > 0) {
-      const firstDate = built[0].startAt.split("T")[0];
-      setSelectedDate(firstDate);
-    }
-
-    setLoading(false);
-  }
-
-  /**
-   * Group slots by day
-   */
-  const grouped = useMemo(() => {
-    const map: Record<string, any[]> = {};
-
-    for (const s of slots) {
-      const dateKey = s.startAt.split("T")[0];
-
-      if (!map[dateKey]) map[dateKey] = [];
-      map[dateKey].push(s);
-    }
-
-    return map;
-  }, [slots]);
-
-  const dates = Object.keys(grouped);
+    return true;
+  }, [selectedSlot, title, requiresAddress, address]);
 
   async function book() {
-    if (!selectedSlot) return;
+    if (!canBook || !selectedSlot) return;
 
-    await fetch(
-      `/api/admin/tenants/${tenantSlug}/appointments/book`,
-      {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          leadId,
-          title: "On-site Estimate",
-          startAt: selectedSlot.startAt,
-          endAt: selectedSlot.endAt,
-          timezone: selectedSlot.timezone,
-        }),
+    try {
+      setIsBooking(true);
+      setError("");
+
+      const response = await fetch(
+        `/api/admin/tenants/${tenantSlug}/appointments/book`,
+        {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            leadId,
+            appointmentType,
+            address: requiresAddress ? address : null,
+            title,
+            description,
+            location: requiresAddress ? address : null,
+            startAt: selectedSlot.startAt,
+            endAt: selectedSlot.endAt,
+            timezone: selectedSlot.timezone,
+          }),
+        }
+      );
+
+      const result = await response.json();
+
+      if (!response.ok) {
+        throw new Error(result.error || "Failed to book appointment");
       }
-    );
 
-    onClose();
-    window.location.reload();
+      onClose();
+      window.location.reload();
+    } catch (err) {
+      console.error("Book appointment error:", err);
+      setError(err instanceof Error ? err.message : "Failed to book appointment");
+    } finally {
+      setIsBooking(false);
+    }
   }
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50">
-      <div className="bg-white rounded-xl p-5 w-[600px] max-h-[80vh] overflow-hidden">
-        <h2 className="text-lg font-semibold">Schedule Appointment</h2>
-
-        {loading ? (
-          <p className="mt-4 text-sm text-gray-500">Loading availability...</p>
-        ) : (
-          <div className="mt-4 flex gap-4">
-            {/* LEFT: Dates */}
-            <div className="w-1/3 border-r pr-2 overflow-y-auto max-h-[400px]">
-              {dates.map((date) => (
-                <button
-                  key={date}
-                  onClick={() => {
-                    setSelectedDate(date);
-                    setSelectedSlot(null);
-                  }}
-                  className={`block w-full text-left p-2 rounded ${
-                    selectedDate === date
-                      ? "bg-blue-100"
-                      : "hover:bg-gray-100"
-                  }`}
-                >
-                  {formatDate(date)}
-                </button>
-              ))}
-            </div>
-
-            {/* RIGHT: Times */}
-            <div className="w-2/3 overflow-y-auto max-h-[400px]">
-              {selectedDate &&
-                grouped[selectedDate]?.map((slot, i) => (
-                  <button
-                    key={i}
-                    onClick={() => setSelectedSlot(slot)}
-                    className={`block w-full text-left p-2 border rounded mb-2 ${
-                      selectedSlot?.startAt === slot.startAt
-                        ? "bg-blue-100"
-                        : ""
-                    }`}
-                  >
-                    {formatTime(slot.startAt)} → {formatTime(slot.endAt)}
-                  </button>
-                ))}
-            </div>
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">
+      <div className="flex max-h-[90vh] w-full max-w-2xl flex-col rounded-2xl bg-white p-5 shadow-xl">
+        <div className="flex items-start justify-between gap-3">
+          <div>
+            <h2 className="text-lg font-semibold text-gray-900">
+              Schedule Appointment
+            </h2>
+            <p className="mt-1 text-sm text-gray-500">
+              {step === 1
+                ? "Select an available date and time."
+                : "Confirm appointment details before booking."}
+            </p>
           </div>
-        )}
-
-        {/* ACTIONS */}
-        <div className="mt-4 flex justify-end gap-2">
-          <button onClick={onClose}>Cancel</button>
 
           <button
-            onClick={book}
-            disabled={!selectedSlot}
-            className="bg-blue-600 text-white px-4 py-2 rounded disabled:opacity-50"
+            type="button"
+            onClick={onClose}
+            className="rounded-lg px-2 py-1 text-sm text-gray-500 hover:bg-gray-100"
           >
-            Confirm
+            ✕
           </button>
+        </div>
+
+        {error ? (
+          <div className="mt-4 rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700">
+            {error}
+          </div>
+        ) : null}
+
+        <div className="mt-4 overflow-y-auto pr-1">
+          {step === 1 ? (
+            <AppointmentSlotPicker
+              tenantSlug={tenantSlug}
+              selectedSlot={selectedSlot}
+              onSelectSlot={setSelectedSlot}
+            />
+          ) : (
+            <div className="space-y-4">
+              <div className="rounded-xl border bg-blue-50 px-3 py-2 text-sm text-blue-900">
+                <span className="font-semibold">Selected time:</span>{" "}
+                {formatSelectedSlot(selectedSlot)}
+              </div>
+
+              <div>
+                <label className="text-sm font-semibold text-gray-700">
+                  Appointment Type
+                </label>
+
+                <div className="mt-2 grid grid-cols-2 gap-2">
+                  <button
+                    type="button"
+                    onClick={() => setAppointmentType("call")}
+                    className={`rounded-xl border px-3 py-2 text-sm font-semibold ${
+                      appointmentType === "call"
+                        ? "border-blue-600 bg-blue-50 text-blue-800"
+                        : "bg-white text-gray-700 hover:bg-gray-50"
+                    }`}
+                  >
+                    Phone Call
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={() => setAppointmentType("site_visit")}
+                    className={`rounded-xl border px-3 py-2 text-sm font-semibold ${
+                      appointmentType === "site_visit"
+                        ? "border-blue-600 bg-blue-50 text-blue-800"
+                        : "bg-white text-gray-700 hover:bg-gray-50"
+                    }`}
+                  >
+                    Site Visit
+                  </button>
+                </div>
+              </div>
+
+              {requiresAddress ? (
+                <div>
+                  <label className="text-sm font-semibold text-gray-700">
+                    Site Visit Address
+                  </label>
+                  <input
+                    value={address}
+                    onChange={(e) => setAddress(e.target.value)}
+                    placeholder="Enter the project address"
+                    className="mt-1 w-full rounded-lg border border-gray-300 px-3 py-2 text-sm outline-none focus:border-gray-500"
+                  />
+                  <p className="mt-1 text-xs text-gray-500">
+                    Required for site visits. Phone calls do not need an address.
+                  </p>
+                </div>
+              ) : null}
+
+              <div>
+                <label className="text-sm font-semibold text-gray-700">
+                  Calendar Title
+                </label>
+                <input
+                  value={title}
+                  onChange={(e) => setTitle(e.target.value)}
+                  placeholder="Example: Bathroom Remodel Walkthrough"
+                  className="mt-1 w-full rounded-lg border border-gray-300 px-3 py-2 text-sm outline-none focus:border-gray-500"
+                />
+              </div>
+
+              <div>
+                <label className="text-sm font-semibold text-gray-700">
+                  Description
+                </label>
+                <textarea
+                  value={description}
+                  onChange={(e) => setDescription(e.target.value)}
+                  rows={4}
+                  placeholder="Add context for the calendar event."
+                  className="mt-1 w-full rounded-lg border border-gray-300 px-3 py-2 text-sm outline-none focus:border-gray-500"
+                />
+              </div>
+            </div>
+          )}
+        </div>
+
+        <div className="mt-5 flex justify-end gap-2 border-t pt-4">
+          {step === 1 ? (
+            <>
+              <button
+                type="button"
+                onClick={onClose}
+                className="rounded-lg px-3 py-2 text-sm font-medium text-gray-700 hover:bg-gray-100"
+              >
+                Cancel
+              </button>
+
+              <button
+                type="button"
+                onClick={() => setStep(2)}
+                disabled={!canContinue}
+                className="rounded-lg bg-blue-600 px-4 py-2 text-sm font-semibold text-white hover:bg-blue-700 disabled:cursor-not-allowed disabled:opacity-50"
+              >
+                Next
+              </button>
+            </>
+          ) : (
+            <>
+              <button
+                type="button"
+                onClick={() => setStep(1)}
+                className="rounded-lg border px-3 py-2 text-sm font-semibold text-gray-700 hover:bg-gray-100"
+              >
+                Back
+              </button>
+
+              <button
+                type="button"
+                onClick={() => void book()}
+                disabled={!canBook || isBooking}
+                className="rounded-lg bg-blue-600 px-4 py-2 text-sm font-semibold text-white hover:bg-blue-700 disabled:cursor-not-allowed disabled:opacity-50"
+              >
+                {isBooking ? "Booking..." : "Book Appointment"}
+              </button>
+            </>
+          )}
         </div>
       </div>
     </div>

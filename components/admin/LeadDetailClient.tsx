@@ -703,7 +703,7 @@ export default function LeadDetailClient({
 
   async function handleMarkContacted() {
     if (form.status === "contacted") {
-      setSaveMessage("Lead is already marked as contacted.");
+      setSaveMessage("Lead is already marked for follow-up.");
       return;
     }
 
@@ -960,10 +960,10 @@ export default function LeadDetailClient({
                     form.status
                   )}`}
                 >
-                  <option value="new">new</option>
-                  <option value="contacted">contacted</option>
-                  <option value="booked">booked</option>
-                  <option value="closed">closed</option>
+                  <option value="new">New</option>
+                  <option value="contacted">Follow-up</option>
+                  <option value="booked">Booked</option>
+                  <option value="closed">Closed</option>
                 </select>
               </div>
             </div>
@@ -1016,14 +1016,6 @@ export default function LeadDetailClient({
                   Email
                 </button>
               )}
-              <button
-                type="button"
-                onClick={() => void handleMarkContacted()}
-                disabled={form.status === "contacted"}
-                className="inline-flex items-center justify-center rounded-xl bg-gray-900 px-4 py-2 text-sm font-semibold text-white transition hover:bg-gray-800 disabled:cursor-not-allowed disabled:opacity-50"
-              >
-                Mark Contacted
-              </button>
             </div>
             <p className="text-xs text-gray-500">
               On mobile, Call, Text, and Email will usually open the device’s
@@ -1475,6 +1467,21 @@ export default function LeadDetailClient({
         <ScheduleModal
           leadId={lead.id}
           tenantSlug={lead.tenantSlug}
+          initialTitle={`${form.projectType || "Project"} Appointment${
+            lead.customerName ? ` – ${lead.customerName}` : ""
+          }`}
+          initialDescription={
+            aiSummary ||
+            [
+              form.projectType ? `Project: ${form.projectType}` : null,
+              form.location ? `Location: ${form.location}` : null,
+              form.timeline ? `Timeline: ${form.timeline}` : null,
+              form.customerUpdates ? `Customer updates: ${form.customerUpdates}` : null,
+            ]
+              .filter(Boolean)
+              .join("\n\n")
+          }
+          initialAddress={form.address || ""}
           onClose={() => setShowSchedule(false)}
         />
       )}
@@ -1483,6 +1490,7 @@ export default function LeadDetailClient({
         <AppointmentModal
           appointment={latestAppointment}
           tenantSlug={lead.tenantSlug}
+          leadId={lead.id}
           onClose={() => setShowAppointmentModal(false)}
           onUpdated={() => void loadLatestAppointment()}
         />
