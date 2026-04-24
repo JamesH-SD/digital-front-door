@@ -26,4 +26,9 @@ export type Lead = {
   status: LeadStatus;
   createdAt: string;
   updatedAt?: string;
+  aiSummary?: string | null;
+  aiMissingInfo?: string[] | null;
+  aiNextStep?: string | null;
+  aiSuggestedReply?: string | null;
+  aiCopilotUpdatedAt?: string | null;
 };

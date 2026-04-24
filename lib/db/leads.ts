@@ -22,6 +22,11 @@ function mapLead(row: any): Lead {
     status: row.status ?? "new",
     createdAt: row.created_at ?? new Date().toISOString(),
     updatedAt: row.updated_at ?? undefined,
+    aiSummary: row.ai_summary ?? null,
+    aiMissingInfo: Array.isArray(row.ai_missing_info) ? row.ai_missing_info : [],
+    aiNextStep: row.ai_next_step ?? null,
+    aiSuggestedReply: row.ai_suggested_reply ?? null,
+    aiCopilotUpdatedAt: row.ai_copilot_updated_at ?? null,
   };
 }
 

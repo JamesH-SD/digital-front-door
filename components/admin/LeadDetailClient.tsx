@@ -410,15 +410,23 @@ export default function LeadDetailClient({
   const [isCustomerUpdatesOpen, setIsCustomerUpdatesOpen] = useState(false);
   const [isImagesOpen, setIsImagesOpen] = useState(false);
 
-  const [aiSummary, setAiSummary] = useState<string | null>(null);
+  const [aiSummary, setAiSummary] = useState<string | null>(
+    lead.aiSummary || null
+  );
   const [isGeneratingSummary, setIsGeneratingSummary] = useState(false);
 
-  const [suggestedReply, setSuggestedReply] = useState<string | null>(null);
+  const [suggestedReply, setSuggestedReply] = useState<string | null>(
+    lead.aiSuggestedReply || null
+  );
   const [isGeneratingReply, setIsGeneratingReply] = useState(false);
   const [isAiToolsOpen, setIsAiToolsOpen] = useState(false);
 
-  const [missingInfo, setMissingInfo] = useState<string[]>([]);
-  const [suggestedNextStep, setSuggestedNextStep] = useState<string | null>(null);
+  const [missingInfo, setMissingInfo] = useState<string[]>(
+    Array.isArray(lead.aiMissingInfo) ? lead.aiMissingInfo : []
+  );
+  const [suggestedNextStep, setSuggestedNextStep] = useState<string | null>(
+    lead.aiNextStep || null
+  );
   const [isGeneratingInsights, setIsGeneratingInsights] = useState(false);
 
   const [showSchedule, setShowSchedule] = useState(false);
@@ -434,7 +442,8 @@ export default function LeadDetailClient({
   const customerUpdateEntries = parseCustomerUpdates(form.customerUpdates);
 
   const visibleActivities = activities.filter(
-    (activity) => activity.eventType !== "lead.viewed"
+    (activity) =>
+      !["lead.viewed", "lead.customer_update_added"].includes(activity.eventType)
   );
   
   const groupedActivities = groupActivitiesForDisplay(visibleActivities);
@@ -458,6 +467,31 @@ export default function LeadDetailClient({
 
     setSelectedIndex(prevIndex);
     setSelectedImage(form.images[prevIndex]);
+  }
+
+  function sentenceCase(value: string) {
+    const trimmed = value.trim();
+    if (!trimmed) return trimmed;
+    return trimmed.charAt(0).toUpperCase() + trimmed.slice(1);
+  }
+  
+  function toTitleCase(value: string) {
+    return value
+      .toLowerCase()
+      .replace(/\b\w/g, (char) => char.toUpperCase());
+  }
+  
+  function buildAppointmentTitle(input: {
+    projectType?: string;
+    customerName?: string;
+  }) {
+    const project = input.projectType?.trim()
+      ? toTitleCase(input.projectType.trim())
+      : "Project";
+  
+    return input.customerName?.trim()
+      ? `${project} Appointment – ${input.customerName.trim()}`
+      : `${project} Appointment`;
   }
 
   useEffect(() => {
@@ -489,54 +523,43 @@ export default function LeadDetailClient({
     };
   }, [selectedImage, selectedIndex, form.images]);
 
-  useEffect(() => {
-    async function fetchSummary() {
-      try {
-        setIsGeneratingSummary(true);
-  
-        const response = await fetch("/api/ai/lead-summary", {
-          method: "POST",
-          headers: {
-            "Content-Type": "application/json",
-          },
-          body: JSON.stringify({ lead }),
-        });
-  
-        const raw = await response.text();
-  
-        let result: any;
-  
-        try {
-          result = JSON.parse(raw);
-        } catch {
-          console.error("Non-JSON response from /api/ai/lead-summary:", raw);
-          throw new Error("Lead summary endpoint returned non-JSON output.");
-        }
-  
-        if (!response.ok) {
-          throw new Error(result.error || "Failed to generate summary");
-        }
-  
-        if (result.status === "generated") {
-          setAiSummary(result.summary);
-        } else {
-          console.log("AI summary skipped:", result.reason);
-          setAiSummary(null);
-        }
-      } catch (err) {
-        console.error("AI summary error:", err);
-        setAiSummary(null);
-      } finally {
-        setIsGeneratingSummary(false);
+  async function loadLeadCopilot(forceRegenerate = false) {
+    try {
+      setIsGeneratingSummary(true);
+      setIsGeneratingReply(true);
+      setIsGeneratingInsights(true);
+
+      const response = await fetch("/api/ai/lead-copilot", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          lead,
+          forceRegenerate,
+        }),
+      });
+
+      const result = await response.json();
+
+      if (!response.ok) {
+        throw new Error(result.error || "Failed to load lead copilot");
       }
+
+      if (result.status === "generated") {
+        setAiSummary(result.summary || null);
+        setSuggestedReply(result.suggestedReply || null);
+        setMissingInfo(Array.isArray(result.missingInfo) ? result.missingInfo : []);
+        setSuggestedNextStep(result.nextStep || null);
+      }
+    } catch (error) {
+      console.error("Lead copilot error:", error);
+    } finally {
+      setIsGeneratingSummary(false);
+      setIsGeneratingReply(false);
+      setIsGeneratingInsights(false);
     }
-  
-    if (lead && (lead.projectType || lead.customerUpdates || lead.notes)) {
-      void fetchSummary();
-    } else {
-      setAiSummary(null);
-    }
-  }, [lead.id]);
+  }
 
   async function saveLead() {
     try {
@@ -594,72 +617,6 @@ export default function LeadDetailClient({
       setSaveMessage(
         error instanceof Error ? error.message : "Failed to update status."
       );
-    }
-  }
-
-  async function handleGenerateReply() {
-    try {
-      setIsGeneratingReply(true);
-      setSuggestedReply(null);
-
-      const response = await fetch("/api/ai/suggested-reply", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({ lead }),
-      });
-
-      const result = await response.json();
-
-      if (!response.ok) {
-        throw new Error(result.error || "Failed to generate reply");
-      }
-
-      if (result.status === "generated") {
-        setSuggestedReply(result.reply);
-        setIsAiToolsOpen(true);
-      } else {
-        console.log("Suggested reply skipped:", result.reason);
-      }
-    } catch (error) {
-      console.error("Suggested reply error:", error);
-    } finally {
-      setIsGeneratingReply(false);
-    }
-  }
-
-  async function handleGenerateInsights() {
-    try {
-      setIsGeneratingInsights(true);
-      setMissingInfo([]);
-      setSuggestedNextStep(null);
-
-      const response = await fetch("/api/ai/lead-insights", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({ lead }),
-      });
-
-      const result = await response.json();
-
-      if (!response.ok) {
-        throw new Error(result.error || "Failed to generate insights");
-      }
-
-      if (result.status === "generated") {
-        setMissingInfo(Array.isArray(result.missingInfo) ? result.missingInfo : []);
-        setSuggestedNextStep(result.nextStep || null);
-        setIsAiToolsOpen(true);
-      } else {
-        console.log("Lead insights skipped:", result.reason);
-      }
-    } catch (error) {
-      console.error("Lead insights error:", error);
-    } finally {
-      setIsGeneratingInsights(false);
     }
   }
 
@@ -791,20 +748,15 @@ export default function LeadDetailClient({
             <div className="flex flex-wrap gap-2">
               <button
                 type="button"
-                onClick={() => void handleGenerateReply()}
-                disabled={isGeneratingReply}
+                onClick={() => void loadLeadCopilot(true)}
+                disabled={isGeneratingSummary || isGeneratingReply || isGeneratingInsights}
                 className="inline-flex items-center justify-center rounded-xl border bg-white px-3 py-2 text-sm font-semibold text-gray-700 transition hover:bg-gray-50 disabled:cursor-not-allowed disabled:opacity-50"
               >
-                {isGeneratingReply ? "Generating..." : "Generate Reply"}
-              </button>
-
-              <button
-                type="button"
-                onClick={() => void handleGenerateInsights()}
-                disabled={isGeneratingInsights}
-                className="inline-flex items-center justify-center rounded-xl border bg-white px-3 py-2 text-sm font-semibold text-gray-700 transition hover:bg-gray-50 disabled:cursor-not-allowed disabled:opacity-50"
-              >
-                {isGeneratingInsights ? "Analyzing..." : "Generate Insights"}
+                {isGeneratingSummary || isGeneratingReply || isGeneratingInsights
+                  ? "Generating..."
+                  : aiSummary || suggestedReply || missingInfo.length > 0 || suggestedNextStep
+                  ? "Regenerate Lead Copilot"
+                  : "Generate Lead Copilot"}
               </button>
 
               <button
@@ -907,7 +859,7 @@ export default function LeadDetailClient({
                 ) : missingInfo.length > 0 ? (
                   <ul className="mt-2 space-y-1 text-sm text-gray-700">
                     {missingInfo.map((item) => (
-                      <li key={item}>• {item}</li>
+                      <li key={item}>• {sentenceCase(item)}</li>
                     ))}
                   </ul>
                 ) : (
@@ -1224,49 +1176,6 @@ export default function LeadDetailClient({
               )}
             </CollapsibleSection>
 
-            {/* CUSTOMER UPDATES */}
-            <CollapsibleSection
-              title="Customer Updates"
-              isOpen={isCustomerUpdatesOpen}
-              onToggle={() => setIsCustomerUpdatesOpen((prev) => !prev)}
-              rightLabel={`${customerUpdateEntries.length} update${
-                customerUpdateEntries.length === 1 ? "" : "s"
-              }`}
-            >
-              {customerUpdateEntries.length > 0 ? (
-                <div className="space-y-3">
-                  {customerUpdateEntries.map((entry, index) => (
-                    <div
-                      key={`${entry.timestamp ?? "no-time"}_${index}`}
-                      className="rounded-xl border bg-white p-3"
-                    >
-                      <div className="mb-2 flex items-center justify-between gap-3">
-                        <p className="text-xs font-semibold uppercase tracking-wide text-gray-500">
-                          Customer Update
-                        </p>
-                        <p className="text-xs text-gray-500">
-                          {formatTimestampForDisplay(entry.timestamp)}
-                        </p>
-                      </div>
-
-                      <p className="whitespace-pre-wrap text-sm text-gray-900">
-                        {entry.content || "No details provided."}
-                      </p>
-                    </div>
-                  ))}
-                </div>
-              ) : (
-                <div className="rounded-md border border-gray-300 bg-gray-100 px-3 py-2 text-sm text-gray-900">
-                  Customer follow-up messages will appear here.
-                </div>
-              )}
-
-              <p className="mt-2 text-xs text-gray-500">
-                These are follow-up details submitted through chat after the
-                original request was captured.
-              </p>
-            </CollapsibleSection>
-
             {/* CONTRACTOR NOTES */}
             <CollapsibleSection
               title="Contractor Notes"
@@ -1467,9 +1376,10 @@ export default function LeadDetailClient({
         <ScheduleModal
           leadId={lead.id}
           tenantSlug={lead.tenantSlug}
-          initialTitle={`${form.projectType || "Project"} Appointment${
-            lead.customerName ? ` – ${lead.customerName}` : ""
-          }`}
+          initialTitle={buildAppointmentTitle({
+            projectType: form.projectType,
+            customerName: lead.customerName,
+          })}
           initialDescription={
             aiSummary ||
             [
