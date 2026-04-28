@@ -379,7 +379,7 @@ export function ChatWidget({ tenant }: Props) {
               return (
                 <div
                   key={message.id}
-                  className={`max-w-[85%] rounded-2xl px-4 py-3 text-sm ${
+                  className={`max-w-[85%] whitespace-pre-line rounded-2xl px-4 py-3 text-sm ${
                     message.role === "user"
                       ? "ml-auto bg-gray-900 text-white"
                       : "border bg-white text-gray-800"

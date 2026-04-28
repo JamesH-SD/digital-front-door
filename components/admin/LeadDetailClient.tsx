@@ -109,38 +109,38 @@ function formatTimestampForDisplay(value?: string | null) {
   }).format(date);
 }
 
-/**
- * Parse the raw customer_updates text into timestamped display blocks.
- */
-function parseCustomerUpdates(raw?: string): CustomerUpdateEntry[] {
-  if (!raw || !raw.trim()) {
-    return [];
-  }
+// /**
+//  * Parse the raw customer_updates text into timestamped display blocks.
+//  */
+// function parseCustomerUpdates(raw?: string): CustomerUpdateEntry[] {
+//   if (!raw || !raw.trim()) {
+//     return [];
+//   }
 
-  const normalized = raw.trim();
+//   const normalized = raw.trim();
 
-  const pattern =
-    /\[Customer Update - ([^\]]+)\]\s*([\s\S]*?)(?=\n{2}\[Customer Update - |\s*$)/g;
+//   const pattern =
+//     /\[Customer Update - ([^\]]+)\]\s*([\s\S]*?)(?=\n{2}\[Customer Update - |\s*$)/g;
 
-  const entries: CustomerUpdateEntry[] = [];
-  let match: RegExpExecArray | null;
+//   const entries: CustomerUpdateEntry[] = [];
+//   let match: RegExpExecArray | null;
 
-  while ((match = pattern.exec(normalized)) !== null) {
-    entries.push({
-      timestamp: match[1]?.trim() || null,
-      content: match[2]?.trim() || "",
-    });
-  }
+//   while ((match = pattern.exec(normalized)) !== null) {
+//     entries.push({
+//       timestamp: match[1]?.trim() || null,
+//       content: match[2]?.trim() || "",
+//     });
+//   }
 
-  if (entries.length === 0) {
-    entries.push({
-      timestamp: null,
-      content: normalized,
-    });
-  }
+//   if (entries.length === 0) {
+//     entries.push({
+//       timestamp: null,
+//       content: normalized,
+//     });
+//   }
 
-  return entries;
-}
+//   return entries;
+// }
 
 function getStatusClasses(status: string) {
   switch (status) {
@@ -407,7 +407,7 @@ export default function LeadDetailClient({
   const [isTimelineOpen, setIsTimelineOpen] = useState(false);
   const [isDescriptionOpen, setIsDescriptionOpen] = useState(false);
   const [isNotesOpen, setIsNotesOpen] = useState(false);
-  const [isCustomerUpdatesOpen, setIsCustomerUpdatesOpen] = useState(false);
+  //const [isCustomerUpdatesOpen, setIsCustomerUpdatesOpen] = useState(false);
   const [isImagesOpen, setIsImagesOpen] = useState(false);
 
   const [aiSummary, setAiSummary] = useState<string | null>(
@@ -439,7 +439,7 @@ export default function LeadDetailClient({
   }, [lead.id]);
 
   const appointmentMissing = !form.appointment.trim();
-  const customerUpdateEntries = parseCustomerUpdates(form.customerUpdates);
+  //const customerUpdateEntries = parseCustomerUpdates(form.customerUpdates);
 
   const visibleActivities = activities.filter(
     (activity) =>
@@ -738,10 +738,10 @@ export default function LeadDetailClient({
           <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
             <div className="min-w-0">
               <h3 className="text-sm font-semibold text-gray-900">
-                AI Assistant
+                Lead Copilot
               </h3>
               <p className="mt-1 text-xs text-gray-500">
-                Quick lead understanding and response help for busy mobile workflows.
+                AI summary, suggested reply, missing info, and next step.
               </p>
             </div>
 
@@ -1049,7 +1049,7 @@ export default function LeadDetailClient({
                       onClick={() => setShowAppointmentModal(true)}
                       className="shrink-0 rounded-lg border px-3 py-1.5 text-xs font-semibold text-gray-700 transition hover:bg-gray-100"
                     >
-                      View
+                      View Appointment
                     </button>
                   ) : (
                     <button
@@ -1057,7 +1057,7 @@ export default function LeadDetailClient({
                       onClick={() => setShowSchedule(true)}
                       className="shrink-0 rounded-lg border px-3 py-1.5 text-xs font-semibold text-gray-700 transition hover:bg-gray-100"
                     >
-                      Schedule
+                      Schedule Appointment
                     </button>
                   )}
                 </div>
@@ -1289,12 +1289,12 @@ export default function LeadDetailClient({
       </div>
 
       <div className="flex flex-col items-center justify-center gap-3 sm:flex-row">
-        <button
+        {/* <button
           type="button"
           className="rounded-xl border px-5 py-2.5 text-sm font-semibold text-gray-700 transition hover:bg-white"
         >
           Create Record
-        </button>
+        </button> */}
 
         <button
           type="button"
