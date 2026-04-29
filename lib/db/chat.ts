@@ -1381,7 +1381,7 @@ function detectSlotRefinementPreference(message: string) {
   if (normalized.includes("later")) return "later";
   if (normalized.includes("earlier")) return "earlier";
 
-  return null;
+  return null; 
 }
 
   if (!selectedSlot) {
