@@ -44,9 +44,9 @@ function sanitizeString(value: unknown): string | undefined {
 
 function stripCodeFences(value: string) {
   return value
-    .replace(/^```json\\s*/i, "")
-    .replace(/^```\\s*/i, "")
-    .replace(/\\s*```$/i, "")
+    .replace(/^```json\s*/i, "")
+    .replace(/^```\s*/i, "")
+    .replace(/\s*```$/i, "")
     .trim();
 }
 
@@ -218,6 +218,12 @@ export async function generatePostCaptureTurn(input: {
       - If the customer proposes a meeting time, treat it as a preferred time or request, not a confirmed appointment.
       - Good example: "I've noted tomorrow after 11 AM as your preferred time and will pass that along."
       - If asked specifically about quotes, prefer wording like: "Once we understand the scope, we usually try to send quotes within a few business days."
+      - If the customer asks how long it takes to get a quote, asks about getting quotes, says they are comparing quotes, or asks about the quote process, answer the quote question first, then gently offer scheduling as the next practical step.
+      - For quote-related questions, do not only say "we'll be in touch." Give the customer a clear path forward.
+      - Good quote-to-scheduling response:
+        - "Once we understand the scope, we usually try to send quotes within a few business days. The best next step is usually a quick call or on-site visit so we can understand what you need. Would you like to schedule one?"
+      - Keep the scheduling offer soft and helpful, not pushy.
+      - Do not claim an appointment is available or confirmed unless the scheduling workflow has verified and booked it.
       - If the customer asks when they can expect to hear from someone, answer the contact timing question directly.
       - Do NOT drift into quote timing unless the customer specifically asked about quotes.
       - Good contact-timing responses:

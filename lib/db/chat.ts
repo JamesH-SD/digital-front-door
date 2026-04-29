@@ -353,6 +353,28 @@ function detectSlotRejectionOrPreference(message: string) {
   );
 }
 
+function detectConversationClose(message: string) {
+  const normalized = message.trim().toLowerCase();
+
+  return (
+    normalized === "thanks" ||
+    normalized === "thank you" ||
+    normalized === "thx" ||
+    normalized === "that’s it" ||
+    normalized === "that's it" ||
+    normalized === "thats it" ||
+    normalized === "that is it" ||
+    normalized === "ok thanks" ||
+    normalized === "okay thanks" ||
+    normalized === "sounds good" ||
+    normalized === "good night" ||
+    normalized === "goodnight" ||
+    normalized === "talk soon" ||
+    normalized === "bye" ||
+    normalized === "goodbye"
+  );
+}
+
 async function insertMessage(message: ChatMessage) {
   const supabase = await createClient();
 
@@ -1253,6 +1275,51 @@ if (
     (slot: any) => slot.optionNumber === selectedOption
   );
 
+  const refinementPreference = detectSlotRefinementPreference(trimmedContent);
+
+if (!selectedSlot && refinementPreference) {
+  let slots: ChatSchedulingSlot[] = [];
+
+  try {
+    slots = await getChatSchedulingSlots({
+      tenantSlug: session.tenantSlug,
+      preferenceText: refinementPreference,
+    });
+
+    console.log("📅 Refined chat scheduling slots:", slots);
+  } catch (error) {
+    console.error("❌ Refined availability fetch failed:", error);
+  }
+
+  session.intakeData = {
+    ...session.intakeData,
+    schedulingState: {
+      ...schedulingState,
+      step: "select_slot",
+      preferenceText: refinementPreference,
+      offeredSlots: slots,
+    },
+  };
+
+  await updateSession(session);
+
+  const assistantMessage = createMessageObject(
+    sessionId,
+    "assistant",
+    slots.length > 0
+      ? buildSlotOfferMessage(slots)
+      : "I’m not seeing openings for that timeframe right now. I’ve noted your preference and we’ll follow up with better options."
+  );
+
+  await insertMessage(assistantMessage);
+
+  return {
+    sessionId,
+    messages: await getMessagesForSession(sessionId),
+    session,
+  };
+}
+
   /**
    * If the customer rejects the offered times or gives a different
    * scheduling preference, do not keep forcing 1/2/3.
@@ -1296,6 +1363,26 @@ if (
       session,
     };
   }
+
+  /**
+ * Detect when the user is asking for a different timeframe
+ */
+function detectSlotRefinementPreference(message: string) {
+  const normalized = message.toLowerCase();
+
+  if (normalized.includes("next week")) return "next week";
+  if (normalized.includes("this week")) return "this week";
+  if (normalized.includes("tomorrow")) return "tomorrow";
+  if (normalized.includes("later in the week")) return "later in the week";
+  if (normalized.includes("after wednesday")) return "after Wednesday";
+  if (normalized.includes("after thursday")) return "after Thursday";
+  if (normalized.includes("morning")) return "morning";
+  if (normalized.includes("afternoon")) return "afternoon";
+  if (normalized.includes("later")) return "later";
+  if (normalized.includes("earlier")) return "earlier";
+
+  return null;
+}
 
   if (!selectedSlot) {
     const assistantMessage = createMessageObject(
@@ -1420,6 +1507,28 @@ if (
     session,
   };
 }
+  /**
+   * CLOSE POST-CAPTURE CONVERSATION CLEANLY
+   */
+  if (
+    session.currentStep === "complete" &&
+    session.leadId &&
+    detectConversationClose(trimmedContent)
+  ) {
+    const assistantMessage = createMessageObject(
+      sessionId,
+      "assistant",
+      "You’re welcome — we’ll follow up from here."
+    );
+
+    await insertMessage(assistantMessage);
+
+    return {
+      sessionId,
+      messages: await getMessagesForSession(sessionId),
+      session,
+    };
+  }
 
   /**
    * POST-CAPTURE AI MODE:
