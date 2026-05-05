@@ -109,13 +109,8 @@ export async function GET(
 
     // For now, keep the callback response simple and explicit for debugging.
     // Later, we can redirect this to an admin settings page.
-    return NextResponse.json(
-      {
-        success: true,
-        connection,
-        selectedCalendar,
-      },
-      { status: 200 }
+    return NextResponse.redirect(
+      new URL(`/admin/${tenantSlug}/settings?calendar=connected`, request.url)
     );
   } catch (error) {
     console.error("Google OAuth callback error:", error);

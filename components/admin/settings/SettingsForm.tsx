@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import type { Tenant } from "@/lib/types/tenant";
 import ToastMessage from "@/components/ui/ToastMessage";
 
@@ -27,6 +27,21 @@ type ToastState = {
   message: string;
   variant: "success" | "error";
 } | null;
+
+type CalendarConnectionSummary = {
+  id: string;
+  provider: "google";
+  externalAccountEmail?: string | null;
+  calendarId: string;
+  calendarName?: string | null;
+  tokenExpiresAt?: string | null;
+  isPrimary: boolean;
+  isActive: boolean;
+};
+
+type CalendarStatusState = {
+  primaryConnection: CalendarConnectionSummary | null;
+};
 
 const DAYS = [
   "monday",
@@ -195,6 +210,53 @@ function SectionHeader({
 
 export default function SettingsForm({ tenant }: SettingsFormProps) {
   const [toast, setToast] = useState<ToastState>(null);
+
+  const [calendarStatus, setCalendarStatus] =
+    useState<CalendarStatusState | null>(null);
+  const [isLoadingCalendar, setIsLoadingCalendar] = useState(true);
+
+  useEffect(() => {
+    async function loadCalendarStatus() {
+      try {
+        const response = await fetch(
+          `/api/admin/tenants/${tenant.slug}/calendar-connections`
+        );
+
+        const result = await response.json();
+
+        if (!response.ok) {
+          throw new Error(result.error || "Failed to load calendar connection.");
+        }
+
+        setCalendarStatus({
+          primaryConnection: result.primaryConnection ?? null,
+        });
+      } catch (error) {
+        console.error(error);
+        setToast({
+          message:
+            error instanceof Error
+              ? error.message
+              : "Failed to load calendar connection.",
+          variant: "error",
+        });
+      } finally {
+        setIsLoadingCalendar(false);
+      }
+    }
+
+    void loadCalendarStatus();
+
+    const params = new URLSearchParams(window.location.search);
+    const calendarResult = params.get("calendar");
+
+    if (calendarResult === "connected") {
+      setToast({
+        message: "Google Calendar connected successfully.",
+        variant: "success",
+      });
+    }
+  }, [tenant.slug]);
 
   const [editingSections, setEditingSections] = useState<
     Record<EditableSection, boolean>
@@ -864,6 +926,66 @@ export default function SettingsForm({ tenant }: SettingsFormProps) {
                 </div>
               );
             })}
+          </div>
+        </section>
+        
+        <section className="rounded-2xl border bg-gray-50/60 p-4">
+          <div className="mb-4 flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+            <div>
+              <h3 className="text-base font-semibold text-gray-900">
+                Google Calendar
+              </h3>
+              <p className="mt-1 text-sm text-gray-600">
+                Connect or reconnect the calendar used for appointment availability and
+                booking.
+              </p>
+            </div>
+
+            <button
+              type="button"
+              onClick={() => {
+                window.location.href = `/api/admin/tenants/${tenant.slug}/calendar-connections/google/start`;
+              }}
+              className="rounded-xl bg-gray-900 px-4 py-2 text-sm font-semibold text-white transition hover:bg-gray-800"
+            >
+              {calendarStatus?.primaryConnection
+                ? "Reconnect Google Calendar"
+                : "Connect Google Calendar"}
+            </button>
+          </div>
+
+          <div className="rounded-xl border bg-white p-4 text-sm">
+            {isLoadingCalendar ? (
+              <p className="text-gray-600">Checking calendar connection...</p>
+            ) : calendarStatus?.primaryConnection ? (
+              <div className="space-y-2">
+                <p className="font-medium text-green-700">Connected</p>
+                <p>
+                  <span className="font-medium text-gray-700">Calendar:</span>{" "}
+                  {calendarStatus.primaryConnection.calendarName ||
+                    calendarStatus.primaryConnection.calendarId}
+                </p>
+                <p>
+                  <span className="font-medium text-gray-700">Account:</span>{" "}
+                  {calendarStatus.primaryConnection.externalAccountEmail ||
+                    "Google account connected"}
+                </p>
+                <p className="text-xs text-gray-500">
+                  If appointments stop syncing or availability fails, reconnect Google
+                  Calendar to refresh access.
+                </p>
+              </div>
+            ) : (
+              <div className="space-y-2">
+                <p className="font-medium text-amber-700">
+                  Google Calendar is not connected or needs reconnection.
+                </p>
+                <p className="text-gray-600">
+                  Connect Google Calendar so Digital Front Door can check availability
+                  and book appointments.
+                </p>
+              </div>
+            )}
           </div>
         </section>
 
