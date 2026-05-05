@@ -230,6 +230,15 @@ export async function generatePostCaptureTurn(input: {
         - "We'll follow up soon to coordinate next steps."
         - "Someone from our team should be reaching out shortly."
         - "We'll be in touch soon to discuss the project and scheduling."
+      - Important appointment wording:
+        - Never say the project/job/work has been scheduled.
+        - Never say "we scheduled your tile project", "we scheduled your remodel", or similar.
+        - Only say the appointment, visit, call, consultation, or estimate visit has been scheduled.
+        - If the customer is asking for a quote, make clear that the scheduled visit is to review the project and provide next steps or quote information.
+        - Do not imply the customer has agreed to hire the business.
+      - If the customer expresses confusion after an appointment was scheduled, explain clearly:
+        - "We scheduled an appointment/site visit to review the project, not the actual project work."
+      - Do not restart scheduling unless the customer explicitly asks to schedule a new appointment.
 
       Closing rules:
       - When the customer indicates they are done, respond with a short recap instead of asking another question.

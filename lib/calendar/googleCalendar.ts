@@ -363,6 +363,26 @@ export async function createGoogleCalendarEvent(
         attendees: eventInput.attendeeEmail
           ? [{ email: eventInput.attendeeEmail }]
           : undefined,
+      
+        /**
+         * Google Calendar reminders.
+         *
+         * Why:
+         * - keeps contractors from forgetting booked appointments
+         * - uses Google Calendar's native reminder system
+         * - avoids building custom time-based SMS reminders before Twilio is ready
+         *
+         * Defaults:
+         * - 24 hours before for planning
+         * - 1 hour before for action
+         */
+        reminders: {
+          useDefault: false,
+          overrides: [
+            { method: "popup", minutes: 24 * 60 },
+            { method: "popup", minutes: 60 },
+          ],
+        },
       }),
     },
   });

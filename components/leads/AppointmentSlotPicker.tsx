@@ -6,87 +6,36 @@ type Slot = {
   startAt: string;
   endAt: string;
   timezone: string;
+  displayTime?: string;
 };
 
 type DayGroup = {
   dateKey: string;
-  label: string;
+  displayLabel: string;
   slots: Slot[];
+};
+
+type AvailabilityResponse = {
+  tenantSlug: string;
+  timezone: string;
+  slotMinutes: number;
+  days: DayGroup[];
 };
 
 function formatDateKey(date: Date) {
   return date.toISOString().slice(0, 10);
 }
 
-function formatDayLabel(dateKey: string) {
-  const date = new Date(`${dateKey}T12:00:00`);
-
-  return new Intl.DateTimeFormat(undefined, {
-    weekday: "short",
-    month: "short",
-    day: "numeric",
-  }).format(date);
-}
-
-function formatTime(value: string) {
-  return new Intl.DateTimeFormat(undefined, {
-    hour: "numeric",
-    minute: "2-digit",
-  }).format(new Date(value));
-}
-
-/**
- * Splits raw Google free windows into clean bookable appointment slots.
- *
- * Product rule for now:
- * - 60-minute appointments
- * - only show 8 AM–5 PM local working hours
- * - do not show overnight / giant multi-day free ranges
- */
-function buildBookableSlots(rawWindows: any[], slotMinutes = 60): Slot[] {
-  const slots: Slot[] = [];
-
-  for (const window of rawWindows) {
-    const windowStart = new Date(window.startAt);
-    const windowEnd = new Date(window.endAt);
-
-    if (Number.isNaN(windowStart.getTime()) || Number.isNaN(windowEnd.getTime())) {
-      continue;
-    }
-
-    const cursorDay = new Date(windowStart);
-    cursorDay.setHours(0, 0, 0, 0);
-
-    const finalDay = new Date(windowEnd);
-    finalDay.setHours(0, 0, 0, 0);
-
-    while (cursorDay <= finalDay) {
-      const workStart = new Date(cursorDay);
-      workStart.setHours(8, 0, 0, 0);
-
-      const workEnd = new Date(cursorDay);
-      workEnd.setHours(17, 0, 0, 0);
-
-      let cursor = new Date(Math.max(windowStart.getTime(), workStart.getTime()));
-      const end = new Date(Math.min(windowEnd.getTime(), workEnd.getTime()));
-
-      while (cursor.getTime() + slotMinutes * 60000 <= end.getTime()) {
-        const slotEnd = new Date(cursor.getTime() + slotMinutes * 60000);
-
-        slots.push({
-          startAt: cursor.toISOString(),
-          endAt: slotEnd.toISOString(),
-          timezone: window.timezone || "America/Los_Angeles",
-        });
-
-        cursor = slotEnd;
-      }
-
-      cursorDay.setDate(cursorDay.getDate() + 1);
-    }
+function formatTime(slot: Slot) {
+  if (slot.displayTime) {
+    return slot.displayTime;
   }
 
-  return slots;
+  return new Intl.DateTimeFormat(undefined, {
+    timeZone: slot.timezone || "America/Los_Angeles",
+    hour: "numeric",
+    minute: "2-digit",
+  }).format(new Date(slot.startAt));
 }
 
 export default function AppointmentSlotPicker({
@@ -98,7 +47,7 @@ export default function AppointmentSlotPicker({
   selectedSlot: Slot | null;
   onSelectSlot: (slot: Slot) => void;
 }) {
-  const [rawWindows, setRawWindows] = useState<any[]>([]);
+  const [dayGroups, setDayGroups] = useState<DayGroup[]>([]);
   const [selectedDate, setSelectedDate] = useState<string | null>(null);
   const [currentMonth, setCurrentMonth] = useState(() => new Date());
   const [isLoading, setIsLoading] = useState(true);
@@ -106,70 +55,76 @@ export default function AppointmentSlotPicker({
 
   useEffect(() => {
     void loadAvailability();
-  }, []);
+    // tenantSlug is included so the picker reloads if reused for another tenant.
+  }, [tenantSlug]);
 
   async function loadAvailability() {
     try {
       setIsLoading(true);
       setError("");
 
-      const now = new Date();
-      const future = new Date(now);
-      future.setDate(now.getDate() + 30);
-
+      /**
+       * The backend now handles:
+       * - Google availability lookup
+       * - tenant business hours
+       * - timezone-safe slot generation
+       * - grouping slots by day
+       *
+       * The frontend should only display the returned slots.
+       */
       const params = new URLSearchParams({
-        from: now.toISOString(),
-        to: future.toISOString(),
         timezone: "America/Los_Angeles",
-        minSlotMinutes: "30",
+        slotMinutes: "60",
+        lookaheadDays: "14",
+        maxDaysToReturn: "7",
       });
 
       const response = await fetch(
         `/api/admin/tenants/${tenantSlug}/calendar-connections/google/availability?${params.toString()}`
       );
 
-      const result = await response.json();
+      const result: AvailabilityResponse | { error?: string } =
+        await response.json();
 
       if (!response.ok) {
-        throw new Error(result.error || "Failed to load availability");
+        throw new Error(
+          "error" in result && result.error
+            ? result.error
+            : "Failed to load availability"
+        );
       }
 
-      setRawWindows(Array.isArray(result.slots) ? result.slots : []);
+      const days = Array.isArray((result as AvailabilityResponse).days)
+        ? (result as AvailabilityResponse).days
+        : [];
+
+      setDayGroups(days);
+
+      /**
+       * Automatically select the first day with availability.
+       * This keeps the modal useful immediately after loading.
+       */
+      if (days.length > 0) {
+        setSelectedDate((current) => current ?? days[0].dateKey);
+      }
     } catch (err) {
       console.error("Availability load error:", err);
-      setError(err instanceof Error ? err.message : "Failed to load availability");
+      setError(
+        err instanceof Error ? err.message : "Failed to load availability"
+      );
     } finally {
       setIsLoading(false);
     }
   }
 
-  const dayGroups = useMemo<DayGroup[]>(() => {
-    const slots = buildBookableSlots(rawWindows, 60);
-    const grouped: Record<string, Slot[]> = {};
+  const availableDateKeys = useMemo(
+    () => new Set(dayGroups.map((group) => group.dateKey)),
+    [dayGroups]
+  );
 
-    for (const slot of slots) {
-      const key = formatDateKey(new Date(slot.startAt));
-      grouped[key] = grouped[key] || [];
-      grouped[key].push(slot);
-    }
-
-    return Object.keys(grouped)
-      .sort()
-      .map((dateKey) => ({
-        dateKey,
-        label: formatDayLabel(dateKey),
-        slots: grouped[dateKey],
-      }));
-  }, [rawWindows]);
-
-  useEffect(() => {
-    if (!selectedDate && dayGroups.length > 0) {
-      setSelectedDate(dayGroups[0].dateKey);
-    }
-  }, [dayGroups, selectedDate]);
-
-  const availableDateKeys = new Set(dayGroups.map((group) => group.dateKey));
-  const selectedGroup = dayGroups.find((group) => group.dateKey === selectedDate);
+  const selectedGroup = dayGroups.find(
+    (group) => group.dateKey === selectedDate
+  );
 
   const monthLabel = new Intl.DateTimeFormat(undefined, {
     month: "long",
@@ -211,6 +166,11 @@ export default function AppointmentSlotPicker({
         <div className="rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700">
           {error}
         </div>
+      ) : dayGroups.length === 0 ? (
+        <div className="rounded-lg border bg-gray-50 px-3 py-2 text-sm text-gray-600">
+          No available appointment times were found. A team member can follow up
+          directly to coordinate.
+        </div>
       ) : (
         <>
           <div className="rounded-xl border bg-gray-50 p-3">
@@ -223,7 +183,9 @@ export default function AppointmentSlotPicker({
                 ←
               </button>
 
-              <p className="text-sm font-semibold text-gray-900">{monthLabel}</p>
+              <p className="text-sm font-semibold text-gray-900">
+                {monthLabel}
+              </p>
 
               <button
                 type="button"
@@ -243,7 +205,8 @@ export default function AppointmentSlotPicker({
             <div className="mt-2 grid grid-cols-7 gap-1">
               {calendarDays.map((day) => {
                 const key = formatDateKey(day);
-                const isCurrentMonth = day.getMonth() === currentMonth.getMonth();
+                const isCurrentMonth =
+                  day.getMonth() === currentMonth.getMonth();
                 const hasAvailability = availableDateKeys.has(key);
                 const isSelected = selectedDate === key;
 
@@ -253,7 +216,7 @@ export default function AppointmentSlotPicker({
                     type="button"
                     disabled={!hasAvailability}
                     onClick={() => setSelectedDate(key)}
-                    className={`rounded-lg px-2 py-2 text-sm ${
+                    className={`rounded-lg px-2 py-2 text-sm transition ${
                       isSelected
                         ? "bg-blue-600 text-white"
                         : hasAvailability
@@ -268,35 +231,37 @@ export default function AppointmentSlotPicker({
             </div>
           </div>
 
-          <div>
-            <p className="mb-2 text-sm font-semibold text-gray-800">
-              {selectedGroup ? selectedGroup.label : "Available Times"}
+          <div className="rounded-xl border bg-white p-3">
+            <p className="text-sm font-semibold text-gray-900">
+              {selectedGroup
+                ? `Available times for ${selectedGroup.displayLabel}`
+                : "Select a day"}
             </p>
 
             {selectedGroup ? (
-              <div className="grid grid-cols-2 gap-2 sm:grid-cols-3">
+              <div className="mt-3 grid grid-cols-2 gap-2 sm:grid-cols-3">
                 {selectedGroup.slots.map((slot) => {
                   const isSelected = selectedSlot?.startAt === slot.startAt;
 
                   return (
                     <button
-                      key={slot.startAt}
+                      key={`${slot.startAt}-${slot.endAt}`}
                       type="button"
                       onClick={() => onSelectSlot(slot)}
-                      className={`rounded-lg border px-3 py-2 text-sm font-medium ${
+                      className={`rounded-xl border px-3 py-2 text-sm font-semibold transition ${
                         isSelected
                           ? "border-blue-600 bg-blue-50 text-blue-800"
-                          : "bg-white text-gray-800 hover:bg-gray-50"
+                          : "bg-white text-gray-700 hover:bg-gray-50"
                       }`}
                     >
-                      {formatTime(slot.startAt)}
+                      {formatTime(slot)}
                     </button>
                   );
                 })}
               </div>
             ) : (
-              <p className="rounded-lg border bg-gray-50 px-3 py-2 text-sm text-gray-500">
-                Select a date with availability.
+              <p className="mt-2 text-sm text-gray-500">
+                Choose a highlighted day to see available times.
               </p>
             )}
           </div>

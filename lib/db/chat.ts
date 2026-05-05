@@ -14,9 +14,7 @@ import { generateChatTurn } from "@/lib/ai/generateChatTurn";
 import { generatePostCaptureTurn } from "@/lib/ai/generatePostCaptureTurn";
 import type { Tenant } from "@/lib/types/tenant";
 import { detectSchedulingIntent } from "@/lib/chat/detectSchedulingIntent";
-import { getPrimaryCalendarConnectionByTenantSlug } from "@/lib/calendar/calendarConnectionService";
-import { getGoogleCalendarAvailability } from "@/lib/calendar/googleCalendar";
-import type { CalendarAvailabilitySlot } from "@/lib/calendar/types";
+import { runSchedulingWorkflow } from "@/lib/scheduling/chat/runSchedulingWorkflow";
 
 function generateId(prefix: string) {
   return `${prefix}_${Math.random().toString(36).slice(2, 10)}`;
@@ -139,219 +137,6 @@ function mapMessage(row: any): ChatMessage {
   };
 }
 
-type ChatSchedulingSlot = CalendarAvailabilitySlot & {
-  optionNumber: number;
-  displayLabel: string;
-};
-
-function formatChatSlotLabel(slot: CalendarAvailabilitySlot) {
-  const date = new Date(slot.startAt);
-
-  if (Number.isNaN(date.getTime())) {
-    return slot.startAt;
-  }
-
-  return new Intl.DateTimeFormat("en-US", {
-    timeZone: slot.timezone || "America/Los_Angeles",
-    weekday: "short",
-    month: "short",
-    day: "numeric",
-    hour: "numeric",
-    minute: "2-digit",
-    hour12: true,
-  }).format(date);
-}
-
-function splitAvailabilityIntoHourlySlots(
-  windows: CalendarAvailabilitySlot[],
-  maxSlots = 3
-): ChatSchedulingSlot[] {
-  const results: ChatSchedulingSlot[] = [];
-  const slotMinutes = 60;
-
-  for (const window of windows) {
-    const windowStart = new Date(window.startAt);
-    const windowEnd = new Date(window.endAt);
-
-    if (
-      Number.isNaN(windowStart.getTime()) ||
-      Number.isNaN(windowEnd.getTime())
-    ) {
-      continue;
-    }
-
-    const cursor = new Date(windowStart);
-    cursor.setMinutes(0, 0, 0);
-
-    if (cursor.getTime() < windowStart.getTime()) {
-      cursor.setHours(cursor.getHours() + 1);
-    }
-
-    while (
-      cursor.getTime() + slotMinutes * 60_000 <= windowEnd.getTime() &&
-      results.length < maxSlots
-    ) {
-      const slotEnd = new Date(cursor.getTime() + slotMinutes * 60_000);
-
-      const slot: CalendarAvailabilitySlot = {
-        startAt: cursor.toISOString(),
-        endAt: slotEnd.toISOString(),
-        timezone: window.timezone || "America/Los_Angeles",
-      };
-
-      results.push({
-        ...slot,
-        optionNumber: results.length + 1,
-        displayLabel: formatChatSlotLabel(slot),
-      });
-
-      cursor.setHours(cursor.getHours() + 1);
-    }
-
-    if (results.length >= maxSlots) break;
-  }
-
-  return results;
-}
-
-function parseSelectedSlotOption(message: string): number | null {
-  const normalized = message.trim().toLowerCase();
-
-  const directNumber = normalized.match(/\b([1-3])\b/);
-  if (directNumber?.[1]) {
-    return Number(directNumber[1]);
-  }
-
-  if (normalized.includes("first")) return 1;
-  if (normalized.includes("second")) return 2;
-  if (normalized.includes("third")) return 3;
-
-  return null;
-}
-
-function getSchedulingWindowFromPreference(preferenceText?: string | null) {
-  const normalized = (preferenceText || "").toLowerCase();
-  const now = new Date();
-
-  const from = new Date(now);
-
-  if (normalized.includes("next week")) {
-    const day = from.getDay(); // Sunday = 0
-    const daysUntilNextMonday = ((8 - day) % 7) || 7;
-
-    from.setDate(from.getDate() + daysUntilNextMonday);
-    from.setHours(9, 0, 0, 0);
-
-    const to = new Date(from);
-    to.setDate(from.getDate() + 5);
-    to.setHours(17, 0, 0, 0);
-
-    return { from, to };
-  }
-
-  if (normalized.includes("this week")) {
-    from.setDate(from.getDate() + 1);
-    from.setHours(9, 0, 0, 0);
-
-    const to = new Date(from);
-    const day = to.getDay();
-    const daysUntilFriday = Math.max(1, 5 - day);
-
-    to.setDate(to.getDate() + daysUntilFriday);
-    to.setHours(17, 0, 0, 0);
-
-    return { from, to };
-  }
-
-  if (normalized.includes("tomorrow")) {
-    from.setDate(from.getDate() + 1);
-    from.setHours(9, 0, 0, 0);
-
-    const to = new Date(from);
-    to.setHours(17, 0, 0, 0);
-
-    return { from, to };
-  }
-
-  from.setDate(from.getDate() + 1);
-  from.setHours(9, 0, 0, 0);
-
-  const to = new Date(from);
-  to.setDate(from.getDate() + 7);
-  to.setHours(17, 0, 0, 0);
-
-  return { from, to };
-}
-
-function detectSchedulingFollowUpQuestion(message: string) {
-  const normalized = message.toLowerCase();
-
-  return (
-    normalized.includes("reschedule") ||
-    normalized.includes("change") ||
-    normalized.includes("something comes up") ||
-    normalized.includes("can't make it") ||
-    normalized.includes("cannot make it") ||
-    normalized.includes("cancel")
-  );
-}
-
-async function getChatSchedulingSlots(input: {
-  tenantSlug: string;
-  preferenceText?: string | null;
-}): Promise<ChatSchedulingSlot[]> {
-  const timezone = "America/Los_Angeles";
-
-  const connection = await getPrimaryCalendarConnectionByTenantSlug(
-    input.tenantSlug
-  );
-
-  if (!connection) {
-    return [];
-  }
-
-  const { from, to } = getSchedulingWindowFromPreference(input.preferenceText);
-
-  const windows = await getGoogleCalendarAvailability({
-    connection,
-    fromIso: from.toISOString(),
-    toIso: to.toISOString(),
-    timezone,
-    minSlotMinutes: 60,
-  });
-
-  return splitAvailabilityIntoHourlySlots(windows, 3);
-}
-
-function buildSlotOfferMessage(slots: ChatSchedulingSlot[]) {
-  if (slots.length === 0) {
-    return "I’m not seeing any openings in the next few days. We’ll follow up directly to coordinate a time.";
-  }
-
-  const options = slots
-    .map((slot) => `${slot.optionNumber}. ${slot.displayLabel}`)
-    .join("\n");
-
-    return `I found a few openings over the next couple of days:\n\n${options}\n\nWhich one works best for you? You can reply with 1, 2, or 3.\n\nIf you had a different timeframe in mind, just let me know.`;
-}
-
-function detectSlotRejectionOrPreference(message: string) {
-  const normalized = message.toLowerCase();
-
-  return (
-    normalized.includes("none") ||
-    normalized.includes("not work") ||
-    normalized.includes("doesn't work") ||
-    normalized.includes("dont work") ||
-    normalized.includes("don't work") ||
-    normalized.includes("later in the week") ||
-    normalized.includes("after wednesday") ||
-    normalized.includes("after thursday") ||
-    normalized.includes("another day") ||
-    normalized.includes("different day") ||
-    normalized.includes("different time")
-  );
-}
 
 function detectConversationClose(message: string) {
   const normalized = message.trim().toLowerCase();
@@ -711,104 +496,6 @@ function finalizeSessionStep(session: ChatSession, tenant: Tenant): ChatSession 
   };
 }
 
-function toTitleCase(value?: string | null) {
-  if (!value) return "";
-
-  return value
-    .trim()
-    .toLowerCase()
-    .replace(/\b\w/g, (char) => char.toUpperCase())
-    .replace(/\bCA\b/i, "CA");
-}
-
-function buildChatAppointmentTitle(input: {
-  projectType?: string;
-  customerName?: string;
-  appointmentType: "call" | "site_visit";
-}) {
-  const project = input.projectType?.trim()
-    ? toTitleCase(input.projectType)
-    : "Project";
-
-  const suffix =
-    input.appointmentType === "site_visit" ? "Appointment" : "Call";
-
-  return input.customerName?.trim()
-    ? `${project} ${suffix} – ${toTitleCase(input.customerName)}`
-    : `${project} ${suffix}`;
-}
-
-function formatPhoneForCalendar(value?: string | null) {
-  if (!value) return "Not provided";
-
-  const digits = value.replace(/\D/g, "");
-
-  if (digits.length === 11 && digits.startsWith("1")) {
-    return `(${digits.slice(1, 4)}) ${digits.slice(4, 7)}-${digits.slice(7)}`;
-  }
-
-  if (digits.length === 10) {
-    return `(${digits.slice(0, 3)}) ${digits.slice(3, 6)}-${digits.slice(6)}`;
-  }
-
-  return value;
-}
-
-function buildChatAppointmentDescription(input: {
-  lead?: any | null;
-  appointmentType: "call" | "site_visit";
-  address?: string | null;
-}) {
-  const lead = input.lead;
-
-  return [
-    `Scheduled from: Chat`,
-    lead?.leadNumber ? `Lead: ${lead.leadNumber}` : null,
-    lead?.customerName ? `Customer: ${toTitleCase(lead.customerName)}` : null,
-    lead?.phone ? `Phone: ${formatPhoneForCalendar(lead.phone)}` : null,
-    lead?.email ? `Email: ${lead.email}` : null,
-    lead?.projectType ? `Project: ${toTitleCase(lead.projectType)}` : null,
-    lead?.location ? `Location: ${toTitleCase(lead.location)}` : null,
-    lead?.timeline ? `Timeline: ${toTitleCase(lead.timeline)}` : null,
-    `Appointment Type: ${
-      input.appointmentType === "site_visit" ? "On-site Visit" : "Phone Call"
-    }`,
-    input.address ? `Address: ${formatAddressForDisplay(input.address)}` : null,
-    lead?.notes ? `Notes: ${lead.notes}` : null,
-  ]
-    .filter(Boolean)
-    .join("\n");
-}
-
-function looksLikeIncompleteAddress(value: string) {
-  const normalized = value.trim().toLowerCase();
-
-  if (!normalized) return true;
-
-  const hasNumber = /\d+/.test(normalized);
-
-  const hasStreetWord =
-    /\b(st|street|ave|avenue|rd|road|dr|drive|ct|court|ln|lane|blvd|boulevard|way|pl|place|terrace|ter|circle|cir)\b/.test(
-      normalized
-    );
-
-  const hasCityStateOrZip =
-    /\bca\b/.test(normalized) ||
-    /\bcalifornia\b/.test(normalized) ||
-    /\b\d{5}(?:-\d{4})?\b/.test(normalized) ||
-    normalized.split(",").length >= 2;
-
-  return !(hasNumber && hasStreetWord && hasCityStateOrZip);
-}
-
-function formatAddressForDisplay(value: string) {
-  return value
-    .trim()
-    .replace(/\s+/g, " ")
-    .replace(/\b\w/g, (char) => char.toUpperCase())
-    .replace(/\bCa\b/g, "CA")
-    .replace(/\bUsa\b/g, "USA");
-}
 
 async function applyPostCaptureStructuredUpdates(input: {
   leadId: string;
@@ -1030,483 +717,123 @@ export async function addUserMessage(sessionId: string, content: string) {
   const userMessage = createMessageObject(sessionId, "user", trimmedContent);
   await insertMessage(userMessage);
 
-  const schedulingIntent = detectSchedulingIntent(trimmedContent);
-
-if (schedulingIntent.hasSchedulingIntent) {
-  console.log("📅 Scheduling intent detected:", {
-    sessionId,
-    tenantSlug: session.tenantSlug,
-    leadId: session.leadId ?? null,
-    currentStep: session.currentStep,
-    leadCaptured: session.leadCaptured,
-    message: trimmedContent,
-    intent: schedulingIntent,
-  });
-}
-
-const schedulingState = session.intakeData?.schedulingState;
-
-/**
- * START SCHEDULING
- */
-if (
-  schedulingIntent.type === "schedule" &&
-  session.currentStep === "complete" &&
-  session.leadCaptured &&
-  session.leadId &&
-  !schedulingState?.active
-) {
-  session.intakeData = {
-    ...session.intakeData,
-    schedulingState: {
-      active: true,
-      step: "collect_details",
-      appointmentType: undefined,
-      address: undefined,
-      selectedSlot: undefined,
-      offeredSlots: undefined,
-      preferenceText: trimmedContent,
-    },
-  };
-
-  await updateSession(session);
-
-  const assistantMessage = createMessageObject(
-    sessionId,
-    "assistant",
-    "Absolutely — we can help get that scheduled. Would you prefer a phone call or an on-site visit?"
-  );
-
-  await insertMessage(assistantMessage);
-
-  return {
-    sessionId,
-    messages: await getMessagesForSession(sessionId),
-    session,
-  };
-}
-
-/**
- * CAPTURE SITE VISIT ADDRESS + OFFER REAL SLOTS
- */
-if (
-  schedulingState?.active &&
-  schedulingState.step === "collect_details" &&
-  schedulingState.appointmentType === "site_visit" &&
-  !schedulingState.address
-) {
-  if (looksLikeIncompleteAddress(trimmedContent)) {
-    const assistantMessage = createMessageObject(
-      sessionId,
-      "assistant",
-      "Thanks — can you send the full project address, including city and ZIP code? That helps us make sure the appointment details and map link are accurate."
-    );
-
-    await insertMessage(assistantMessage);
-
-    return {
-      sessionId,
-      messages: await getMessagesForSession(sessionId),
-      session,
-    };
-  }
-
-  const formattedAddress = formatAddressForDisplay(trimmedContent);
-
-  let slots: ChatSchedulingSlot[] = [];
-
-  try {
-    slots = await getChatSchedulingSlots({
-      tenantSlug: session.tenantSlug,
-      preferenceText: schedulingState.preferenceText,
-    });
-
-    console.log("📅 Chat scheduling slots:", slots);
-  } catch (error) {
-    console.error("❌ Availability fetch failed:", error);
-  }
-
-  session.intakeData = {
-    ...session.intakeData,
-    schedulingState: {
-      ...schedulingState,
-      address: formattedAddress,
-      step: "select_slot",
-      offeredSlots: slots,
-    },
-  };
-
-  await updateLeadFields(session.leadId!, {
-    address: formattedAddress,
-  });
-
-  await logStructuredLeadFieldActivity({
-    leadId: session.leadId!,
-    tenantSlug: session.tenantSlug,
-    fieldName: "address",
-    previousValue: null,
-    newValue: formattedAddress,
-  });
-
-  await updateSession(session);
-
-  const assistantMessage = createMessageObject(
-    sessionId,
-    "assistant",
-    buildSlotOfferMessage(slots)
-  );
-
-  await insertMessage(assistantMessage);
-
-  return {
-    sessionId,
-    messages: await getMessagesForSession(sessionId),
-    session,
-  };
-}
-
-/**
- * CAPTURE APPOINTMENT TYPE
- */
-if (
-  schedulingState?.active &&
-  schedulingState.step === "collect_details"
-) {
-  const normalized = trimmedContent.toLowerCase();
-
-  let appointmentType: "call" | "site_visit" | null = null;
-
-  if (normalized.includes("call") || normalized.includes("phone")) {
-    appointmentType = "call";
-  }
-
   if (
-    normalized.includes("site") ||
-    normalized.includes("visit") ||
-    normalized.includes("come out") ||
-    normalized.includes("in person")
+    session.currentStep === "contact" &&
+    tenant.requirePhoneForLead !== false
   ) {
-    appointmentType = "site_visit";
-  }
-
-  if (appointmentType) {
-    if (appointmentType === "call") {
-      let slots: ChatSchedulingSlot[] = [];
-
-      try {
-        slots = await getChatSchedulingSlots({
-          tenantSlug: session.tenantSlug,
-          preferenceText: schedulingState.preferenceText,
-        });;
-
-        console.log("📅 Chat scheduling slots:", slots);
-      } catch (error) {
-        console.error("❌ Availability fetch failed:", error);
-      }
-
-      session.intakeData = {
-        ...session.intakeData,
-        schedulingState: {
-          ...schedulingState,
-          appointmentType,
-          step: "select_slot",
-          offeredSlots: slots,
-        },
-      };
-
-      await updateSession(session);
-
-      const assistantMessage = createMessageObject(
+    const normalizedPhone = normalizeUsPhone(trimmedContent);
+  
+    if (!normalizedPhone) {
+      const assistantReply = createMessageObject(
         sessionId,
         "assistant",
-        buildSlotOfferMessage(slots)
+        "That phone number doesn’t look complete. Please send a 10-digit phone number, including the area code."
       );
-
-      await insertMessage(assistantMessage);
-
+  
+      await insertMessage(assistantReply);
+  
       return {
         sessionId,
         messages: await getMessagesForSession(sessionId),
         session,
       };
     }
-
-    session.intakeData = {
-      ...session.intakeData,
-      schedulingState: {
-        ...schedulingState,
-        appointmentType,
-        step: "collect_details",
-      },
-    };
-
-    await updateSession(session);
-
-    const assistantMessage = createMessageObject(
-      sessionId,
-      "assistant",
-      "Great — we’ll set up an on-site visit. What’s the address for the project?"
-    );
-
-    await insertMessage(assistantMessage);
-
-    return {
-      sessionId,
-      messages: await getMessagesForSession(sessionId),
-      session,
-    };
   }
-}
-
-/**
- * BOOK SELECTED CHAT APPOINTMENT
- */
-if (
-  schedulingState?.active &&
-  schedulingState.step === "select_slot" &&
-  session.leadId
-) {
-  const selectedOption = parseSelectedSlotOption(trimmedContent);
-  const offeredSlots = Array.isArray(schedulingState.offeredSlots)
-    ? schedulingState.offeredSlots
-    : [];
-
-  const selectedSlot = offeredSlots.find(
-    (slot: any) => slot.optionNumber === selectedOption
-  );
-
-  const refinementPreference = detectSlotRefinementPreference(trimmedContent);
-
-if (!selectedSlot && refinementPreference) {
-  let slots: ChatSchedulingSlot[] = [];
-
-  try {
-    slots = await getChatSchedulingSlots({
-      tenantSlug: session.tenantSlug,
-      preferenceText: refinementPreference,
-    });
-
-    console.log("📅 Refined chat scheduling slots:", slots);
-  } catch (error) {
-    console.error("❌ Refined availability fetch failed:", error);
-  }
-
-  session.intakeData = {
-    ...session.intakeData,
-    schedulingState: {
-      ...schedulingState,
-      step: "select_slot",
-      preferenceText: refinementPreference,
-      offeredSlots: slots,
-    },
-  };
-
-  await updateSession(session);
-
-  const assistantMessage = createMessageObject(
-    sessionId,
-    "assistant",
-    slots.length > 0
-      ? buildSlotOfferMessage(slots)
-      : "I’m not seeing openings for that timeframe right now. I’ve noted your preference and we’ll follow up with better options."
-  );
-
-  await insertMessage(assistantMessage);
-
-  return {
-    sessionId,
-    messages: await getMessagesForSession(sessionId),
-    session,
-  };
-}
 
   /**
-   * If the customer rejects the offered times or gives a different
-   * scheduling preference, do not keep forcing 1/2/3.
+   * Handle hypothetical cancel/reschedule questions before scheduling intent.
+   *
+   * These are policy/process questions, not actual requests to cancel or reschedule.
+   * This prevents the scheduler from incorrectly restarting or canceling appointments.
    */
-  if (!selectedSlot && detectSlotRejectionOrPreference(trimmedContent)) {
-    await updateLeadFields(session.leadId, {
-      appointment: trimmedContent,
-    });
+  const normalizedForPolicy = trimmedContent.trim().toLowerCase();
 
-    await logStructuredLeadFieldActivity({
-      leadId: session.leadId,
+  const isCancelReschedulePolicyQuestion =
+    (
+      normalizedForPolicy.includes("what happens if") ||
+      normalizedForPolicy.includes("what if") ||
+      normalizedForPolicy.includes("if i need to") ||
+      normalizedForPolicy.includes("if we need to")
+    ) &&
+    (
+      normalizedForPolicy.includes("cancel") ||
+      normalizedForPolicy.includes("reschedule") ||
+      normalizedForPolicy.includes("move") ||
+      normalizedForPolicy.includes("change")
+    );
+
+  if (
+    session.currentStep === "complete" &&
+    session.leadCaptured &&
+    session.leadId &&
+    isCancelReschedulePolicyQuestion
+  ) {
+    const assistantReply = createMessageObject(
+      sessionId,
+      "assistant",
+      "No problem — if you need to cancel or reschedule, just let us know as soon as possible and we’ll help adjust the appointment."
+    );
+
+    await insertMessage(assistantReply);
+
+    return {
+      sessionId,
+      messages: await getMessagesForSession(sessionId),
+      session,
+    };
+  }
+
+  const schedulingIntent = await detectSchedulingIntent(trimmedContent);
+
+  if (schedulingIntent.hasSchedulingIntent) {
+    console.log("📅 Scheduling intent detected:", {
+      sessionId,
       tenantSlug: session.tenantSlug,
-      fieldName: "appointment",
-      previousValue: null,
-      newValue: trimmedContent,
+      leadId: session.leadId ?? null,
+      currentStep: session.currentStep,
+      leadCaptured: session.leadCaptured,
+      message: trimmedContent,
+      intent: schedulingIntent,
     });
+  }
 
+  const schedulingResult = await runSchedulingWorkflow({
+    session,
+    sessionId,
+    trimmedContent,
+    schedulingIntent,
+  });
+  
+  console.log("📅 Scheduling workflow result:", {
+    handled: schedulingResult.handled,
+    hasResponse: Boolean(schedulingResult.response),
+  });
+  
+  if (schedulingResult.handled && schedulingResult.response) {
+    return schedulingResult.response;
+  }
+  
+  /**
+   * If the customer asks about scheduling before the lead exists,
+   * remember that intent so we can resume scheduling immediately
+   * after required intake is complete and the lead is created.
+   */
+  if (
+    schedulingIntent.hasSchedulingIntent &&
+    schedulingIntent.type === "schedule" &&
+    !session.leadCaptured
+  ) {
     session.intakeData = {
       ...session.intakeData,
-      schedulingState: {
-        ...schedulingState,
-        active: false,
-        step: "confirm",
-        appointmentPreference: trimmedContent,
-      },
+      pendingSchedulingRequest: true,
+      pendingSchedulingPreference: trimmedContent,
+      pendingSchedulingAppointmentType:
+        schedulingIntent.appointmentType ?? undefined,
     };
-
+  
     await updateSession(session);
-
-    const assistantMessage = createMessageObject(
-      sessionId,
-      "assistant",
-      "No problem — I’ve noted that those times do not work and that you prefer a different day or timeframe. We’ll follow up with better options."
-    );
-
-    await insertMessage(assistantMessage);
-
-    return {
-      sessionId,
-      messages: await getMessagesForSession(sessionId),
-      session,
-    };
   }
 
-  /**
- * Detect when the user is asking for a different timeframe
- */
-function detectSlotRefinementPreference(message: string) {
-  const normalized = message.toLowerCase();
-
-  if (normalized.includes("next week")) return "next week";
-  if (normalized.includes("this week")) return "this week";
-  if (normalized.includes("tomorrow")) return "tomorrow";
-  if (normalized.includes("later in the week")) return "later in the week";
-  if (normalized.includes("after wednesday")) return "after Wednesday";
-  if (normalized.includes("after thursday")) return "after Thursday";
-  if (normalized.includes("morning")) return "morning";
-  if (normalized.includes("afternoon")) return "afternoon";
-  if (normalized.includes("later")) return "later";
-  if (normalized.includes("earlier")) return "earlier";
-
-  return null; 
-}
-
-  if (!selectedSlot) {
-    const assistantMessage = createMessageObject(
-      sessionId,
-      "assistant",
-      "Please reply with 1, 2, or 3 so I can book one of the available times."
-    );
-
-    await insertMessage(assistantMessage);
-
-    return {
-      sessionId,
-      messages: await getMessagesForSession(sessionId),
-      session,
-    };
-  }
-
-  const appointmentType =
-    schedulingState.appointmentType === "site_visit" ? "site_visit" : "call";
-
-  const lead = await getLeadById(session.leadId);
-
-  const title = buildChatAppointmentTitle({
-    projectType: lead?.projectType,
-    customerName: lead?.customerName,
-    appointmentType,
-  });
-
-  const description = buildChatAppointmentDescription({
-    lead,
-    appointmentType,
-    address: schedulingState.address || null,
-  });
-
-  const response = await fetch(
-    `${process.env.NEXT_PUBLIC_APP_URL || "http://localhost:3000"}/api/admin/tenants/${session.tenantSlug}/appointments/book`,
-    {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify({
-        leadId: session.leadId,
-        appointmentType,
-        address:
-          appointmentType === "site_visit"
-            ? schedulingState.address || null
-            : null,
-        title,
-        description,
-        location:
-          appointmentType === "site_visit"
-            ? schedulingState.address || null
-            : null,
-        startAt: selectedSlot.startAt,
-        endAt: selectedSlot.endAt,
-        timezone: selectedSlot.timezone || "America/Los_Angeles",
-      }),
-    }
-  );
-
-  const result = await response.json();
-
-  if (!response.ok) {
-    console.error("❌ Chat appointment booking failed:", result);
-
-    const assistantMessage = createMessageObject(
-      sessionId,
-      "assistant",
-      "I had trouble booking that time automatically. We’ll follow up shortly to get the appointment confirmed."
-    );
-
-    await insertMessage(assistantMessage);
-
-    return {
-      sessionId,
-      messages: await getMessagesForSession(sessionId),
-      session,
-    };
-  }
-
-  await updateLeadFields(session.leadId, {
-    appointment: selectedSlot.displayLabel,
-  });
-
-  await logStructuredLeadFieldActivity({
-    leadId: session.leadId,
-    tenantSlug: session.tenantSlug,
-    fieldName: "appointment",
-    previousValue: null,
-    newValue: selectedSlot.displayLabel,
-  });
-
-  session.intakeData = {
-    ...session.intakeData,
-    schedulingState: {
-      ...schedulingState,
-      active: false,
-      step: "confirm",
-      selectedSlot,
-      bookedAppointmentId: result.appointment?.id ?? null,
-    },
-  };
-
-  await updateSession(session);
-
-  const followUpText = detectSchedulingFollowUpQuestion(trimmedContent)
-    ? "\n\nIf something comes up, just reply here and we can help reschedule or cancel the appointment."
-    : "";
-
-  const assistantMessage = createMessageObject(
-    sessionId,
-    "assistant",
-    `Great — you’re booked for ${selectedSlot.displayLabel}.${followUpText}`
-  );
-
-  await insertMessage(assistantMessage);
-
-  return {
-    sessionId,
-    messages: await getMessagesForSession(sessionId),
-    session,
-  };
-}
   /**
    * CLOSE POST-CAPTURE CONVERSATION CLEANLY
    */
@@ -1889,6 +1216,33 @@ function detectSlotRefinementPreference(message: string) {
     !updatedSession.leadId
   ) {
     updatedSession = await createLeadAndNotifyOnce(updatedSession);
+  
+    /**
+     * If the customer previously asked to schedule before the lead existed,
+     * resume scheduling immediately now that the lead has been created.
+     */
+    if (updatedSession.intakeData?.pendingSchedulingRequest) {
+      const resumedSchedulingIntent = {
+        hasSchedulingIntent: true,
+        type: "schedule" as const,
+        appointmentType:
+          updatedSession.intakeData.pendingSchedulingAppointmentType ?? null,
+        confidence: "high" as const,
+      };
+  
+      const schedulingResult = await runSchedulingWorkflow({
+        session: updatedSession,
+        sessionId,
+        trimmedContent:
+          updatedSession.intakeData.pendingSchedulingPreference ||
+          "Customer wants to schedule.",
+        schedulingIntent: resumedSchedulingIntent,
+      });
+  
+      if (schedulingResult.handled && schedulingResult.response) {
+        return schedulingResult.response;
+      }
+    }
   }
 
   const assistantReplyContent =

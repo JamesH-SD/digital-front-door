@@ -70,6 +70,7 @@ export async function getActiveCalendarConnectionsByTenantSlug(
     .select("*")
     .eq("tenant_slug", tenantSlug)
     .eq("is_active", true)
+    .eq("status", "active")
     .order("is_primary", { ascending: false })
     .order("created_at", { ascending: true });
 
@@ -97,6 +98,7 @@ export async function getPrimaryCalendarConnectionByTenantSlug(
     .select("*")
     .eq("tenant_slug", tenantSlug)
     .eq("is_active", true)
+    .eq("status", "active")
     .eq("is_primary", true)
     .single();
 
@@ -264,6 +266,29 @@ export async function updateCalendarConnection(
   }
 
   return mapCalendarConnection(data);
+}
+
+export async function markCalendarConnectionInvalid(input: {
+  connectionId: string;
+  reason: string;
+}): Promise<void> {
+  const supabase = createAdminClient();
+
+  const { error } = await supabase
+    .from("calendar_connections")
+    .update({
+      status: "invalid",
+      is_active: false,
+      invalid_reason: input.reason,
+      invalid_at: new Date().toISOString(),
+      updated_at: new Date().toISOString(),
+    })
+    .eq("id", input.connectionId);
+
+  if (error) {
+    console.error("Error marking calendar connection invalid:", error.message);
+    throw error;
+  }
 }
 
 /**

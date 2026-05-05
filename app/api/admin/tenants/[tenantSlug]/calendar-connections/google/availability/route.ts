@@ -1,7 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { getTenantBySlug } from "@/lib/db/tenants";
-import { getPrimaryCalendarConnectionByTenantSlug } from "@/lib/calendar/calendarConnectionService";
-import { getGoogleCalendarAvailability } from "@/lib/calendar/googleCalendar";
+import { getBookableAppointmentSlots } from "@/lib/scheduling/getBookableAppointmentSlots";
 
 type RouteContext = {
   params: Promise<{
@@ -10,135 +8,69 @@ type RouteContext = {
 };
 
 /**
- * Format an ISO timestamp into a human-friendly local display string.
+ * Return clean, bookable appointment slots for a tenant.
  *
- * Why this exists:
- * - the raw slot values should remain ISO for system use
- * - humans should not have to mentally convert UTC/Zulu times
- * - this will also help later when AI suggests available time options
+ * Important:
+ * - This route no longer returns raw Google free windows.
+ * - Google Calendar is still the source of busy/free truth.
+ * - getBookableAppointmentSlots applies tenant business hours, timezone rules,
+ *   slot duration, and grouping by local day.
+ *
+ * This route is now safe for:
+ * - admin schedule modal
+ * - reschedule modal
+ * - future chat scheduling engine
  */
-function formatDisplayTime(input: {
-  iso: string;
-  timezone: string;
-}) {
-  const date = new Date(input.iso);
-
-  if (Number.isNaN(date.getTime())) {
-    return input.iso;
-  }
-
-  return new Intl.DateTimeFormat("en-US", {
-    timeZone: input.timezone,
-    month: "numeric",
-    day: "numeric",
-    year: "numeric",
-    hour: "numeric",
-    minute: "2-digit",
-    hour12: true,
-  }).format(date);
-}
-
-/**
- * Read availability for the tenant's primary Google calendar.
- *
- * Why this exists:
- * - gives us a practical verification endpoint before we wire AI or booking
- * - keeps calendar-read testing isolated from chat behavior
- *
- * Query params:
- * - from: ISO datetime
- * - to: ISO datetime
- * - timezone: IANA timezone
- * - minSlotMinutes: optional integer, defaults to 30
- */
-export async function GET(
-  request: NextRequest,
-  context: RouteContext
-) {
+export async function GET(request: NextRequest, context: RouteContext) {
   try {
     const { tenantSlug } = await context.params;
-
-    const tenant = await getTenantBySlug(tenantSlug);
-
-    if (!tenant) {
-      return NextResponse.json(
-        { error: "Tenant not found" },
-        { status: 404 }
-      );
-    }
-
     const url = new URL(request.url);
 
-    const from = url.searchParams.get("from");
-    const to = url.searchParams.get("to");
     const timezone =
       url.searchParams.get("timezone") || "America/Los_Angeles";
-    const minSlotMinutesRaw = url.searchParams.get("minSlotMinutes");
 
-    if (!from || !to) {
-      return NextResponse.json(
-        { error: "from and to query params are required" },
-        { status: 400 }
-      );
-    }
+    const fromIso = url.searchParams.get("from") || undefined;
 
-    const minSlotMinutes =
-      minSlotMinutesRaw && !Number.isNaN(Number(minSlotMinutesRaw))
-        ? Number(minSlotMinutesRaw)
-        : 30;
+    const slotMinutesRaw = url.searchParams.get("slotMinutes");
+    const lookaheadDaysRaw = url.searchParams.get("lookaheadDays");
+    const maxDaysToReturnRaw = url.searchParams.get("maxDaysToReturn");
 
-    const connection = await getPrimaryCalendarConnectionByTenantSlug(
-      tenantSlug
-    );
+    const slotMinutes =
+      slotMinutesRaw && !Number.isNaN(Number(slotMinutesRaw))
+        ? Number(slotMinutesRaw)
+        : 60;
 
-    if (!connection) {
-      return NextResponse.json(
-        { error: "No primary Google calendar connection found for this tenant." },
-        { status: 404 }
-      );
-    }
+    const lookaheadDays =
+      lookaheadDaysRaw && !Number.isNaN(Number(lookaheadDaysRaw))
+        ? Number(lookaheadDaysRaw)
+        : 14;
 
-    const slots = await getGoogleCalendarAvailability({
-      connection,
-      fromIso: from,
-      toIso: to,
+    const maxDaysToReturn =
+      maxDaysToReturnRaw && !Number.isNaN(Number(maxDaysToReturnRaw))
+        ? Number(maxDaysToReturnRaw)
+        : 7;
+
+    const availability = await getBookableAppointmentSlots({
+      tenantSlug,
       timezone,
-      minSlotMinutes,
+      fromIso,
+      slotMinutes,
+      lookaheadDays,
+      maxDaysToReturn,
     });
-
-    /**
-     * Add human-friendly display fields while preserving the raw ISO values.
-     *
-     * This keeps the response useful both for:
-     * - machines / future workflows
-     * - humans debugging and validating availability
-     */
-    const slotsWithDisplay = slots.map((slot) => ({
-      ...slot,
-      displayStart: formatDisplayTime({
-        iso: slot.startAt,
-        timezone: slot.timezone,
-      }),
-      displayEnd: formatDisplayTime({
-        iso: slot.endAt,
-        timezone: slot.timezone,
-      }),
-    }));
 
     return NextResponse.json(
       {
         tenantSlug,
-        calendarId: connection.calendarId,
-        timezone,
-        slots: slotsWithDisplay,
+        ...availability,
       },
       { status: 200 }
     );
   } catch (error) {
-    console.error("Google availability route error:", error);
+    console.error("Bookable availability route error:", error);
 
     return NextResponse.json(
-      { error: "Failed to load Google calendar availability" },
+      { error: "Failed to load bookable appointment slots" },
       { status: 500 }
     );
   }
