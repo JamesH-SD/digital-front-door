@@ -9,6 +9,7 @@ import {
   BreadcrumbItem,
   useAdminBreadcrumbs,
 } from "@/components/admin/AdminBreadcrumbsContext";
+import CalendarConnectionStatus from "@/components/admin/CalendarConnectionStatus";
 
 type AdminShellProps = {
   tenant: Tenant;
@@ -106,7 +107,9 @@ function AdminShellContent({
                 <p className="text-sm text-gray-500">Admin</p>
               </div>
 
-              <div className="flex items-center gap-3">
+              <div className="flex items-center gap-4">
+                <CalendarConnectionStatus tenantSlug={tenant.slug} />
+
                 <button
                   type="button"
                   className="flex items-center gap-2 rounded-lg border bg-white px-3 py-1.5 text-sm text-gray-700 transition hover:bg-gray-50"
