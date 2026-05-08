@@ -52,7 +52,11 @@ export default async function TenantPage({ params }: PageProps) {
             </p>
 
             <div className="mt-6 space-y-2 text-sm text-gray-700">
-              {tenant.phone && <p><span className="font-medium">Phone:</span> {tenant.phone}</p>}
+            {tenant.primaryPhone && (
+              <p>
+                <span className="font-medium">Phone:</span> {tenant.primaryPhone}
+              </p>
+            )}
               {tenant.email && <p><span className="font-medium">Email:</span> {tenant.email}</p>}
               {tenant.serviceAreaSummary && (
                 <p>

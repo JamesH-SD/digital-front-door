@@ -10,15 +10,58 @@ export type SchedulingIntentResult = {
   confidence: "low" | "medium" | "high";
 };
 
+function looksLikeContactInfoUpdate(normalized: string) {
+  const mentionsContactPerson =
+    normalized.includes("wife") ||
+    normalized.includes("husband") ||
+    normalized.includes("spouse") ||
+    normalized.includes("partner") ||
+    normalized.includes("backup") ||
+    normalized.includes("alternate") ||
+    normalized.includes("emergency contact");
+
+  const mentionsContactMethod =
+    normalized.includes("number") ||
+    normalized.includes("phone") ||
+    normalized.includes("contact") ||
+    normalized.includes("reach");
+
+  return mentionsContactPerson && mentionsContactMethod;
+}
+
 /**
  * Fast deterministic checks for obvious scheduling language.
  */
 function detectSchedulingIntentWithRules(message: string): SchedulingIntentResult {
   const normalized = message.trim().toLowerCase();
 
+  if (looksLikeContactInfoUpdate(normalized)) {
+    return {
+      hasSchedulingIntent: false,
+      type: "none",
+      appointmentType: null,
+      confidence: "high",
+    };
+  }
+
   if (!normalized) {
     return { hasSchedulingIntent: false, type: "none", confidence: "low" };
   }
+
+  const asksIfSomeoneCanHelp =
+  /\b(someone|anyone|you)\s+(available|free)\s+to\s+(help|answer|chat|talk)\b/.test(
+    normalized
+  ) ||
+  /\bavailable\s+to\s+(help|answer|chat)\b/.test(normalized);
+
+if (asksIfSomeoneCanHelp) {
+  return {
+    hasSchedulingIntent: false,
+    type: "none",
+    appointmentType: null,
+    confidence: "high",
+  };
+}
 
   /**
    * Policy / hypothetical questions should NOT trigger cancel or reschedule.

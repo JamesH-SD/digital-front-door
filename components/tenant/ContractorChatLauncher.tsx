@@ -9,7 +9,7 @@ export function ContractorChatLauncher({ tenant }: Props) {
     <div className="rounded-2xl border p-6 shadow-sm">
       <h2 className="text-xl font-semibold">Ask a question</h2>
       <p className="mt-3 text-sm text-gray-600">
-        Chat with {tenant.businessName}'s AI receptionist to ask questions,
+        Chat with {tenant.businessName}&apos;s AI receptionist to ask questions,
         check service area, and request a callback.
       </p>
 

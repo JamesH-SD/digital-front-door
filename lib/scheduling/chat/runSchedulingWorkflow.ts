@@ -18,6 +18,10 @@ import {
   type BookableAppointmentSlot,
 } from "@/lib/scheduling/getBookableAppointmentSlots";
 import { generateSchedulingResponse } from "@/lib/ai/generateSchedulingResponse";
+import type { TenantInteractionTypeId } from "@/lib/types/tenant-config";
+import { getTenantBySlug } from "@/lib/db/tenants";
+import { getTenantConfig } from "@/lib/config/getTenantConfig";
+import { detectInteractionType } from "@/lib/chat/detectInteractionType";
 
 type RunSchedulingWorkflowInput = {
   session: ChatSession;
@@ -36,6 +40,10 @@ type RunSchedulingWorkflowResult = {
 };
 
 type AppointmentType = "call" | "site_visit";
+type InteractionType = Extract<
+  TenantInteractionTypeId,
+  "site_visit" | "phone_call"
+>;
 
 type OfferedSlot = BookableAppointmentSlot & {
   optionNumber: number;
@@ -55,6 +63,7 @@ type SchedulingState = {
     | "collect_email"
     | "confirm"
     | "fallback_followup";
+  interactionType?: InteractionType;
   appointmentType?: AppointmentType;
   address?: string;
   preferenceText?: string;
@@ -304,6 +313,7 @@ function buildChatAppointmentTitle(input: {
   projectType?: string;
   customerName?: string;
   appointmentType: AppointmentType;
+  interactionType?: InteractionType;
 }) {
   const project = input.projectType?.trim()
     ? toTitleCase(input.projectType)
@@ -320,6 +330,7 @@ function buildChatAppointmentTitle(input: {
 function buildChatAppointmentDescription(input: {
   lead?: any | null;
   appointmentType: AppointmentType;
+  interactionType?: InteractionType;
   address?: string | null;
 }) {
   const lead = input.lead;
@@ -398,12 +409,6 @@ function parseSelectedDayOption(
   message: string,
   availableDays: OfferedDay[]
 ): number | null {
-  const numericOption = parseSelectedOption(message, availableDays.length);
-
-  if (numericOption) {
-    return numericOption;
-  }
-
   const normalized = message
     .trim()
     .toLowerCase()
@@ -415,31 +420,71 @@ function parseSelectedDayOption(
     return null;
   }
 
+  /**
+   * 1. Match actual date language first.
+   *
+   * Example:
+   * - Customer says: "May 6"
+   * - Available option label: "Wednesday, May 6"
+   *
+   * This must happen before numeric option parsing so "May 6"
+   * does not get mistaken for option 6.
+   */
   for (const day of availableDays) {
-    const label = day.displayLabel.toLowerCase();
-
-    const weekday = label.split(",")[0]?.toLowerCase() || "";
+    const label = day.displayLabel.toLowerCase().replace(/,/g, "");
     const monthDayMatch = label.match(/[a-z]+ \d{1,2}/i);
     const monthDay = monthDayMatch?.[0]?.toLowerCase() || "";
-
-    const dayNumber = day.displayLabel.match(/\d{1,2}$/)?.[0];
-
-    if (weekday && normalized.includes(weekday)) {
-      if (!dayNumber || normalized.includes(dayNumber) || availableDays.length <= 7) {
-        return day.optionNumber;
-      }
-    }
 
     if (monthDay && normalized.includes(monthDay)) {
       return day.optionNumber;
     }
+  }
 
-    if (dayNumber && normalized.includes(dayNumber)) {
+  /**
+   * 2. Match weekday + day number combinations.
+   *
+   * Examples:
+   * - "Wednesday 6"
+   * - "Wednesday the 6th"
+   */
+  for (const day of availableDays) {
+    const label = day.displayLabel.toLowerCase().replace(/,/g, "");
+    const weekday = label.split(" ")[0] || "";
+    const dayNumber = day.displayLabel.match(/\d{1,2}$/)?.[0];
+
+    if (
+      weekday &&
+      dayNumber &&
+      normalized.includes(weekday) &&
+      normalized.includes(dayNumber)
+    ) {
       return day.optionNumber;
     }
   }
 
-  return null;
+  /**
+   * 3. Match plain weekday names.
+   *
+   * This is safe because we only show a short list of available days.
+   */
+  for (const day of availableDays) {
+    const label = day.displayLabel.toLowerCase();
+    const weekday = label.split(",")[0]?.toLowerCase() || "";
+
+    if (weekday && normalized.includes(weekday) && availableDays.length <= 7) {
+      return day.optionNumber;
+    }
+  }
+
+  /**
+   * 4. Last resort: treat bare numbers as option numbers.
+   *
+   * Examples:
+   * - "1"
+   * - "option 2"
+   * - "the third one"
+   */
+  return parseSelectedOption(message, availableDays.length);
 }
 
 function parseSelectedTimeOption(
@@ -516,6 +561,12 @@ function detectAppointmentType(message: string): AppointmentType | null {
   }
 
   return null;
+}
+
+function mapAppointmentTypeToInteractionType(
+  appointmentType: AppointmentType
+): InteractionType {
+  return appointmentType === "site_visit" ? "site_visit" : "phone_call";
 }
 
 function detectRejectionOrDifferentOption(message: string) {
@@ -720,11 +771,13 @@ async function bookSelectedAppointment(input: {
     projectType: lead?.projectType,
     customerName: lead?.customerName,
     appointmentType,
+    interactionType: mapAppointmentTypeToInteractionType(appointmentType),
   });
 
   const description = buildChatAppointmentDescription({
     lead,
     appointmentType,
+    interactionType: mapAppointmentTypeToInteractionType(appointmentType),
     address: schedulingState.address || null,
   });
 
@@ -850,6 +903,9 @@ export async function runSchedulingWorkflow({
   const schedulingState = session.intakeData?.schedulingState as
     | SchedulingState
     | undefined;
+  
+  const tenant = await getTenantBySlug(session.tenantSlug);
+  const tenantConfig = tenant ? getTenantConfig(tenant) : null;
 
   /**
    * HARD STOP: actual cancel request.
@@ -862,7 +918,7 @@ export async function runSchedulingWorkflow({
     session.currentStep === "complete" &&
     session.leadCaptured &&
     session.leadId &&
-    schedulingIntent.type === "cancel"
+    (schedulingIntent.type === "cancel" || detectConversationClose(trimmedContent))
   ) {
     session.intakeData = {
       ...session.intakeData,
@@ -870,7 +926,10 @@ export async function runSchedulingWorkflow({
         ...(schedulingState || {}),
         active: false,
         step: "fallback_followup",
-        appointmentPreference: "Customer requested appointment cancellation.",
+        appointmentPreference:
+          schedulingIntent.type === "cancel"
+            ? "Customer requested appointment cancellation."
+            : "Customer chose not to continue.",
       },
     };
 
@@ -879,7 +938,9 @@ export async function runSchedulingWorkflow({
     const assistantMessage = createMessageObject(
       sessionId,
       "assistant",
-      "I understand. I’ll make a note that you want to cancel the appointment."
+      schedulingIntent.type === "cancel"
+        ? "I understand. I’ll make a note that you want to cancel the appointment."
+        : "I understand. I’ll make a note that you don’t want to move forward right now."
     );
 
     await insertMessage(assistantMessage);
@@ -894,11 +955,60 @@ export async function runSchedulingWorkflow({
     };
   }  
 
+  function detectPreVisitCallRequest(message: string) {
+    const normalized = message.toLowerCase();
+  
+    return (
+      normalized.includes("call before") ||
+      normalized.includes("call me before") ||
+      normalized.includes("call first") ||
+      normalized.includes("before they come") ||
+      normalized.includes("before someone comes") ||
+      normalized.includes("before you come") ||
+      normalized.includes("before showing up") ||
+      normalized.includes("before they show up")
+    );
+  }
+  
+  if (
+    !schedulingState?.active &&
+    session.currentStep === "complete" &&
+    session.leadCaptured &&
+    session.leadId &&
+    detectPreVisitCallRequest(trimmedContent)
+  ) {
+    const existingLead = await getLeadById(session.leadId);
+    const existingUpdates = existingLead?.customerUpdates?.trim() || "";
+  
+    const newUpdate = `[Customer Update - ${new Date().toISOString()}]
+    Customer asked for a call before the appointment/visit.`;
+  
+    await updateLead(session.leadId, {
+      customerUpdates: existingUpdates
+        ? `${existingUpdates}\n\n${newUpdate}`
+        : newUpdate,
+    });
+  
+    const assistantMessage = createMessageObject(
+      sessionId,
+      "assistant",
+      "Absolutely — I’ll add a note asking someone to call before they come over."
+    );
+  
+    await insertMessage(assistantMessage);
+  
+    return {
+      handled: true,
+      response: {
+        sessionId,
+        messages: await getMessagesForSession(sessionId),
+        session,
+      },
+    };
+  }
+  
   /**
    * HARD STOP: do not start a second appointment if one already exists.
-   *
-   * If the customer asks for another time after an appointment is already booked,
-   * we should clarify whether they want to reschedule the existing appointment.
    */
   if (
     !schedulingState?.active &&
@@ -908,16 +1018,16 @@ export async function runSchedulingWorkflow({
     schedulingIntent.type === "schedule"
   ) {
     const existingLead = await getLeadById(session.leadId);
-
+  
     if (existingLead?.appointment) {
       const assistantMessage = createMessageObject(
         sessionId,
         "assistant",
         `You’re already scheduled for ${existingLead.appointment}. Did you want to reschedule that appointment?`
       );
-
+  
       await insertMessage(assistantMessage);
-
+  
       return {
         handled: true,
         response: {
@@ -955,8 +1065,18 @@ export async function runSchedulingWorkflow({
     session.leadId &&
     !schedulingState?.active
   ) {
+    const detectedInteractionType =
+      tenantConfig
+        ? detectInteractionType(trimmedContent, tenantConfig)
+        : null;
+
     const requestedAppointmentType =
-      schedulingIntent.appointmentType ?? detectAppointmentType(trimmedContent);
+      schedulingIntent.appointmentType ??
+      (detectedInteractionType === "site_visit"
+        ? "site_visit"
+        : detectedInteractionType === "phone_call"
+        ? "call"
+        : detectAppointmentType(trimmedContent));
 
   /**
    * If the customer already requested an on-site visit, move directly to
@@ -969,6 +1089,7 @@ export async function runSchedulingWorkflow({
         active: true,
         step: "collect_details",
         appointmentType: "site_visit",
+        interactionType: "site_visit",
         address: undefined,
         selectedSlot: undefined,
         offeredSlots: undefined,
@@ -1024,6 +1145,7 @@ export async function runSchedulingWorkflow({
           active: true,
           step: "select_day",
           appointmentType: "call",
+          interactionType: "phone_call",
           address: undefined,
           selectedSlot: undefined,
           offeredSlots: undefined,
@@ -1083,6 +1205,7 @@ export async function runSchedulingWorkflow({
       active: true,
       step: "collect_details",
       appointmentType: undefined,
+      interactionType: undefined,
       address: undefined,
       selectedSlot: undefined,
       offeredSlots: undefined,
@@ -1183,6 +1306,7 @@ export async function runSchedulingWorkflow({
         schedulingState: {
           ...schedulingState,
           appointmentType,
+          interactionType: mapAppointmentTypeToInteractionType(appointmentType),
           step: "collect_details",
         },
       };
@@ -1229,6 +1353,7 @@ export async function runSchedulingWorkflow({
         schedulingState: {
           ...schedulingState,
           appointmentType,
+          interactionType: mapAppointmentTypeToInteractionType(appointmentType),
           step: "select_day",
           availableDays,
           selectedDay: undefined,
@@ -1334,6 +1459,7 @@ export async function runSchedulingWorkflow({
         schedulingState: {
           ...schedulingState,
           address: formattedAddress,
+          interactionType: "site_visit",
           step: "select_day",
           availableDays,
           selectedDay: undefined,

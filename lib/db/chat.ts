@@ -15,6 +15,8 @@ import { generatePostCaptureTurn } from "@/lib/ai/generatePostCaptureTurn";
 import type { Tenant } from "@/lib/types/tenant";
 import { detectSchedulingIntent } from "@/lib/chat/detectSchedulingIntent";
 import { runSchedulingWorkflow } from "@/lib/scheduling/chat/runSchedulingWorkflow";
+import { interpretMessageIntent } from "@/lib/ai/interpretMessageIntent";
+import type { MessageIntentResult } from "@/lib/types/message-intent";
 
 function generateId(prefix: string) {
   return `${prefix}_${Math.random().toString(36).slice(2, 10)}`;
@@ -85,6 +87,33 @@ function normalizeUsPhone(input: string): string | null {
   }
 
   return `+1${normalizedDigits}`;
+}
+
+function isAskingAboutUsingSomeoneElsesPhone(message: string) {
+  const normalized = message.toLowerCase();
+
+  const mentionsOtherPerson =
+    normalized.includes("wife") ||
+    normalized.includes("husband") ||
+    normalized.includes("spouse") ||
+    normalized.includes("partner") ||
+    normalized.includes("girlfriend") ||
+    normalized.includes("boyfriend") ||
+    normalized.includes("mom") ||
+    normalized.includes("dad");
+
+  const mentionsPhone =
+    normalized.includes("number") || normalized.includes("phone");
+
+  const asksPermission =
+    normalized.includes("is that ok") ||
+    normalized.includes("is that okay") ||
+    normalized.includes("would that work") ||
+    normalized.includes("can i") ||
+    normalized.includes("ill give you") ||
+    normalized.includes("i'll give you");
+
+  return mentionsOtherPerson && mentionsPhone && asksPermission;
 }
 
 function getPromptForStep(step: IntakeStep, businessName: string): string {
@@ -234,6 +263,81 @@ async function safeSendLeadNotification(
       reason: "Unexpected error while sending lead notification.",
     };
   }
+}
+
+function buildIntentCustomerUpdate(intent: MessageIntentResult) {
+  const data = intent.extractedData || {};
+
+  if (intent.intent === "contact_update") {
+    const parts = [
+      data.contactName ? `Contact name: ${data.contactName}` : null,
+      data.contactRelationship
+        ? `Relationship: ${data.contactRelationship}`
+        : null,
+      data.phone ? `Phone: ${data.phone}` : null,
+      data.email ? `Email: ${data.email}` : null,
+      data.customerUpdate ? data.customerUpdate : null,
+    ].filter(Boolean);
+
+    return parts.length > 0
+      ? `Customer provided contact update. ${parts.join(" | ")}`
+      : "Customer provided contact update.";
+  }
+
+  if (intent.intent === "appointment_note") {
+    return (
+      data.appointmentNote ||
+      data.customerUpdate ||
+      "Customer added an appointment note or preference."
+    );
+  }
+
+  if (intent.intent === "provide_extra_detail") {
+    return data.customerUpdate || "Customer provided additional project details.";
+  }
+
+  return data.customerUpdate || null;
+}
+
+function buildIntentAssistantReply(intent: MessageIntentResult) {
+  const data = intent.extractedData || {};
+
+  if (intent.intent === "contact_update") {
+    const hasContactValue = Boolean(data.phone || data.email);
+    const hasContactName = Boolean(data.contactName);
+  
+    if (!hasContactValue && !hasContactName) {
+      return "Absolutely — please send the backup contact’s name and phone number.";
+    }
+  
+    if (data.email && !data.phone && !data.contactRelationship) {
+      return "Thanks — I’ll keep that email on your request.";
+    }
+  
+    if (data.phone && data.contactName) {
+      return `Got it — I’ll add ${data.contactName} as a backup contact.`;
+    }
+  
+    if (data.phone) {
+      return "Got it — I’ll add that backup number to your request.";
+    }
+  
+    if (data.contactName && !data.phone) {
+      return `Got it — what’s the best phone number for ${data.contactName}?`;
+    }
+  
+    return "Got it — I’ll add that contact information to your request.";
+  }
+
+  if (intent.intent === "appointment_note") {
+    return "Absolutely — I’ll add that note to your appointment.";
+  }
+
+  if (intent.intent === "provide_extra_detail") {
+    return "Got it — I’ll add that detail to your request.";
+  }
+
+  return "Got it — I’ll make a note of that.";
 }
 
 async function appendCustomerUpdateToLead(leadId: string, content: string) {
@@ -727,7 +831,9 @@ export async function addUserMessage(sessionId: string, content: string) {
       const assistantReply = createMessageObject(
         sessionId,
         "assistant",
-        "That phone number doesn’t look complete. Please send a 10-digit phone number, including the area code."
+        isAskingAboutUsingSomeoneElsesPhone(trimmedContent)
+          ? "Yes, that’s totally fine. What’s the best phone number to reach them?"
+          : "That phone number doesn’t look complete. Please send a 10-digit phone number, including the area code."
       );
   
       await insertMessage(assistantReply);
@@ -783,6 +889,81 @@ export async function addUserMessage(sessionId: string, content: string) {
     };
   }
 
+  /**
+ * AI INTENT INTERPRETER — post-capture only.
+ *
+ * This runs before scheduling detection so business questions,
+ * contact updates, and appointment notes do not get hijacked
+ * by scheduling keywords like "available", "call", or "contact".
+ */
+let messageIntent: MessageIntentResult | null = null;
+
+const activeSchedulingState = session.intakeData?.schedulingState;
+
+if (
+  session.currentStep === "complete" &&
+  session.leadCaptured &&
+  session.leadId &&
+  !activeSchedulingState?.active
+) {
+  const lead = await getLeadById(session.leadId);
+  const messages = await getMessagesForSession(sessionId);
+
+  messageIntent = await interpretMessageIntent({
+    tenant,
+    lead,
+    messages,
+    latestUserMessage: trimmedContent,
+  });
+
+  console.log("🧠 Message intent interpreted:", {
+    sessionId,
+    leadId: session.leadId,
+    intent: messageIntent.intent,
+    confidence: messageIntent.confidence,
+    reason: messageIntent.reason,
+  });
+
+  if (
+    messageIntent.confidence === "high" &&
+    ["contact_update", "appointment_note", "provide_extra_detail"].includes(
+      messageIntent.intent
+    )
+  ) {
+    const customerUpdate = buildIntentCustomerUpdate(messageIntent);
+
+    if (customerUpdate) {
+      await appendCustomerUpdateToLead(session.leadId, customerUpdate);
+
+      await safeCreateLeadActivity({
+        leadId: session.leadId,
+        tenantSlug: session.tenantSlug,
+        eventType: "lead.customer_update_added",
+        eventSource: "customer",
+        metadata: {
+          message: customerUpdate,
+          intent: messageIntent.intent,
+          reason: messageIntent.reason,
+        },
+      });
+    }
+
+    const assistantMessage = createMessageObject(
+      sessionId,
+      "assistant",
+      buildIntentAssistantReply(messageIntent)
+    );
+
+    await insertMessage(assistantMessage);
+
+    return {
+      sessionId,
+      messages: await getMessagesForSession(sessionId),
+      session,
+    };
+  }
+}
+
   const schedulingIntent = await detectSchedulingIntent(trimmedContent);
 
   if (schedulingIntent.hasSchedulingIntent) {
@@ -818,21 +999,21 @@ export async function addUserMessage(sessionId: string, content: string) {
    * remember that intent so we can resume scheduling immediately
    * after required intake is complete and the lead is created.
    */
-  if (
-    schedulingIntent.hasSchedulingIntent &&
-    schedulingIntent.type === "schedule" &&
-    !session.leadCaptured
-  ) {
-    session.intakeData = {
-      ...session.intakeData,
-      pendingSchedulingRequest: true,
-      pendingSchedulingPreference: trimmedContent,
-      pendingSchedulingAppointmentType:
-        schedulingIntent.appointmentType ?? undefined,
-    };
+  // if (
+  //   schedulingIntent.hasSchedulingIntent &&
+  //   schedulingIntent.type === "schedule" &&
+  //   !session.leadCaptured
+  // ) {
+  //   session.intakeData = {
+  //     ...session.intakeData,
+  //     pendingSchedulingRequest: true,
+  //     pendingSchedulingPreference: trimmedContent,
+  //     pendingSchedulingAppointmentType:
+  //       schedulingIntent.appointmentType ?? undefined,
+  //   };
   
-    await updateSession(session);
-  }
+  //   await updateSession(session);
+  // }
 
   /**
    * CLOSE POST-CAPTURE CONVERSATION CLEANLY

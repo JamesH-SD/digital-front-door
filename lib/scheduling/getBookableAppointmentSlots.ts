@@ -3,6 +3,7 @@ import { getGoogleCalendarAvailability } from "@/lib/calendar/googleCalendar";
 import type { CalendarAvailabilitySlot } from "@/lib/calendar/types";
 import { getTenantBySlug } from "@/lib/db/tenants";
 import type { Tenant } from "@/lib/types/tenant";
+import { getTenantConfig } from "@/lib/config/getTenantConfig";
 
 /**
  * A single customer-bookable appointment slot.
@@ -434,20 +435,35 @@ export async function getBookableAppointmentSlots(input: {
   lookaheadDays?: number;
   maxDaysToReturn?: number;
 }): Promise<GetBookableAppointmentSlotsResult> {
-  const timezone = input.timezone || DEFAULT_TIMEZONE;
-  const slotMinutes = input.slotMinutes || DEFAULT_SLOT_MINUTES;
-  const lookaheadDays = input.lookaheadDays || DEFAULT_LOOKAHEAD_DAYS;
-  const maxDaysToReturn = input.maxDaysToReturn || DEFAULT_MAX_DAYS_TO_RETURN;
-
   const tenant = await getTenantBySlug(input.tenantSlug);
 
   if (!tenant) {
     throw new Error(`Tenant not found: ${input.tenantSlug}`);
   }
 
-  const connection = await getPrimaryCalendarConnectionByTenantSlug(
-    input.tenantSlug
-  );
+  const tenantConfig = getTenantConfig(tenant);
+
+  const timezone =
+    input.timezone || tenantConfig.scheduling.defaultTimezone || DEFAULT_TIMEZONE;
+
+  const slotMinutes =
+    input.slotMinutes ||
+    tenantConfig.scheduling.slotMinutes ||
+    DEFAULT_SLOT_MINUTES;
+
+  const lookaheadDays =
+    input.lookaheadDays ||
+    tenantConfig.scheduling.lookaheadDays ||
+    DEFAULT_LOOKAHEAD_DAYS;
+
+  const maxDaysToReturn =
+    input.maxDaysToReturn ||
+    tenantConfig.scheduling.maxDaysToReturn ||
+    DEFAULT_MAX_DAYS_TO_RETURN;
+
+    const connection = await getPrimaryCalendarConnectionByTenantSlug(
+      input.tenantSlug
+    );
 
   if (!connection) {
     return {
