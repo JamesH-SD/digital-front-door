@@ -109,38 +109,38 @@ function formatTimestampForDisplay(value?: string | null) {
   }).format(date);
 }
 
-// /**
-//  * Parse the raw customer_updates text into timestamped display blocks.
-//  */
-// function parseCustomerUpdates(raw?: string): CustomerUpdateEntry[] {
-//   if (!raw || !raw.trim()) {
-//     return [];
-//   }
+/**
+ * Parse the raw customer_updates text into timestamped display blocks.
+ */
+function parseCustomerUpdates(raw?: string): CustomerUpdateEntry[] {
+  if (!raw || !raw.trim()) {
+    return [];
+  }
 
-//   const normalized = raw.trim();
+  const normalized = raw.trim();
 
-//   const pattern =
-//     /\[Customer Update - ([^\]]+)\]\s*([\s\S]*?)(?=\n{2}\[Customer Update - |\s*$)/g;
+  const pattern =
+    /\[Customer Update - ([^\]]+)\]\s*([\s\S]*?)(?=\n{2}\[Customer Update - |\s*$)/g;
 
-//   const entries: CustomerUpdateEntry[] = [];
-//   let match: RegExpExecArray | null;
+  const entries: CustomerUpdateEntry[] = [];
+  let match: RegExpExecArray | null;
 
-//   while ((match = pattern.exec(normalized)) !== null) {
-//     entries.push({
-//       timestamp: match[1]?.trim() || null,
-//       content: match[2]?.trim() || "",
-//     });
-//   }
+  while ((match = pattern.exec(normalized)) !== null) {
+    entries.push({
+      timestamp: match[1]?.trim() || null,
+      content: match[2]?.trim() || "",
+    });
+  }
 
-//   if (entries.length === 0) {
-//     entries.push({
-//       timestamp: null,
-//       content: normalized,
-//     });
-//   }
+  if (entries.length === 0) {
+    entries.push({
+      timestamp: null,
+      content: normalized,
+    });
+  }
 
-//   return entries;
-// }
+  return entries;
+}
 
 function getStatusClasses(status: string) {
   switch (status) {
@@ -407,7 +407,7 @@ export default function LeadDetailClient({
   const [isTimelineOpen, setIsTimelineOpen] = useState(false);
   const [isDescriptionOpen, setIsDescriptionOpen] = useState(false);
   const [isNotesOpen, setIsNotesOpen] = useState(false);
-  //const [isCustomerUpdatesOpen, setIsCustomerUpdatesOpen] = useState(false);
+  const [isCustomerUpdatesOpen, setIsCustomerUpdatesOpen] = useState(false);
   const [isImagesOpen, setIsImagesOpen] = useState(false);
 
   const [aiSummary, setAiSummary] = useState<string | null>(
@@ -439,7 +439,7 @@ export default function LeadDetailClient({
   }, [lead.id]);
 
   const appointmentMissing = !form.appointment.trim();
-  //const customerUpdateEntries = parseCustomerUpdates(form.customerUpdates);
+  const customerUpdateEntries = parseCustomerUpdates(form.customerUpdates);
 
   const visibleActivities = activities.filter(
     (activity) =>
@@ -1173,6 +1173,36 @@ export default function LeadDetailClient({
                 </div>
               ) : (
                 <p className="mt-3 text-sm text-gray-900">Not provided</p>
+              )}
+            </CollapsibleSection>
+
+            {/* CUSTOMER UPDATES */}
+            <CollapsibleSection
+              title="Customer Updates"
+              isOpen={isCustomerUpdatesOpen}
+              onToggle={() => setIsCustomerUpdatesOpen((prev) => !prev)}
+              rightLabel={`${customerUpdateEntries.length} update${
+                customerUpdateEntries.length === 1 ? "" : "s"
+              }`}
+            >
+              {customerUpdateEntries.length > 0 ? (
+                <div className="space-y-3">
+                  {customerUpdateEntries.map((entry, index) => (
+                    <div key={`${entry.timestamp || "update"}-${index}`} className="rounded-xl border bg-white p-3">
+                      {entry.timestamp ? (
+                        <p className="mb-1 text-xs font-medium text-gray-500">
+                          {formatTimestampForDisplay(entry.timestamp)}
+                        </p>
+                      ) : null}
+
+                      <p className="whitespace-pre-wrap text-sm text-gray-800">
+                        {entry.content}
+                      </p>
+                    </div>
+                  ))}
+                </div>
+              ) : (
+                <p className="text-sm text-gray-500">No customer updates yet.</p>
               )}
             </CollapsibleSection>
 

@@ -2,6 +2,8 @@ import { getOpenAIClient } from "@/lib/ai/openaiClient";
 import type { ChatMessage } from "@/lib/types/chat";
 import type { Lead } from "@/lib/types/lead";
 import type { Tenant } from "@/lib/types/tenant";
+import { formatTenantKnowledgeForPrompt } from "@/lib/knowledge/formatTenantKnowledgeForPrompt";
+import type { TenantKnowledgeItem } from "@/lib/types/tenant-knowledge";
 
 type PostCaptureUpdates = {
   email?: string;
@@ -117,8 +119,11 @@ export async function generatePostCaptureTurn(input: {
   lead: Lead;
   messages: ChatMessage[];
   latestUserMessage: string;
+  tenantKnowledge?: TenantKnowledgeItem[];
 }): Promise<GeneratePostCaptureTurnResult> {
-  const { tenant, lead, messages, latestUserMessage } = input;
+  const { tenant, lead, messages, latestUserMessage, tenantKnowledge = [] } = input;
+
+  const tenantKnowledgeContext = formatTenantKnowledgeForPrompt(tenantKnowledge);
 
   try {
     const client = getOpenAIClient();
@@ -281,6 +286,9 @@ export async function generatePostCaptureTurn(input: {
 
       Tenant Context:
       ${buildTenantContext(tenant)}
+
+      Additional Tenant Knowledge:
+      ${tenantKnowledgeContext}
 
       Current Lead:
       ${buildLeadContext(lead)}

@@ -6,7 +6,7 @@ import {
   IntakeStep,
 } from "@/lib/types/chat";
 import { getTenantBySlug } from "@/lib/db/tenants";
-import { createLead, getLeadById } from "@/lib/db/leads";
+import { createLead, getLeadById, updateLead } from "@/lib/db/leads";
 import { sendLeadNotification } from "@/lib/notifications/sendLeadNotification";
 import { createLeadActivity } from "@/lib/db/lead-activities";
 import { extractStructuredLeadUpdateFromMessage } from "@/lib/chat/extractStructuredLeadUpdate";
@@ -17,6 +17,8 @@ import { detectSchedulingIntent } from "@/lib/chat/detectSchedulingIntent";
 import { runSchedulingWorkflow } from "@/lib/scheduling/chat/runSchedulingWorkflow";
 import { interpretMessageIntent } from "@/lib/ai/interpretMessageIntent";
 import type { MessageIntentResult } from "@/lib/types/message-intent";
+import { decideNextAction } from "@/lib/workflow/decideNextAction";
+import { retrieveTenantKnowledge } from "@/lib/knowledge/retrieveTenantKnowledge";
 
 function generateId(prefix: string) {
   return `${prefix}_${Math.random().toString(36).slice(2, 10)}`;
@@ -269,19 +271,26 @@ function buildIntentCustomerUpdate(intent: MessageIntentResult) {
   const data = intent.extractedData || {};
 
   if (intent.intent === "contact_update") {
+    const label =
+      data.contactRelationship || data.contactName
+        ? "Backup contact"
+        : "Contact update";
+  
+    const name = data.contactName ? data.contactName.trim() : "";
+    const phone = data.phone ? data.phone.trim() : "";
+    const email = data.email ? data.email.trim() : "";
+  
     const parts = [
-      data.contactName ? `Contact name: ${data.contactName}` : null,
-      data.contactRelationship
-        ? `Relationship: ${data.contactRelationship}`
-        : null,
-      data.phone ? `Phone: ${data.phone}` : null,
-      data.email ? `Email: ${data.email}` : null,
-      data.customerUpdate ? data.customerUpdate : null,
+      name,
+      phone,
+      email,
     ].filter(Boolean);
-
-    return parts.length > 0
-      ? `Customer provided contact update. ${parts.join(" | ")}`
-      : "Customer provided contact update.";
+  
+    if (parts.length > 0) {
+      return `${label}: ${parts.join(" — ")}`;
+    }
+  
+    return "Customer asked to provide backup contact information.";
   }
 
   if (intent.intent === "appointment_note") {
@@ -311,7 +320,7 @@ function buildIntentAssistantReply(intent: MessageIntentResult) {
     }
   
     if (data.email && !data.phone && !data.contactRelationship) {
-      return "Thanks — I’ll keep that email on your request.";
+      return "Thanks — I’ll keep that email on dyour request.";
     }
   
     if (data.phone && data.contactName) {
@@ -916,6 +925,15 @@ if (
     latestUserMessage: trimmedContent,
   });
 
+  const workflowDecision = decideNextAction(messageIntent);
+
+  console.log("🧭 Workflow decision:", {
+    sessionId,
+    leadId: session.leadId,
+    action: workflowDecision.action,
+    reason: workflowDecision.reason,
+  });
+
   console.log("🧠 Message intent interpreted:", {
     sessionId,
     leadId: session.leadId,
@@ -926,11 +944,23 @@ if (
 
   if (
     messageIntent.confidence === "high" &&
-    ["contact_update", "appointment_note", "provide_extra_detail"].includes(
-      messageIntent.intent
-    )
+    [
+      "update_contact_info",
+      "add_appointment_note",
+      "add_customer_detail",
+    ].includes(workflowDecision.action)
   ) {
     const customerUpdate = buildIntentCustomerUpdate(messageIntent);
+
+    if (
+      workflowDecision.action === "update_contact_info" &&
+      messageIntent.extractedData?.email &&
+      session.leadId
+    ) {
+      await updateLead(session.leadId, {
+        email: messageIntent.extractedData.email,
+      });
+    }
 
     if (customerUpdate) {
       await appendCustomerUpdateToLead(session.leadId, customerUpdate);
@@ -1059,11 +1089,18 @@ if (
     const previousLeadState = await getLeadFieldState(session.leadId);
     const tenantSlug = previousLeadState.tenantSlug || session.tenantSlug;
 
+    const tenantKnowledgeResult = await retrieveTenantKnowledge({
+      tenantSlug: session.tenantSlug,
+      query: trimmedContent,
+      limit: 5,
+    });
+
     const aiTurn = await generatePostCaptureTurn({
       tenant,
       lead,
       messages,
       latestUserMessage: trimmedContent,
+      tenantKnowledge: tenantKnowledgeResult.items,
     });
 
     if (aiTurn.status === "generated") {
@@ -1334,10 +1371,17 @@ if (
    */
   const messages = await getMessagesForSession(sessionId);
 
+  const tenantKnowledgeResult = await retrieveTenantKnowledge({
+    tenantSlug: session.tenantSlug,
+    query: trimmedContent,
+    limit: 5,
+  });
+
   const aiTurn = await generateChatTurn({
     tenant,
     session,
     messages,
+    tenantKnowledge: tenantKnowledgeResult.items,
   });
 
   let updatedSession = session;

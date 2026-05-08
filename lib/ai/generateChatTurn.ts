@@ -1,6 +1,8 @@
 import { getOpenAIClient } from "@/lib/ai/openaiClient";
 import type { ChatMessage, ChatSession } from "@/lib/types/chat";
 import type { Tenant } from "@/lib/types/tenant";
+import { formatTenantKnowledgeForPrompt } from "@/lib/knowledge/formatTenantKnowledgeForPrompt";
+import type { TenantKnowledgeItem } from "@/lib/types/tenant-knowledge";
 
 type ChatFieldUpdates = {
   projectType?: string;
@@ -135,8 +137,11 @@ export async function generateChatTurn(input: {
   tenant: Tenant;
   session: ChatSession;
   messages: ChatMessage[];
+  tenantKnowledge?: TenantKnowledgeItem[];
 }): Promise<GenerateChatTurnResult> {
-  const { tenant, session, messages } = input;
+  const { tenant, session, messages, tenantKnowledge = [] } = input;
+
+  const tenantKnowledgeContext = formatTenantKnowledgeForPrompt(tenantKnowledge);
 
   try {
     const client = getOpenAIClient();
@@ -336,6 +341,9 @@ Closing / recap rules:
 
 Business / session context:
 ${buildKnownContext(session, tenant)}
+
+Additional Tenant Knowledge:
+${tenantKnowledgeContext}
 
 Conversation so far:
 ${buildConversation(messages)}
