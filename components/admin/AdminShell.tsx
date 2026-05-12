@@ -118,13 +118,13 @@ function AdminShellContent({
                   <span>EN</span>
                 </button>
 
-                <button
-                  type="button"
+                <a
+                  href="/login"
                   className="flex items-center gap-2 rounded-lg border bg-white px-3 py-1.5 text-sm text-gray-700 transition hover:bg-gray-50"
                 >
                   <span aria-hidden="true">👤</span>
-                  <span>Sign In</span>
-                </button>
+                  <span>Account</span>
+                </a>
               </div>
             </div>
           </header>

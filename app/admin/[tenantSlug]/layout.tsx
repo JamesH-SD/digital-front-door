@@ -1,6 +1,8 @@
-import { notFound } from "next/navigation";
-import { getTenantBySlug } from "@/lib/db/tenants";
+import { notFound, redirect } from "next/navigation";
 import AdminShell from "@/components/admin/AdminShell";
+import { getTenantBySlug } from "@/lib/db/tenants";
+import { getCurrentUser } from "@/lib/auth/getCurrentUser";
+import { userCanAccessTenant } from "@/lib/auth/tenantAccess";
 
 type LayoutProps = {
   children: React.ReactNode;
@@ -21,9 +23,20 @@ export default async function AdminTenantLayout({
     notFound();
   }
 
-  return (
-    <AdminShell tenant={tenant}>
-      {children}
-    </AdminShell>
-  );
+  const user = await getCurrentUser();
+
+  if (!user) {
+    redirect("/login");
+  }
+
+  const canAccess = await userCanAccessTenant({
+    userId: user.id,
+    tenantSlug,
+  });
+
+  if (!canAccess) {
+    redirect("/unauthorized");
+  }
+
+  return <AdminShell tenant={tenant}>{children}</AdminShell>;
 }
