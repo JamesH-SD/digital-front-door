@@ -2,7 +2,7 @@ import type {
   RetrieveTenantKnowledgeInput,
   RetrieveTenantKnowledgeResult,
 } from "@/lib/types/tenant-knowledge";
-import { retrieveStaticTenantKnowledge } from "@/lib/knowledge/providers/staticTenantKnowledgeProvider";
+import { retrieveSupabaseTenantKnowledge } from "@/lib/knowledge/providers/supabaseTenantKnowledgeProvider";
 
 /**
  * Provider-neutral knowledge retrieval entry point.
@@ -13,5 +13,5 @@ import { retrieveStaticTenantKnowledge } from "@/lib/knowledge/providers/staticT
 export async function retrieveTenantKnowledge(
   input: RetrieveTenantKnowledgeInput
 ): Promise<RetrieveTenantKnowledgeResult> {
-  return retrieveStaticTenantKnowledge(input);
+  return retrieveSupabaseTenantKnowledge(input);
 }

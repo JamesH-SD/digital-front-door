@@ -1,6 +1,7 @@
 import { notFound } from "next/navigation";
 import { getTenantBySlug } from "@/lib/db/tenants";
 import SettingsForm from "@/components/admin/settings/SettingsForm";
+import TenantKnowledgeManager from "@/components/admin/settings/TenantKnowledgeManager";
 
 type PageProps = {
   params: Promise<{
@@ -30,6 +31,8 @@ export default async function SettingsPage({ params }: PageProps) {
 
         <SettingsForm tenant={tenant} />
       </section>
+
+      <TenantKnowledgeManager tenantSlug={tenant.slug} />
     </div>
   );
 }
