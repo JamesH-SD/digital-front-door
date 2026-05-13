@@ -2,7 +2,7 @@ import { notFound, redirect } from "next/navigation";
 import AdminShell from "@/components/admin/AdminShell";
 import { getTenantBySlug } from "@/lib/db/tenants";
 import { getCurrentUser } from "@/lib/auth/getCurrentUser";
-import { userCanAccessTenant } from "@/lib/auth/tenantAccess";
+import { getUserTenantMembership } from "@/lib/auth/tenantAccess";
 
 type LayoutProps = {
   children: React.ReactNode;
@@ -29,14 +29,25 @@ export default async function AdminTenantLayout({
     redirect("/login");
   }
 
-  const canAccess = await userCanAccessTenant({
+  const membership = await getUserTenantMembership({
     userId: user.id,
     tenantSlug,
   });
-
-  if (!canAccess) {
+  
+  if (!membership) {
     redirect("/unauthorized");
   }
 
-  return <AdminShell tenant={tenant}>{children}</AdminShell>;
+  return (
+    <AdminShell
+      tenant={tenant}
+      user={{
+        id: user.id,
+        email: user.email || "User",
+        role: membership.role,
+      }}
+    >
+      {children}
+    </AdminShell>
+  );
 }

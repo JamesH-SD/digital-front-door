@@ -10,10 +10,18 @@ import {
   useAdminBreadcrumbs,
 } from "@/components/admin/AdminBreadcrumbsContext";
 import CalendarConnectionStatus from "@/components/admin/CalendarConnectionStatus";
+import AdminUserMenu from "@/components/auth/AdminUserMenu";
+
+type AdminUser = {
+  id: string;
+  email: string;
+  role: "owner" | "admin" | "member";
+};
 
 type AdminShellProps = {
   tenant: Tenant;
-  children: React.ReactNode;
+  children: React.ReactNode
+  user: AdminUser;
 };
 
 function formatSegmentLabel(segment: string) {
@@ -85,6 +93,7 @@ function buildBreadcrumbs(
 function AdminShellContent({
   tenant,
   children,
+  user,
 }: AdminShellProps) {
   const pathname = usePathname();
   const { breadcrumbs: overrideBreadcrumbs } = useAdminBreadcrumbs();
@@ -118,13 +127,11 @@ function AdminShellContent({
                   <span>EN</span>
                 </button>
 
-                <a
-                  href="/login"
-                  className="flex items-center gap-2 rounded-lg border bg-white px-3 py-1.5 text-sm text-gray-700 transition hover:bg-gray-50"
-                >
-                  <span aria-hidden="true">👤</span>
-                  <span>Account</span>
-                </a>
+                <AdminUserMenu
+                  email={user.email}
+                  role={user.role}
+                  tenantSlug={tenant.slug}
+                />
               </div>
             </div>
           </header>
@@ -169,10 +176,13 @@ function AdminShellContent({
 export default function AdminShell({
   tenant,
   children,
+  user,
 }: AdminShellProps) {
   return (
     <AdminBreadcrumbsProvider>
-      <AdminShellContent tenant={tenant}>{children}</AdminShellContent>
+      <AdminShellContent tenant={tenant} user={user}>
+        {children}
+      </AdminShellContent>
     </AdminBreadcrumbsProvider>
   );
 }

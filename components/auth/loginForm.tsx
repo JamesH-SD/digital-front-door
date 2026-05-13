@@ -42,6 +42,13 @@ export default function LoginForm() {
           Access your Digital Front Door admin area.
         </p>
 
+        <p className="text-center text-sm text-gray-600">
+          Need an account?{" "}
+          <a href="/signup" className="font-semibold text-gray-900 underline">
+            Create one
+          </a>
+        </p>
+
         <div className="mt-6 space-y-4">
           <input
             value={email}
