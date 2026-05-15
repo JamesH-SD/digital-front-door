@@ -10,6 +10,23 @@ function slugify(value: string) {
     .replace(/^-+|-+$/g, "");
 }
 
+function generateTenantCode(businessName: string) {
+  const letters = businessName
+    .toUpperCase()
+    .replace(/[^A-Z0-9\s]/g, "")
+    .split(/\s+/)
+    .filter(Boolean)
+    .map((word) => word[0])
+    .join("")
+    .slice(0, 4);
+
+  const fallback = "DFD";
+  const prefix = letters || fallback;
+  const random = Math.floor(1000 + Math.random() * 9000);
+
+  return `${prefix}-${random}`;
+}
+
 export async function POST(request: NextRequest) {
   const user = await getCurrentUser();
 
@@ -51,8 +68,11 @@ export async function POST(request: NextRequest) {
     );
   }
 
+  const tenantCode = generateTenantCode(businessName);
+
   const { error: tenantError } = await supabase.from("tenants").insert({
     slug: tenantSlug,
+    tenant_code: tenantCode,
     name: businessName,
     business_name: businessName,
     greeting_message: `Hi! Welcome to ${businessName}. How can we help you today?`,

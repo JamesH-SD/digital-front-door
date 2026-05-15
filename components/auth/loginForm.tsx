@@ -23,7 +23,19 @@ export default function LoginForm() {
 
       if (error) throw error;
 
-      window.location.href = "/admin/hughes-general";
+      const tenantResponse = await fetch("/api/auth/my-tenant");
+      const tenantResult = await tenantResponse.json();
+
+      if (!tenantResponse.ok) {
+        throw new Error(tenantResult.error || "Failed to find tenant access.");
+      }
+
+      if (tenantResult.tenantSlug) {
+        window.location.href = `/admin/${tenantResult.tenantSlug}`;
+        return;
+      }
+
+      window.location.href = "/create-business";
     } catch (error) {
       setMessage(error instanceof Error ? error.message : "Login failed.");
     } finally {

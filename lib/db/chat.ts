@@ -589,6 +589,121 @@ function applyAiUpdatesToSession(
   return nextSession;
 }
 
+type RequestedLeadField =
+  | "project_type"
+  | "location"
+  | "timeline"
+  | "name"
+  | "contact"
+  | null;
+
+function detectRequestedField(message?: string | null): RequestedLeadField {
+  const normalized = message?.toLowerCase().trim() || "";
+
+  if (!normalized) return null;
+
+  if (
+    normalized.includes("what kind of") ||
+    normalized.includes("what type of") ||
+    normalized.includes("how can we help") ||
+    normalized.includes("what are you looking")
+  ) {
+    return "project_type";
+  }
+
+  if (
+    normalized.includes("what city") ||
+    normalized.includes("what area") ||
+    normalized.includes("where are you") ||
+    normalized.includes("where will") ||
+    normalized.includes("location")
+  ) {
+    return "location";
+  }
+
+  if (
+    normalized.includes("when") ||
+    normalized.includes("what day") ||
+    normalized.includes("what date") ||
+    normalized.includes("timeline")
+  ) {
+    return "timeline";
+  }
+
+  if (
+    normalized.includes("your name") ||
+    normalized.includes("can i get your name") ||
+    normalized.includes("may i have your name")
+  ) {
+    return "name";
+  }
+
+  if (
+    normalized.includes("phone") ||
+    normalized.includes("number") ||
+    normalized.includes("reach you")
+  ) {
+    return "contact";
+  }
+
+  return null;
+}
+
+function applyFallbackStepCapture(input: {
+  session: ChatSession;
+  trimmedContent: string;
+  requestedField: RequestedLeadField;
+}): ChatSession {
+  const { session, trimmedContent, requestedField } = input;
+  const intake = session.intakeData || {};
+
+  if (
+    requestedField === "project_type" &&
+    session.currentStep === "project_type" &&
+    !intake.projectType?.trim()
+  ) {
+    return applyAiUpdatesToSession(session, { projectType: trimmedContent });
+  }
+
+  if (
+    requestedField === "location" &&
+    session.currentStep === "location" &&
+    !intake.location?.trim()
+  ) {
+    return applyAiUpdatesToSession(session, { location: trimmedContent });
+  }
+
+  if (
+    requestedField === "timeline" &&
+    session.currentStep === "timeline" &&
+    !intake.timeline?.trim()
+  ) {
+    return applyAiUpdatesToSession(session, { timeline: trimmedContent });
+  }
+
+  if (
+    requestedField === "name" &&
+    session.currentStep === "name" &&
+    !intake.name?.trim()
+  ) {
+    return applyAiUpdatesToSession(session, { name: trimmedContent });
+  }
+
+  if (
+    requestedField === "contact" &&
+    session.currentStep === "contact" &&
+    !intake.contact?.trim()
+  ) {
+    const normalizedPhone = normalizeUsPhone(trimmedContent);
+
+    if (normalizedPhone) {
+      return applyAiUpdatesToSession(session, { phone: normalizedPhone });
+    }
+  }
+
+  return session;
+}
+
 function finalizeSessionStep(session: ChatSession, tenant: Tenant): ChatSession {
   const missing = getMissingRequiredFields(session, tenant);
 
@@ -1424,6 +1539,18 @@ if (
         break;
     }
   }
+
+  const lastAssistantMessage = [...messages]
+  .reverse()
+  .find((message) => message.role === "assistant");
+
+const requestedField = detectRequestedField(lastAssistantMessage?.content);
+
+updatedSession = applyFallbackStepCapture({
+  session: updatedSession,
+  trimmedContent,
+  requestedField,
+});
 
   if (!updatedSession.intakeData.contact) {
     const normalizedPhone = normalizeUsPhone(trimmedContent);

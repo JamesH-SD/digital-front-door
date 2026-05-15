@@ -32,6 +32,26 @@ export async function getUserTenantMembership(input: {
   return mapMembershipRow(data);
 }
 
+export async function getFirstUserTenantMembership(
+  userId: string
+): Promise<TenantMembership | null> {
+  const supabase = createAdminClient();
+
+  const { data, error } = await supabase
+    .from("tenant_memberships")
+    .select("*")
+    .eq("user_id", userId)
+    .order("created_at", { ascending: true })
+    .limit(1)
+    .maybeSingle();
+
+  if (error || !data) {
+    return null;
+  }
+
+  return mapMembershipRow(data);
+}
+
 export async function userCanAccessTenant(input: {
   userId: string;
   tenantSlug: string;

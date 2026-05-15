@@ -704,16 +704,27 @@ async function fallbackAndCloseScheduling(input: {
   };
 
   if (input.session.leadId) {
-    await updateLeadFields(input.session.leadId, {
-      appointment: input.appointmentPreference,
+    const existingLead = await getLeadById(input.session.leadId);
+    const existingUpdates = existingLead?.customerUpdates?.trim() || "";
+  
+    const newUpdate = `[Customer Update - ${new Date().toISOString()}]
+  ${input.appointmentPreference}`;
+  
+    await updateLead(input.session.leadId, {
+      customerUpdates: existingUpdates
+        ? `${existingUpdates}\n\n${newUpdate}`
+        : newUpdate,
     });
-
-    await logLeadFieldActivity({
+  
+    await createLeadActivity({
       leadId: input.session.leadId,
       tenantSlug: input.session.tenantSlug,
-      fieldName: "appointment",
-      previousValue: null,
-      newValue: input.appointmentPreference,
+      eventType: "lead.customer_update_added",
+      eventSource: "customer",
+      metadata: {
+        message: input.appointmentPreference,
+        calendarStatus: input.calendarStatus ?? null,
+      },
     });
   }
 

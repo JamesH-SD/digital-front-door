@@ -215,6 +215,9 @@ export async function updateCalendarConnection(
     tokenExpiresAt?: string | null;
     isPrimary?: boolean;
     isActive?: boolean;
+    status?: "active" | "invalid";
+    invalidReason?: string | null;
+    invalidAt?: string | null;
   }
 ): Promise<CalendarConnection> {
   const supabase = createAdminClient();
@@ -251,6 +254,18 @@ export async function updateCalendarConnection(
 
   if ("isActive" in input) {
     payload.is_active = input.isActive;
+  }
+
+  if ("status" in input) {
+    payload.status = input.status;
+  }
+  
+  if ("invalidReason" in input) {
+    payload.invalid_reason = normalizeNullableString(input.invalidReason);
+  }
+  
+  if ("invalidAt" in input) {
+    payload.invalid_at = input.invalidAt ?? null;
   }
 
   const { data, error } = await supabase
@@ -358,13 +373,17 @@ export async function upsertPrimaryCalendarConnection(input: {
   // Step 3: if it exists, update it and make it the primary connection.
   if (existing) {
     return updateCalendarConnection(existing.id, {
-      calendarName: input.calendarName ?? null,
-      externalAccountEmail: input.externalAccountEmail ?? null,
-      accessToken: input.accessToken ?? null,
-      refreshToken: input.refreshToken ?? null,
-      tokenExpiresAt: input.tokenExpiresAt ?? null,
+      calendarName: input.calendarName ?? existing.calendar_name ?? null,
+      externalAccountEmail:
+        input.externalAccountEmail ?? existing.external_account_email ?? null,
+      accessToken: input.accessToken ?? existing.access_token ?? null,
+      refreshToken: input.refreshToken ?? existing.refresh_token ?? null,
+      tokenExpiresAt: input.tokenExpiresAt ?? existing.token_expires_at ?? null,
       isPrimary: true,
       isActive: true,
+      status: "active",
+      invalidReason: null,
+      invalidAt: null,
     });
   }
 

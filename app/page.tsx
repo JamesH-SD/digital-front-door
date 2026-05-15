@@ -3,6 +3,8 @@ import Link from "next/link";
 const demoTenants = [
   { slug: "hughes-general", name: "Hughes General" },
   { slug: "elite-electric", name: "Elite Electric" },
+  { slug: "pete-s-pet-grooming", name: "Pete's Pet Grooming" },
+  { slug: "christian-s-trailer-rentals", name: "Christian's Trailer Rentals" },
 ];
 
 export default function HomePage() {
