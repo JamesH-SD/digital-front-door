@@ -88,52 +88,32 @@ import type {
         if (input.days.length === 0) {
           return generateSchedulingResponse({ type: "fallback_followup" });
         }
-  
-        const options = input.days
-          .map((day) => `${day.optionNumber}. ${day.displayLabel}`)
-          .join("\n");
-  
-        return `I found openings on these days:\n\n${options}\n\nWhich day works best for you?`;
+      
+        return "I found some available days. Tap one below, or reply with a day that works best.";
       }
-  
+
       case "offer_times": {
         if (input.slots.length === 0) {
           return generateSchedulingResponse({ type: "fallback_followup" });
         }
-  
-        const options = input.slots
-          .map((slot) => `${slot.optionNumber}. ${slot.displayTime}`)
-          .join("\n");
-  
-        return `Great, for ${input.dayLabel}, I have:\n\n${options}\n\nWhich of those works best for you?`;
+      
+        return `Great, I found available times for ${input.dayLabel}. Tap one below, or reply with the time that works best.`;
       }
-  
+
       case "reoffer_days": {
         if (input.days.length === 0) {
           return generateSchedulingResponse({ type: "fallback_followup" });
         }
-  
-        const options = input.days
-          .map((day) => `${day.optionNumber}. ${day.displayLabel}`)
-          .join("\n");
-  
-        return `No problem, here are the available days again:\n\n${options}\n\nWhich day would you like to check?`;
+      
+        return "No problem. Here are the available days again — tap one below to check times.";
       }
-  
+
       case "ask_valid_day": {
-        const options = input.days
-          .map((day) => `${day.optionNumber}. ${day.displayLabel}`)
-          .join("\n");
-  
-        return `Please reply with one of the day option numbers:\n\n${options}`;
+        return "I didn’t catch which day you wanted. Please tap one of the available days below.";
       }
-  
+
       case "ask_valid_time": {
-        const options = input.slots
-          .map((slot) => `${slot.optionNumber}. ${slot.displayTime}`)
-          .join("\n");
-  
-        return `Please reply with one of the time option numbers:\n\n${options}`;
+        return "I didn’t catch which time you wanted. Please tap one of the available times below.";
       }
   
       case "confirmed":

@@ -308,6 +308,24 @@ function buildIntentCustomerUpdate(intent: MessageIntentResult) {
   return data.customerUpdate || null;
 }
 
+function shouldStartBackupContactPendingAction(intent: MessageIntentResult) {
+  if (intent.intent !== "contact_update") {
+    return false;
+  }
+
+  const data = intent.extractedData || {};
+
+  const hasContactValue = Boolean(data.phone || data.email);
+  const mentionsBackupContact =
+    Boolean(data.contactRelationship || data.contactName) ||
+    intent.reason?.toLowerCase().includes("backup") ||
+    intent.reason?.toLowerCase().includes("wife") ||
+    intent.reason?.toLowerCase().includes("husband") ||
+    intent.reason?.toLowerCase().includes("spouse");
+
+  return mentionsBackupContact && !hasContactValue;
+}
+
 function buildIntentAssistantReply(intent: MessageIntentResult) {
   const data = intent.extractedData || {};
 
@@ -320,7 +338,7 @@ function buildIntentAssistantReply(intent: MessageIntentResult) {
     }
   
     if (data.email && !data.phone && !data.contactRelationship) {
-      return "Thanks — I’ll keep that email on dyour request.";
+      return "Thanks, I’ll keep that email on your request.";
     }
   
     if (data.phone && data.contactName) {
@@ -1013,6 +1031,84 @@ export async function addUserMessage(sessionId: string, content: string) {
     };
   }
 
+  const pendingAction = session.intakeData?.pendingAction;
+
+if (
+  session.currentStep === "complete" &&
+  session.leadCaptured &&
+  session.leadId &&
+  pendingAction?.type === "backup_contact" &&
+  pendingAction?.state === "awaiting_contact"
+) {
+  const normalizedPhone = normalizeUsPhone(trimmedContent);
+  const normalizedEmail = normalizeEmail(trimmedContent);
+
+  if (normalizedPhone || normalizedEmail) {
+    const label =
+      pendingAction.contactName || pendingAction.contactRelationship
+        ? [pendingAction.contactName, pendingAction.contactRelationship]
+            .filter(Boolean)
+            .join(" — ")
+        : "Backup contact";
+
+    const updateText = [
+      label,
+      normalizedPhone ? `Phone: ${normalizedPhone}` : null,
+      normalizedEmail ? `Email: ${normalizedEmail}` : null,
+    ]
+      .filter(Boolean)
+      .join(" | ");
+
+    await appendCustomerUpdateToLead(session.leadId, updateText);
+
+    await safeCreateLeadActivity({
+      leadId: session.leadId,
+      tenantSlug: session.tenantSlug,
+      eventType: "lead.customer_update_added",
+      eventSource: "customer",
+      metadata: {
+        message: updateText,
+        intent: "backup_contact_pending_action",
+      },
+    });
+
+    session.intakeData = {
+      ...session.intakeData,
+      pendingAction: null,
+    };
+
+    await updateSession(session);
+
+    const assistantMessage = createMessageObject(
+      sessionId,
+      "assistant",
+      "Got it — I’ll add that backup contact to your request."
+    );
+
+    await insertMessage(assistantMessage);
+
+    return {
+      sessionId,
+      messages: await getMessagesForSession(sessionId),
+      session,
+    };
+  }
+
+  const assistantMessage = createMessageObject(
+    sessionId,
+    "assistant",
+    "No problem — please send the backup contact’s phone number or email."
+  );
+
+  await insertMessage(assistantMessage);
+
+  return {
+    sessionId,
+    messages: await getMessagesForSession(sessionId),
+    session,
+  };
+}
+
   /**
  * AI INTENT INTERPRETER — post-capture only.
  *
@@ -1091,6 +1187,25 @@ if (
           reason: messageIntent.reason,
         },
       });
+    }
+
+    if (
+      workflowDecision.action === "update_contact_info" &&
+      shouldStartBackupContactPendingAction(messageIntent)
+    ) {
+      session.intakeData = {
+        ...session.intakeData,
+        pendingAction: {
+          type: "backup_contact",
+          state: "awaiting_contact",
+          contactName: messageIntent.extractedData?.contactName ?? null,
+          contactRelationship:
+            messageIntent.extractedData?.contactRelationship ?? null,
+          startedAt: new Date().toISOString(),
+        },
+      };
+    
+      await updateSession(session);
     }
 
     const assistantMessage = createMessageObject(

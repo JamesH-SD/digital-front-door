@@ -40,34 +40,51 @@ export type IntakeData = {
 export type SchedulingStep =
   | "idle"
   | "offer_slots"
+  | "select_day"
   | "select_slot"
   | "collect_details"
-  | "confirm";
+  | "collect_email"
+  | "confirm"
+  | "fallback_followup";
 
 export type SchedulingState = {
-  active: boolean;
-  step: SchedulingStep;
+  active?: boolean;
+  step?: SchedulingStep;
 
-  /**
-   * What kind of appointment the customer wants.
-   * - call: phone / remote
-   * - site_visit: in-person
-   */
   appointmentType?: "call" | "site_visit";
 
-  /**
-   * Slot selected from availability (not yet booked)
-   */
+  selectedDay?: {
+    optionNumber: number;
+    dateKey: string;
+    displayLabel: string;
+    slots?: any[];
+  };
+
+  availableDays?: {
+    optionNumber: number;
+    dateKey: string;
+    displayLabel: string;
+    slots?: any[];
+  }[];
+
+  offeredSlots?: {
+    optionNumber: number;
+    displayTime: string;
+    startAt?: string;
+    endAt?: string;
+    timezone?: string;
+  }[];
+
   selectedSlot?: {
+    optionNumber?: number;
+    displayTime?: string;
     startAt: string;
     endAt: string;
     timezone: string;
   };
 
-  /**
-   * Address for site visits
-   */
   address?: string;
+  email?: string;
 };
 
 export type ChatSession = {

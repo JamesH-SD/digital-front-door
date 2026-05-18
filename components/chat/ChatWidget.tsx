@@ -5,6 +5,8 @@ import { Plus } from "lucide-react";
 import { Tenant } from "@/lib/types/tenant";
 import { ChatMessage, IntakeStep } from "@/lib/types/chat";
 import type { LeadImage } from "@/lib/types/lead";
+import ChatSchedulingPicker from "@/components/chat/ChatSchedulingPicker";
+import type { SchedulingState } from "@/lib/types/chat";
 
 type Props = {
   tenant: Tenant;
@@ -110,6 +112,8 @@ export function ChatWidget({ tenant }: Props) {
   const composerRef = useRef<HTMLDivElement | null>(null);
   const fileInputRef = useRef<HTMLInputElement | null>(null);
 
+  const [schedulingState, setSchedulingState] = useState<SchedulingState | null>(null);
+
   const visibleMessages = useMemo(() => {
     const serverVisible = messages.filter((message) => message.role !== "system");
 
@@ -129,6 +133,7 @@ export function ChatWidget({ tenant }: Props) {
     setSessionId(null);
     setLeadId(null);
     setIsAttachMenuOpen(false);
+    setSchedulingState(null);
   }
 
   async function handleStartChat() {
@@ -158,6 +163,7 @@ export function ChatWidget({ tenant }: Props) {
       setMessages(data.messages ?? []);
       setCurrentStep(data.session?.currentStep ?? null);
       setLeadCaptured(Boolean(data.session?.leadCaptured));
+      setSchedulingState(data.session?.intakeData?.schedulingState ?? null);
     } catch (err) {
       setError(err instanceof Error ? err.message : "Something went wrong");
     } finally {
@@ -165,16 +171,23 @@ export function ChatWidget({ tenant }: Props) {
     }
   }
 
-  async function handleSendMessage() {
+  function handleSchedulingOptionSelect(value: string) {
+    void handleSendMessage(value);
+  }
+
+  async function handleSendMessage(messageOverride?: string) {
     if (!sessionId) return;
   
-    const trimmed = input.trim();
+    const trimmed = (messageOverride ?? input).trim();
     if (!trimmed) return;
   
-    setInput("");
+    if (!messageOverride) {
+      setInput("");
+    }
+  
     setIsSending(true);
     setError(null);
-
+  
     try {
       const response = await fetch("/api/chat/message", {
         method: "POST",
@@ -186,9 +199,9 @@ export function ChatWidget({ tenant }: Props) {
           content: trimmed,
         }),
       });
-
+  
       const data = await response.json();
-
+  
       if (!response.ok) {
         if (data?.error === "Session not found") {
           await handleStartChat();
@@ -197,14 +210,17 @@ export function ChatWidget({ tenant }: Props) {
           );
           return;
         }
-
+  
         throw new Error(data?.error || "Failed to send message");
       }
-
+  
       setMessages(data.messages ?? []);
       setCurrentStep(data.session?.currentStep ?? null);
       setLeadCaptured(Boolean(data.session?.leadCaptured));
       setLeadId(data.session?.leadId ?? null);
+      setSchedulingState(
+        data.session?.intakeData?.schedulingState ?? null
+      );
     } catch (err) {
       setError(err instanceof Error ? err.message : "Something went wrong");
     } finally {
@@ -389,6 +405,12 @@ export function ChatWidget({ tenant }: Props) {
                 </div>
               );
             })}
+
+            <ChatSchedulingPicker
+              schedulingState={schedulingState}
+              isSending={isSending}
+              onSelectOption={handleSchedulingOptionSelect}
+            />
 
             {isSending ? (
               <div className="max-w-[85%] rounded-2xl border bg-white px-4 py-3 text-sm text-gray-500">
