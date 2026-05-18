@@ -1031,10 +1031,31 @@ export async function runSchedulingWorkflow({
     const existingLead = await getLeadById(session.leadId);
   
     if (existingLead?.appointment) {
+      const normalized = trimmedContent.toLowerCase();
+    
+      const isAskingForReminder =
+        normalized.includes("when") ||
+        normalized.includes("what time") ||
+        normalized.includes("remind") ||
+        normalized.includes("appointment again") ||
+        normalized.includes("scheduled appointment") ||
+        normalized.includes("what is our appointment");
+    
+      const wantsToChangeAppointment =
+        normalized.includes("reschedule") ||
+        normalized.includes("change") ||
+        normalized.includes("move") ||
+        normalized.includes("different time") ||
+        normalized.includes("different day");
+    
+      const reply = isAskingForReminder && !wantsToChangeAppointment
+        ? `You’re scheduled for ${existingLead.appointment}.`
+        : `You’re already scheduled for ${existingLead.appointment}. Did you want to reschedule that appointment?`;
+    
       const assistantMessage = createMessageObject(
         sessionId,
         "assistant",
-        `You’re already scheduled for ${existingLead.appointment}. Did you want to reschedule that appointment?`
+        reply
       );
   
       await insertMessage(assistantMessage);

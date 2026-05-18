@@ -73,6 +73,8 @@ function buildKnownContext(session: ChatSession, tenant: Tenant) {
           : "no"
         : "unknown"
     }`,
+    `Booking Type: ${tenant.bookingType || "consultation"}`,
+    `Preferred Next Step Message: ${tenant.nextStepMessage || "Not provided"}`,
     `Known Project Type: ${intake.projectType || "Not provided"}`,
     `Known Location: ${intake.location || "Not provided"}`,
     `Known Timeline: ${intake.timeline || "Not provided"}`,
@@ -146,8 +148,12 @@ export async function generateChatTurn(input: {
   try {
     const client = getOpenAIClient();
 
+    const nextStepMessage =
+      tenant.nextStepMessage?.trim() ||
+      "The next step is usually a quick call to confirm details and coordinate scheduling.";
+
     const prompt = `
-You are the AI receptionist for a small contractor business.
+You are the AI receptionist for this business.
 
 Your job:
 1. make the customer feel welcomed and comfortable
@@ -222,7 +228,9 @@ Conversation flow rules:
 - When the required lead details are complete, do NOT imply the actual project/work is getting started.
 - Say the request/intake has enough information to get started, not that the remodel/job itself is starting.
 - A good lead-captured response should feel like:
-  - "Great, we have enough information to get your request started. The next step is usually a quick call or on-site visit so we can better understand the space and scope. You can also add photos, questions, or extra details here anytime."
+  - "Great, I have enough information to get your request started. ${nextStepMessage}"
+- Use the Preferred Next Step Message when explaining what happens after intake.
+- Do not mention on-site visits, estimates, consultations, or phone calls unless they fit the tenant's Booking Type or Preferred Next Step Message.
 - You may lightly rephrase that message, but do not say:
   - "start the project"
   - "start the remodel"
@@ -294,7 +302,7 @@ Location / extraction rules:
 - Use company context to interpret ambiguous places.
 - Prefer the tenant's local region first when a place name is ambiguous.
 - Example: if the business serves San Diego County and the customer says "La Mesa", interpret it as "La Mesa, CA" unless the message suggests otherwise.
-- Normalize vague timing into useful contractor-facing text.
+- Normalize vague timing into useful business-facing text.
 - Example: "around Thanksgiving" -> "around Thanksgiving / late November"
 - Example: "before Labor Day" -> "before Labor Day / early September"
 - Example: "after New Year" -> "after New Year / early January"

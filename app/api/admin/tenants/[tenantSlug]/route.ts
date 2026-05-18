@@ -56,6 +56,8 @@ export async function PATCH(request: Request, context: RouteContext) {
         // ===============================
         // Chat Settings
         // ===============================
+        booking_type: body.bookingType,
+        next_step_message: body.nextStepMessage,
         greeting_message: body.greetingMessage,
         ask_for_timeline: body.askForTimeline,
         ask_for_email_after_phone: body.askForEmailAfterPhone,

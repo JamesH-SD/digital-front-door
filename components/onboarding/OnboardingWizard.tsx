@@ -53,6 +53,9 @@ export default function OnboardingWizard({ tenant }: { tenant: Tenant }) {
     serviceCities: (tenant.serviceCities || []).join(", "),
   
     servicesOffered: (tenant.servicesOffered || []).join("\n"),
+
+    bookingType: tenant.bookingType || "consultation",
+    nextStepMessage: tenant.nextStepMessage || "",      
   });
 
   const currentStep = STEPS[stepIndex];
@@ -91,6 +94,9 @@ export default function OnboardingWizard({ tenant }: { tenant: Tenant }) {
             serviceCities: parseListInput(form.serviceCities),
           
             servicesOffered: parseListInput(form.servicesOffered),
+
+            bookingType: form.bookingType,
+            nextStepMessage: form.nextStepMessage,  
           }),
       });
 
@@ -352,6 +358,65 @@ export default function OnboardingWizard({ tenant }: { tenant: Tenant }) {
 
           {currentStep.key === "services" ? (
             <div className="mt-5 space-y-4">
+              
+              {/* Booking Type */}
+              <div className="space-y-1">
+                <label className="text-sm font-medium text-gray-700">
+                  Booking Flow
+                </label>
+
+                <select
+                  value={form.bookingType}
+                  onChange={(e) =>
+                    setForm((prev) => ({
+                      ...prev,
+                      bookingType: e.target.value,
+                    }))
+                  }
+                  className="w-full rounded-xl border px-3 py-2 text-sm"
+                >
+                  <option value="consultation">
+                    Consultation / estimate
+                  </option>
+
+                  <option value="reservation">
+                    Reservation / rental
+                  </option>
+
+                  <option value="direct_booking">
+                    Direct service booking
+                  </option>
+
+                  <option value="phone_call">
+                    Phone call follow-up
+                  </option>
+
+                  <option value="estimate">
+                    Quote / estimate request
+                  </option>
+                </select>
+              </div>
+
+              {/* Next Step Message */}
+              <div className="space-y-1">
+                <label className="text-sm font-medium text-gray-700">
+                  AI Next Step Message
+                </label>
+
+                <textarea
+                  value={form.nextStepMessage}
+                  onChange={(e) =>
+                    setForm((prev) => ({
+                      ...prev,
+                      nextStepMessage: e.target.value,
+                    }))
+                  }
+                  rows={3}
+                  placeholder="Example: The next step is usually a quick call to confirm trailer type, rental date, drop-off/pickup details, and deposit."
+                  className="w-full rounded-xl border px-3 py-2 text-sm"
+                />
+              </div>
+
               <textarea
                 value={form.servicesOffered}
                 onChange={(e) =>

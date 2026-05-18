@@ -70,7 +70,7 @@ import type {
   export function generateSchedulingResponse(input: SchedulingResponseInput) {
     switch (input.type) {
         case "ask_appointment_type":
-            return "Got it, the next step is usually either a quick call or having someone come take a look. Which would you prefer?";
+          return "Got it. Would you prefer a quick call to confirm the details, or would you like us to help coordinate the next step another way?";
         
         // case "ask_appointment_type":
         //     return "The next step is usually a quick call or an on-site visit so we can understand what you’re looking for. Would you prefer us to come out, or start with a call?";

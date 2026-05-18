@@ -51,6 +51,9 @@ export type Tenant = {
   askForImagesAfterCapture?: boolean;
   requirePhoneForLead?: boolean;
 
+  bookingType?: string | null;
+  nextStepMessage?: string | null;
+
   // ===============================
   // Existing / UI Support Fields
   // ===============================

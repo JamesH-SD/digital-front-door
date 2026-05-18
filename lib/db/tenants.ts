@@ -33,6 +33,8 @@ export async function getTenantBySlug(
     businessName: data.business_name,
     primaryPhone: data.primary_phone,
     email: data.email,
+    bookingType: data.booking_type ?? null,
+    nextStepMessage: data.next_step_message ?? null,
     websiteUrl: data.website_url,
     primaryCategory: data.primary_category,
     isServiceAreaBusiness: data.is_service_area_business,

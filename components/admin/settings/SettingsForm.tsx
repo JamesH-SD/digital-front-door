@@ -125,6 +125,8 @@ function formatHoursForDisplay(hours: HoursState, day: keyof HoursState) {
 
 function createInitialFormState(tenant: Tenant) {
   return {
+    bookingType: tenant.bookingType || "consultation",
+    nextStepMessage: tenant.nextStepMessage || "",
     businessName: tenant.businessName || "",
     primaryPhone: tenant.primaryPhone || "",
     email: tenant.email || "",
@@ -372,6 +374,8 @@ export default function SettingsForm({ tenant }: SettingsFormProps) {
         },
         body: JSON.stringify({
           ...form,
+          bookingType: form.bookingType,
+          nextStepMessage: form.nextStepMessage,
           serviceCities: parseLinesToArray(form.serviceCities),
           servicesOffered: parseLinesToArray(form.servicesOffered),
           hours: form.hours,
@@ -1094,6 +1098,53 @@ export default function SettingsForm({ tenant }: SettingsFormProps) {
               <div>
                 <label className="text-sm font-medium text-gray-700">
                   Greeting Message
+                </label>
+                <div className="grid gap-4 md:grid-cols-2">
+                  <label className="space-y-1">
+                    <span className="text-sm font-medium text-gray-700">
+                      Booking Flow
+                    </span>
+
+                    <select
+                      value={form.bookingType}
+                      onChange={(e) =>
+                        setForm((prev) => ({
+                          ...prev,
+                          bookingType: e.target.value,
+                        }))
+                      }
+                      className="w-full rounded-xl border px-3 py-2 text-sm"
+                    >
+                      <option value="consultation">Consultation / estimate</option>
+                      <option value="reservation">Reservation / rental</option>
+                      <option value="direct_booking">Direct service booking</option>
+                      <option value="phone_call">Phone call follow-up</option>
+                      <option value="estimate">Quote / estimate request</option>
+                    </select>
+                  </label>
+                </div>
+
+                <label className="mt-4 block space-y-1">
+                  <span className="text-sm font-medium text-gray-700">
+                    AI Next Step Message
+                  </span>
+
+                  <textarea
+                    value={form.nextStepMessage}
+                    onChange={(e) =>
+                      setForm((prev) => ({
+                        ...prev,
+                        nextStepMessage: e.target.value,
+                      }))
+                    }
+                    rows={3}
+                    placeholder="Example: The next step is usually confirming trailer type, rental dates, delivery or pickup details, and deposit information."
+                    className="w-full rounded-xl border px-3 py-2 text-sm"
+                  />
+
+                  <span className="block text-xs text-gray-500">
+                    This tells the AI how to explain the next step after a lead is captured.
+                  </span>
                 </label>
                 {editingSections.chatSettings ? (
                   <textarea

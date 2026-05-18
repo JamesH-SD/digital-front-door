@@ -61,6 +61,8 @@ function buildTenantContext(tenant: Tenant) {
     : "Not provided";
 
   return [
+    `Booking Type: ${tenant.bookingType || "consultation"}`,
+    `Preferred Next Step Message: ${tenant.nextStepMessage || "Not provided"}`,
     `Business Name: ${tenant.businessName || "Unknown"}`,
     `Primary Category: ${tenant.primaryCategory || "Not provided"}`,
     `Business Phone: ${tenant.primaryPhone || "Not provided"}`,
@@ -128,13 +130,17 @@ export async function generatePostCaptureTurn(input: {
   try {
     const client = getOpenAIClient();
 
+    const nextStepMessage =
+      tenant.nextStepMessage?.trim() ||
+      "The next step is usually a quick call to confirm details and coordinate scheduling.";
+
     const prompt = `
-      You are the AI receptionist for a small contractor business.
+      You are the AI receptionist for this business.
 
       A lead has already been created. Your job now is to:
       1. understand the customer's follow-up message deeply
       2. extract any structured updates if clearly present
-      3. summarize useful sales and context details for the contractor
+      3. summarize useful sales and context details for the business
       4. respond naturally
       5. ask a helpful next question only if the customer is actively providing new information or clearly expects guidance
       6. if the customer appears to be closing the conversation, do not ask another question
@@ -223,8 +229,13 @@ export async function generatePostCaptureTurn(input: {
         - Scheduling should be opt-in, not assumed.
       - Do not automatically begin calendar scheduling just because the customer mentioned a project, remodel, home, property, estimate, or quote.
       - Before offering calendar dates/times, first confirm what kind of next step the customer wants.
-      - Preferred pattern:
-        - "The next step is usually either a quick phone call or an on-site visit. Which would you prefer?"
+      - Preferred next-step wording:
+        - "${nextStepMessage}"
+      - Use the Preferred Next Step Message when explaining next steps.
+      - Do not default to "phone call or on-site visit" unless that is actually appropriate for this tenant.
+      - If the tenant's Booking Type is "reservation", frame next steps around confirming reservation details.
+      - If the tenant's Booking Type is "direct_booking", frame next steps around selecting service and booking time.
+      - If the tenant's Booking Type is "consultation" or "estimate", frame next steps around consultation, estimate, or review.
       - Do not ask for email immediately after lead capture.
       - Email is optional and should normally be collected during appointment scheduling.
       - If the customer voluntarily provides an email, extract it and acknowledge it.
@@ -244,8 +255,8 @@ export async function generatePostCaptureTurn(input: {
       - If asked specifically about quotes, prefer wording like: "Once we understand the scope, we usually try to send quotes within a few business days."
       - If the customer asks how long it takes to get a quote, asks about getting quotes, says they are comparing quotes, or asks about the quote process, answer the quote question first, then gently offer scheduling as the next practical step.
       - For quote-related questions, do not only say "we'll be in touch." Give the customer a clear path forward.
-      - Good quote-to-scheduling response:
-        - "Once we understand the scope, we usually try to send quotes within a few business days. The best next step is usually a quick call or on-site visit so we can understand what you need. Would you like to schedule one?"
+      - Good next-step response:
+          - "Once we understand the details, ${nextStepMessage}"
       - Keep the scheduling offer soft and helpful, not pushy.
       - Do not claim an appointment is available or confirmed unless the scheduling workflow has verified and booked it.
       - If the customer asks when they can expect to hear from someone, answer the contact timing question directly.
