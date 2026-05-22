@@ -8,6 +8,11 @@ type PageProps = {
   params: Promise<{
     tenantSlug: string;
   }>;
+  searchParams?: Promise<{
+    source?: string;
+    openChat?: string;
+    embed?: string;
+  }>;
 };
 
 export async function generateMetadata(
@@ -31,7 +36,7 @@ export async function generateMetadata(
   };
 }
 
-export default async function TenantPage({ params }: PageProps) {
+export default async function TenantPage({ params, searchParams  }: PageProps) {
   const { tenantSlug } = await params;
   const tenant = await getTenantBySlug(tenantSlug);
 
@@ -39,11 +44,29 @@ export default async function TenantPage({ params }: PageProps) {
     notFound();
   }
 
+  const query = searchParams ? await searchParams : {};
+  const leadSource = query.source || "website";
+  const autoOpenChat = query.openChat === "0" ? false : true;
+  const isEmbed = query.embed === "1";
+
+  if (isEmbed) {
+    return (
+      <main className="h-screen w-screen overflow-hidden bg-white p-3">
+        <ChatWidget
+          tenant={tenant}
+          autoOpen={autoOpenChat}
+          leadSource={leadSource}
+          variant="embed"
+        />
+      </main>
+    );
+  }
+
   return (
-    <main className="min-h-screen bg-white">
+    <main className="h-screen w-screen overflow-hidden bg-white">
       <ContractorHero tenant={tenant} />
-      <section className="mx-auto max-w-5xl px-6 py-10">
-        <div className="grid gap-6 md:grid-cols-2">
+      <section className="mx-auto max-w-6xl px-4 py-8 sm:px-6">
+        <div className="grid gap-6 lg:grid-cols-[0.9fr_1.1fr]">
           <div className="rounded-2xl border p-6 shadow-sm">
             <h2 className="text-xl font-semibold">About</h2>
             <p className="mt-3 text-sm text-gray-600">
@@ -67,7 +90,11 @@ export default async function TenantPage({ params }: PageProps) {
             </div>
           </div>
 
-          <ChatWidget tenant={tenant} />
+          <ChatWidget
+            tenant={tenant}
+            autoOpen={autoOpenChat}
+            leadSource={leadSource}
+          />
         </div>
       </section>
     </main>

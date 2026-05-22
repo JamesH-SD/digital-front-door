@@ -4,7 +4,10 @@ import { createChatSessionForTenantSlug } from "@/lib/db/chat";
 export async function POST(request: NextRequest) {
   try {
     const body = await request.json();
+
     const tenantSlug = body?.tenantSlug;
+    const leadSource =
+      typeof body?.leadSource === "string" ? body.leadSource : "website";
 
     if (!tenantSlug || typeof tenantSlug !== "string") {
       return NextResponse.json(
@@ -13,7 +16,9 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    const result = await createChatSessionForTenantSlug(tenantSlug);
+    const result = await createChatSessionForTenantSlug(tenantSlug, {
+      leadSource,
+    });
 
     if (!result) {
       return NextResponse.json(

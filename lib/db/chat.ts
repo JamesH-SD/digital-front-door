@@ -367,6 +367,24 @@ function buildIntentAssistantReply(intent: MessageIntentResult) {
   return "Got it — I’ll make a note of that.";
 }
 
+function buildKnowledgeRetrievalQuery(
+  messages: ChatMessage[],
+  latestUserMessage: string
+) {
+  const recentContext = messages
+    .slice(-6)
+    .map((message) => `${message.role}: ${message.content}`)
+    .join("\n");
+
+  return [
+    "Recent conversation context:",
+    recentContext,
+    "",
+    "Latest customer message:",
+    latestUserMessage,
+  ].join("\n");
+}
+
 async function appendCustomerUpdateToLead(leadId: string, content: string) {
   const supabase = await createClient();
 
@@ -845,7 +863,12 @@ async function applyPostCaptureStructuredUpdates(input: {
   }
 }
 
-export async function createChatSessionForTenantSlug(tenantSlug: string) {
+export async function createChatSessionForTenantSlug(
+  tenantSlug: string,
+  options?: {
+    leadSource?: string;
+  }
+) {
   const tenant = await getTenantBySlug(tenantSlug);
 
   if (!tenant) {
@@ -862,7 +885,7 @@ export async function createChatSessionForTenantSlug(tenantSlug: string) {
     status: "active",
     createdAt: now,
     currentStep: "project_type",
-    intakeData: {},
+    intakeData: {leadSource: options?.leadSource || "website"},
     leadCaptured: false,
     leadId: null,
     notificationSentAt: null,
@@ -1321,8 +1344,8 @@ if (
 
     const tenantKnowledgeResult = await retrieveTenantKnowledge({
       tenantSlug: session.tenantSlug,
-      query: trimmedContent,
-      limit: 5,
+      query: buildKnowledgeRetrievalQuery(messages, trimmedContent),
+      limit: 8,
     });
 
     const aiTurn = await generatePostCaptureTurn({
@@ -1603,8 +1626,8 @@ if (
 
   const tenantKnowledgeResult = await retrieveTenantKnowledge({
     tenantSlug: session.tenantSlug,
-    query: trimmedContent,
-    limit: 5,
+    query: buildKnowledgeRetrievalQuery(messages, trimmedContent),
+    limit: 8,
   });
 
   const aiTurn = await generateChatTurn({

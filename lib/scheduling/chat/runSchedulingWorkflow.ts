@@ -79,7 +79,7 @@ type SchedulingState = {
 };
 
 const DEFAULT_TIMEZONE = "America/Los_Angeles";
-const MAX_DAY_OPTIONS = 7;
+const MAX_DAY_OPTIONS = 21;
 const MAX_TIME_OPTIONS_PER_DAY = 8;
 const MAX_RETRY_COUNT = 2;
 
@@ -654,7 +654,7 @@ async function getOfferedDaysForTenant(input: {
     timezone: DEFAULT_TIMEZONE,
     fromIso: input.fromIso,
     slotMinutes: 60,
-    lookaheadDays: 14,
+    lookaheadDays: 35,
     maxDaysToReturn: MAX_DAY_OPTIONS,
   });
 
@@ -929,7 +929,7 @@ export async function runSchedulingWorkflow({
     session.currentStep === "complete" &&
     session.leadCaptured &&
     session.leadId &&
-    (schedulingIntent.type === "cancel" || detectConversationClose(trimmedContent))
+    schedulingIntent.type === "cancel"
   ) {
     session.intakeData = {
       ...session.intakeData,
@@ -1557,8 +1557,67 @@ export async function runSchedulingWorkflow({
 
     if (!selectedDay) {
       const retryCount = (schedulingState.dayRetryCount ?? 0) + 1;
-
-      if (detectRejectionOrDifferentOption(trimmedContent) || retryCount >= MAX_RETRY_COUNT) {
+    
+      if (detectRejectionOrDifferentOption(trimmedContent)) {
+        const lastAvailableDay = availableDays[availableDays.length - 1];
+    
+        if (lastAvailableDay?.dateKey) {
+          const nextStart = new Date(`${lastAvailableDay.dateKey}T12:00:00`);
+          nextStart.setDate(nextStart.getDate() + 1);
+    
+          try {
+            const moreAvailableDays = await getOfferedDaysForTenant({
+              tenantSlug: session.tenantSlug,
+              fromIso: nextStart.toISOString(),
+            });
+    
+            if (moreAvailableDays.length > 0) {
+              session.intakeData = {
+                ...session.intakeData,
+                schedulingState: {
+                  ...schedulingState,
+                  step: "select_day",
+                  availableDays: moreAvailableDays,
+                  selectedDay: undefined,
+                  offeredSlots: undefined,
+                  dayRetryCount: 0,
+                  timeRetryCount: 0,
+                },
+              };
+    
+              await updateSession(session);
+    
+              const assistantMessage = createMessageObject(
+                sessionId,
+                "assistant",
+                "No problem — I found some additional available days. Tap one below, or reply with a day that works best."
+              );
+    
+              await insertMessage(assistantMessage);
+    
+              return {
+                handled: true,
+                response: {
+                  sessionId,
+                  messages: await getMessagesForSession(sessionId),
+                  session,
+                },
+              };
+            }
+          } catch (error) {
+            console.error("Availability fetch for additional days failed:", error);
+          }
+        }
+    
+        return fallbackAndCloseScheduling({
+          session,
+          sessionId,
+          appointmentPreference:
+            trimmedContent || "Customer asked for other available days.",
+        });
+      }
+    
+      if (retryCount >= MAX_RETRY_COUNT) {
         return fallbackAndCloseScheduling({
           session,
           sessionId,
@@ -1566,7 +1625,7 @@ export async function runSchedulingWorkflow({
             trimmedContent || "Customer did not choose one of the available days.",
         });
       }
-
+    
       session.intakeData = {
         ...session.intakeData,
         schedulingState: {
@@ -1574,19 +1633,20 @@ export async function runSchedulingWorkflow({
           dayRetryCount: retryCount,
         },
       };
-
+    
       await updateSession(session);
-
+    
       const assistantMessage = createMessageObject(
         sessionId,
         "assistant",
-        `Please reply with one of the day option numbers:\n\n${availableDays
-          .map((day) => `${day.optionNumber}. ${day.displayLabel}`)
-          .join("\n")}`
+        generateSchedulingResponse({
+          type: "ask_valid_day",
+          days: availableDays,
+        })
       );
-
+    
       await insertMessage(assistantMessage);
-
+    
       return {
         handled: true,
         response: {
@@ -1595,7 +1655,7 @@ export async function runSchedulingWorkflow({
           session,
         },
       };
-    }
+    } 
 
     session.intakeData = {
       ...session.intakeData,

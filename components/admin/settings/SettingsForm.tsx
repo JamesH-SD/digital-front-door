@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 import type { Tenant } from "@/lib/types/tenant";
 import ToastMessage from "@/components/ui/ToastMessage";
+import QRCode from "qrcode";
 
 type SettingsFormProps = {
   tenant: Tenant;
@@ -29,7 +30,8 @@ type CollapsibleSettingsSection =
   | "services"
   | "businessHours"
   | "calendar"
-  | "chatSettings";
+  | "chatSettings"
+  | "leadCapture";
 
 type ToastState = {
   message: string;
@@ -74,6 +76,40 @@ function formatDayLabel(day: string) {
 
 function displayValue(value?: string | null) {
   return value && value.trim() ? value : "Not provided";
+}
+
+function buildHostedPageUrl(tenantSlug: string) {
+  if (typeof window === "undefined") {
+    return `/${tenantSlug}`;
+  }
+
+  return `${window.location.origin}/${tenantSlug}`;
+}
+
+function buildQrAutoOpenUrl(tenantSlug: string) {
+  if (typeof window === "undefined") {
+    return `/${tenantSlug}?source=qr&openChat=1`;
+  }
+
+  return `${window.location.origin}/${tenantSlug}?source=qr&openChat=1`;
+}
+
+function buildExistingWebsiteQrUrl(websiteUrl?: string | null) {
+  if (!websiteUrl?.trim()) {
+    return "";
+  }
+
+  const normalized = websiteUrl.startsWith("http")
+    ? websiteUrl
+    : `https://${websiteUrl}`;
+
+  const separator = normalized.includes("?") ? "&" : "?";
+
+  return `${normalized}${separator}source=qr&openChat=1`;
+}
+
+function hasWebsiteUrl(value?: string | null) {
+  return Boolean(value && value.trim());
 }
 
 function buildDefaultHours(hours?: Record<string, any>): HoursState {
@@ -237,6 +273,142 @@ function SectionHeader({
   );
 }
 
+function CopyableLinkRow({
+  label,
+  description,
+  value,
+  disabledMessage,
+  fileName,
+}: {
+  label: string;
+  description: string;
+  value: string;
+  disabledMessage?: string;
+  fileName: string;
+}) {
+  const [copied, setCopied] = useState(false);
+  const [isGeneratingQr, setIsGeneratingQr] = useState(false);
+  const [qrPreviewUrl, setQrPreviewUrl] = useState("");
+
+  async function handleCopy() {
+    if (!value) return;
+
+    await navigator.clipboard.writeText(value);
+    setCopied(true);
+
+    window.setTimeout(() => {
+      setCopied(false);
+    }, 1500);
+  }
+
+  async function handleDownloadQr() {
+    if (!value) return;
+
+    try {
+      setIsGeneratingQr(true);
+
+      const dataUrl = await QRCode.toDataURL(value, {
+        width: 1024,
+        margin: 2,
+        errorCorrectionLevel: "H",
+      });
+
+      setQrPreviewUrl(dataUrl);
+
+      const link = document.createElement("a");
+      link.href = dataUrl;
+      link.download = fileName.endsWith(".png") ? fileName : `${fileName}.png`;
+      document.body.appendChild(link);
+      link.click();
+      link.remove();
+    } catch (error) {
+      console.error("Failed to generate QR code:", error);
+      alert("Could not generate QR code. Please try again.");
+    } finally {
+      setIsGeneratingQr(false);
+    }
+  }
+
+  useEffect(() => {
+    async function generatePreview() {
+      if (!value) return;
+  
+      try {
+        const dataUrl = await QRCode.toDataURL(value, {
+          width: 320,
+          margin: 2,
+          errorCorrectionLevel: "H",
+        });
+  
+        setQrPreviewUrl(dataUrl);
+      } catch (error) {
+        console.error("Failed generating QR preview:", error);
+      }
+    }
+  
+    void generatePreview();
+  }, [value]);
+
+  return (
+    <div className="rounded-2xl border bg-white p-4 shadow-sm">
+      <div className="flex items-start justify-between gap-3">
+        <div className="min-w-0">
+          <p className="text-sm font-semibold text-gray-900">{label}</p>
+          <p className="mt-1 line-clamp-2 text-xs text-gray-500">
+            {description}
+          </p>
+        </div>
+  
+        {qrPreviewUrl ? (
+          <img
+            src={qrPreviewUrl}
+            alt={`${label} QR`}
+            className="h-20 w-20 shrink-0 rounded-lg border bg-white p-1"
+          />
+        ) : null}
+      </div>
+  
+      <div className="mt-4 rounded-lg border bg-gray-50 px-3 py-2">
+        <p className="truncate text-xs text-gray-700">
+          {value || disabledMessage || "Not available"}
+        </p>
+      </div>
+  
+      <div className="mt-4 flex gap-2">
+      <button
+          type="button"
+          onClick={() => {
+            if (!value) return;
+            window.open(value, "_blank", "noopener,noreferrer");
+          }}
+          disabled={!value}
+          className="flex-1 rounded-xl border bg-white px-3 py-2 text-xs font-semibold text-gray-800 transition hover:bg-gray-50 disabled:cursor-not-allowed disabled:opacity-50"
+        >
+          Open
+        </button>
+        
+        <button
+          type="button"
+          onClick={handleCopy}
+          disabled={!value}
+          className="flex-1 rounded-xl border bg-white px-3 py-2 text-xs font-semibold text-gray-800 transition hover:bg-gray-50 disabled:cursor-not-allowed disabled:opacity-50"
+        >
+          {copied ? "Copied" : "Copy"}
+        </button>
+  
+        <button
+          type="button"
+          onClick={handleDownloadQr}
+          disabled={!value || isGeneratingQr}
+          className="flex-1 rounded-xl border bg-white px-3 py-2 text-xs font-semibold text-gray-800 transition hover:bg-gray-50 disabled:cursor-not-allowed disabled:opacity-50"
+        >
+          {isGeneratingQr ? "Generating..." : "Download"}
+        </button>
+      </div>
+    </div>
+  );
+}
+
 export default function SettingsForm({ tenant }: SettingsFormProps) {
   const [toast, setToast] = useState<ToastState>(null);
 
@@ -318,9 +490,14 @@ export default function SettingsForm({ tenant }: SettingsFormProps) {
     businessHours: false,
     calendar: false,
     chatSettings: false,
+    leadCapture: false,
   });
 
   const [form, setForm] = useState(createInitialFormState(tenant));
+  const hostedPageUrl = buildHostedPageUrl(tenant.slug);
+  const qrAutoOpenUrl = buildQrAutoOpenUrl(tenant.slug);
+  const existingWebsiteQrUrl = buildExistingWebsiteQrUrl(tenant.websiteUrl);
+  const tenantHasWebsite = hasWebsiteUrl(tenant.websiteUrl);
 
   function toggleSection(section: CollapsibleSettingsSection) {
     setOpenSections((prev) => ({
@@ -1217,6 +1394,112 @@ export default function SettingsForm({ tenant }: SettingsFormProps) {
                     )}
                   </div>
                 ))}
+              </div>
+            </div>
+          ) : null}
+        </section>
+
+        <section className="rounded-2xl border bg-gray-50/60 p-4">
+          <div className="mb-4 flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+            <button
+              type="button"
+              onClick={() => toggleSection("leadCapture")}
+              className="flex min-w-0 flex-1 items-start gap-3 text-left"
+            >
+              <span
+                className={`mt-0.5 text-sm text-gray-500 transition-transform ${
+                  openSections.leadCapture ? "rotate-180" : ""
+                }`}
+                aria-hidden="true"
+              >
+                ▼
+              </span>
+
+              <div>
+                <h3 className="text-base font-semibold text-gray-900">
+                  Lead Capture
+                </h3>
+                <p className="mt-1 text-sm text-gray-600">
+                  Copy customer entry links for QR codes, hosted pages, and existing websites.
+                </p>
+              </div>
+            </button>
+          </div>
+
+          {openSections.leadCapture ? (
+            <div className="grid gap-4 lg:grid-cols-3">
+              <CopyableLinkRow
+                label="Hosted Contactor Page"
+                description="Use this link for a simple AI-first landing page."
+                value={hostedPageUrl}
+                fileName={`${tenant.slug}-page-qr.png`}
+              />
+
+              <CopyableLinkRow
+                label="QR Auto-Open Link"
+                description="Use this for truck decals, flyers, yard signs, business cards, and other QR codes."
+                value={qrAutoOpenUrl}
+                fileName={`${tenant.slug}-qr-chat.png`}
+              />
+
+              {tenantHasWebsite ? (
+                <CopyableLinkRow
+                  label="Existing Website QR Link"
+                  description="Use this if the business already has a website and wants QR scans to open that site with the chat widget."
+                  value={existingWebsiteQrUrl}
+                  fileName={`${tenant.slug}-site-chat.png`}
+                />
+              ) : (
+                <div className="rounded-2xl border border-dashed bg-white p-4 shadow-sm">
+                  <p className="text-sm font-semibold text-gray-900">
+                    Existing Website QR
+                  </p>
+
+                  <p className="mt-1 text-xs text-gray-500">
+                    Add a Website URL under Business Identity to generate a QR code that opens
+                    the tenant’s existing site with Contactor chat.
+                  </p>
+
+                  <div className="mt-4 rounded-lg border bg-gray-50 px-3 py-2">
+                    <p className="truncate text-xs text-gray-400">
+                      No existing website URL added yet.
+                    </p>
+                  </div>
+                </div>
+              )}
+
+              <div className="rounded-xl border border-dashed bg-white p-4 lg:col-span-3">
+                <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+                  <div>
+                    <p className="text-sm font-semibold text-gray-900">
+                      Embed Snippet
+                    </p>
+
+                    <p className="mt-1 text-xs text-gray-500">
+                      Add this snippet to an existing website once the Contactor widget script is active.
+                    </p>
+                  </div>
+
+                  <button
+                    type="button"
+                    onClick={() => {
+                      const snippet = `<script src="https://app.contactor.ai/widget.js" data-tenant="${tenant.slug}"></script>`;
+
+                      void navigator.clipboard.writeText(snippet);
+                    }}
+                    className="rounded-xl bg-gray-900 px-4 py-2 text-xs font-semibold text-white transition hover:bg-gray-800"
+                  >
+                    Copy Snippet
+                  </button>
+                </div>
+
+                <pre className="mt-3 overflow-x-auto rounded-lg bg-gray-950 p-3 text-xs text-gray-100">
+              {`<script src="http://localhost:3000/widget.js" data-tenant="hughes-general"></script>`}
+                </pre>
+
+                <p className="mt-2 text-xs text-amber-700">
+                  Widget script is not active yet. This is the planned embed format.
+                </p>
               </div>
             </div>
           ) : null}

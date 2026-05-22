@@ -10,6 +10,9 @@ import type { SchedulingState } from "@/lib/types/chat";
 
 type Props = {
   tenant: Tenant;
+  autoOpen?: boolean;
+  leadSource?: string;
+  variant?: "page" | "embed";
 };
 
 type LocalAssistantMessage = {
@@ -89,7 +92,12 @@ function getFileBadge(extension: string) {
   }
 }
 
-export function ChatWidget({ tenant }: Props) {
+export function ChatWidget({
+  tenant,
+  autoOpen = true,
+  leadSource = "website",
+  variant = "page",
+}: Props) {
   const [sessionId, setSessionId] = useState<string | null>(null);
   const [leadId, setLeadId] = useState<string | null>(null);
 
@@ -149,6 +157,7 @@ export function ChatWidget({ tenant }: Props) {
         },
         body: JSON.stringify({
           tenantSlug: tenant.slug,
+          leadSource,
         }),
       });
 
@@ -286,11 +295,13 @@ export function ChatWidget({ tenant }: Props) {
   }
 
   useEffect(() => {
+    if (!autoOpen) return;
     if (hasStartedRef.current) return;
+  
     hasStartedRef.current = true;
     void handleStartChat();
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+  }, [autoOpen]);
 
   useEffect(() => {
     const container = scrollContainerRef.current;
@@ -316,40 +327,45 @@ export function ChatWidget({ tenant }: Props) {
     };
   }, []);
 
-  return (
-    <div className="rounded-2xl border p-6 shadow-sm">
-      <h2 className="text-xl font-semibold">Ask a question</h2>
-      <p className="mt-3 text-sm text-gray-600">
-        Chat with us to ask questions, share project details, and get started.
-      </p>
+  const shellClassName =
+  variant === "embed"
+    ? "flex h-full min-h-0 flex-col overflow-hidden rounded-2xl border border-gray-200 bg-white shadow-sm"
+    : "flex h-[620px] flex-col overflow-hidden rounded-2xl border border-gray-200 bg-white shadow-sm";
 
+  return (
+    <div className={shellClassName}>
+      <div className="border-b border-gray-100 px-4 py-3">
+        <h2 className="text-base font-semibold text-gray-900">Ask a question</h2>
+        <p className="mt-1 text-xs text-gray-500">
+          Ask questions, share details, or schedule an appointment.
+        </p>
+      </div>
+  
       {!sessionId ? (
-        <div className="mt-6 rounded-xl border bg-gray-50 p-4 text-sm text-gray-600">
+        <div className="flex flex-1 items-center justify-center bg-gray-50 px-4 text-sm text-gray-600">
           {isStarting ? "Starting chat..." : "Preparing chat..."}
         </div>
       ) : (
-        <div className="mt-6">
+        <>
           <div
             ref={scrollContainerRef}
-            className="h-[420px] space-y-3 overflow-y-auto rounded-xl border bg-gray-50 p-4"
+            className="flex-1 space-y-3 overflow-y-auto bg-gray-50 px-4 py-4"
           >
             {visibleMessages.map((message) => {
               if ("role" in message && message.role === "upload") {
                 const attachment = message.attachment ?? message.image ?? null;
-
-                if (!attachment) {
-                  return null;
-                }
-
+  
+                if (!attachment) return null;
+  
                 const filename = attachment.filename || "Uploaded file";
                 const extension = getAttachmentExtension(filename);
                 const isImage = isImageAttachment(filename, attachment.url);
-
+  
                 if (isImage) {
                   return (
                     <div
                       key={message.id}
-                      className="max-w-[85%] rounded-2xl border bg-white p-3 text-sm text-gray-800"
+                      className="max-w-[88%] rounded-2xl border bg-white p-3 text-sm text-gray-800"
                     >
                       <a
                         href={attachment.url}
@@ -357,45 +373,48 @@ export function ChatWidget({ tenant }: Props) {
                         rel="noreferrer"
                         className="block overflow-hidden rounded-xl border bg-gray-100"
                       >
-                        {/* eslint-disable-next-line @next/next/no-img-element */}
                         <img
                           src={attachment.url}
                           alt={filename}
                           className="max-h-72 w-full object-cover"
                         />
                       </a>
-
+  
                       <p className="mt-2 text-xs text-gray-500">{filename}</p>
                     </div>
                   );
                 }
-
+  
                 return (
                   <a
                     key={message.id}
                     href={attachment.url}
                     target="_blank"
                     rel="noreferrer"
-                    className="block max-w-[85%] rounded-2xl border bg-white p-3 text-sm text-gray-800 transition hover:bg-gray-50"
+                    className="block max-w-[88%] rounded-2xl border bg-white p-3 text-sm text-gray-800 transition hover:bg-gray-50"
                   >
                     <div className="flex items-center gap-3">
                       <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-gray-900 text-xs font-semibold text-white">
                         {getFileBadge(extension)}
                       </div>
-
+  
                       <div className="min-w-0">
-                        <p className="truncate font-medium text-gray-900">{filename}</p>
-                        <p className="mt-1 text-xs text-gray-500">Click to open</p>
+                        <p className="truncate font-medium text-gray-900">
+                          {filename}
+                        </p>
+                        <p className="mt-1 text-xs text-gray-500">
+                          Click to open
+                        </p>
                       </div>
                     </div>
                   </a>
                 );
               }
-
+  
               return (
                 <div
                   key={message.id}
-                  className={`max-w-[85%] whitespace-pre-line rounded-2xl px-4 py-3 text-sm ${
+                  className={`max-w-[88%] whitespace-pre-line rounded-2xl px-4 py-3 text-sm ${
                     message.role === "user"
                       ? "ml-auto bg-gray-900 text-white"
                       : "border bg-white text-gray-800"
@@ -405,15 +424,15 @@ export function ChatWidget({ tenant }: Props) {
                 </div>
               );
             })}
-
+  
             <ChatSchedulingPicker
               schedulingState={schedulingState}
               isSending={isSending}
               onSelectOption={handleSchedulingOptionSelect}
             />
-
+  
             {isSending ? (
-              <div className="max-w-[85%] rounded-2xl border bg-white px-4 py-3 text-sm text-gray-500">
+              <div className="max-w-[88%] rounded-2xl border bg-white px-4 py-3 text-sm text-gray-500">
                 <span className="inline-flex items-center gap-1">
                   <span className="h-2 w-2 animate-bounce rounded-full bg-gray-400 [animation-delay:-0.3s]" />
                   <span className="h-2 w-2 animate-bounce rounded-full bg-gray-400 [animation-delay:-0.15s]" />
@@ -422,60 +441,60 @@ export function ChatWidget({ tenant }: Props) {
               </div>
             ) : null}
           </div>
-
+  
           {error ? (
-            <div className="mt-4 rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
+            <div className="border-t border-red-100 bg-red-50 px-4 py-3 text-sm text-red-700">
               {error}
             </div>
           ) : null}
-
-          <div ref={composerRef} className="relative mt-4">
-          {isAttachMenuOpen ? (
-            <div className="absolute bottom-full left-0 z-20 mb-2 w-44 rounded-xl border bg-white p-2 shadow-lg">
-              <button
-                type="button"
-                onClick={() => photoLibraryInputRef.current?.click()}
-                className="flex w-full items-center rounded-lg px-3 py-2 text-left text-sm text-gray-700 transition hover:bg-gray-50"
-              >
-                Upload Photo
-              </button>
-
-              <button
-                type="button"
-                onClick={() => cameraInputRef.current?.click()}
-                className="mt-1 flex w-full items-center rounded-lg px-3 py-2 text-left text-sm text-gray-700 transition hover:bg-gray-50"
-              >
-                Take Photo
-              </button>
-
-              <button
-                type="button"
-                onClick={() => fileInputRef.current?.click()}
-                className="mt-1 flex w-full items-center rounded-lg px-3 py-2 text-left text-sm text-gray-700 transition hover:bg-gray-50"
-              >
-                Upload File
-              </button>
-            </div>
-          ) : null}
-
-            <div className="flex items-end gap-3">
+  
+          <div ref={composerRef} className="relative border-t border-gray-200 bg-white p-3">
+            {isAttachMenuOpen ? (
+              <div className="absolute bottom-full left-3 z-20 mb-2 w-44 rounded-xl border bg-white p-2 shadow-lg">
+                <button
+                  type="button"
+                  onClick={() => photoLibraryInputRef.current?.click()}
+                  className="flex w-full items-center rounded-lg px-3 py-2 text-left text-sm text-gray-700 transition hover:bg-gray-50"
+                >
+                  Upload Photo
+                </button>
+  
+                <button
+                  type="button"
+                  onClick={() => cameraInputRef.current?.click()}
+                  className="mt-1 flex w-full items-center rounded-lg px-3 py-2 text-left text-sm text-gray-700 transition hover:bg-gray-50"
+                >
+                  Take Photo
+                </button>
+  
+                <button
+                  type="button"
+                  onClick={() => fileInputRef.current?.click()}
+                  className="mt-1 flex w-full items-center rounded-lg px-3 py-2 text-left text-sm text-gray-700 transition hover:bg-gray-50"
+                >
+                  Upload File
+                </button>
+              </div>
+            ) : null}
+  
+            <div className="flex items-end gap-2 rounded-2xl border border-gray-300 bg-white px-2 py-2">
               <button
                 type="button"
                 onClick={handleAttachmentButtonClick}
-                className="flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl border bg-white text-gray-700 transition hover:bg-gray-50"
+                className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl text-gray-700 transition hover:bg-gray-50"
                 aria-label="Upload"
                 title="Upload"
               >
                 <Plus className="h-5 w-5" />
               </button>
-
+  
               <textarea
                 value={input}
                 onChange={(e) => setInput(e.target.value)}
                 onKeyDown={(e) => {
                   if (e.key === "Enter" && !e.shiftKey) {
                     e.preventDefault();
-
+  
                     if (!isSending && input.trim()) {
                       void handleSendMessage();
                     }
@@ -483,19 +502,19 @@ export function ChatWidget({ tenant }: Props) {
                 }}
                 placeholder="Type your message..."
                 rows={1}
-                className="h-12 min-h-[48px] max-h-28 flex-1 resize-none rounded-2xl border px-4 py-3 text-sm outline-none transition focus:border-gray-400"
+                className="max-h-28 min-h-[40px] flex-1 resize-none border-0 bg-transparent px-2 py-2 text-sm outline-none"
               />
-
+  
               <button
                 type="button"
                 onClick={() => void handleSendMessage()}
                 disabled={isSending || !input.trim()}
-                className="h-12 shrink-0 rounded-2xl bg-gray-900 px-5 text-sm font-medium text-white transition hover:bg-gray-800 disabled:cursor-not-allowed disabled:opacity-60"
+                className="h-10 shrink-0 rounded-xl bg-gray-900 px-4 text-sm font-medium text-white transition hover:bg-gray-800 disabled:cursor-not-allowed disabled:opacity-60"
               >
-                {isSending ? "Sending..." : "Send"}
+                {isSending ? "..." : "Send"}
               </button>
             </div>
-
+  
             <input
               ref={photoLibraryInputRef}
               type="file"
@@ -503,13 +522,11 @@ export function ChatWidget({ tenant }: Props) {
               className="hidden"
               onChange={(e) => {
                 const file = e.target.files?.[0];
-                if (file) {
-                  void handleUploadImage(file);
-                }
+                if (file) void handleUploadImage(file);
                 e.currentTarget.value = "";
               }}
             />
-
+  
             <input
               ref={fileInputRef}
               type="file"
@@ -517,13 +534,11 @@ export function ChatWidget({ tenant }: Props) {
               className="hidden"
               onChange={(e) => {
                 const file = e.target.files?.[0];
-                if (file) {
-                  void handleUploadImage(file);
-                }
+                if (file) void handleUploadImage(file);
                 e.currentTarget.value = "";
               }}
             />
-
+  
             <input
               ref={cameraInputRef}
               type="file"
@@ -532,15 +547,13 @@ export function ChatWidget({ tenant }: Props) {
               className="hidden"
               onChange={(e) => {
                 const file = e.target.files?.[0];
-                if (file) {
-                  void handleUploadImage(file);
-                }
+                if (file) void handleUploadImage(file);
                 e.currentTarget.value = "";
               }}
             />
           </div>
-        </div>
+        </>
       )}
     </div>
   );
-}
+};

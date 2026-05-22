@@ -295,6 +295,15 @@ export async function generatePostCaptureTurn(input: {
       - Do not invent facts.
       - Do not include markdown or explanatory text outside JSON.
 
+      Knowledge grounding rules:
+      - Additional Tenant Knowledge is authoritative for answers about specific articles, people, FAQs, services, policies, pricing, and uploaded business information.
+      - If the customer asks about a named person, article, FAQ, service, or policy, check Additional Tenant Knowledge before using Tenant Context.
+      - Tenant Context describes the business. It should not override Additional Tenant Knowledge for article-specific facts.
+      - If Additional Tenant Knowledge contains the answer, answer directly and naturally.
+      - If Additional Tenant Knowledge conflicts with Tenant Context, prefer Additional Tenant Knowledge for the specific thing being asked about.
+      - If Additional Tenant Knowledge does not contain the answer, do not guess.
+      - If the customer asks about "he", "she", "they", "him", or "her", use the recent conversation to resolve who they mean before answering.
+
       Tenant Context:
       ${buildTenantContext(tenant)}
 
