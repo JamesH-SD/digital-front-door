@@ -100,12 +100,12 @@ export type ChatSession = {
   notificationSentAt?: string | null;
 
   /**
-   * Scheduling flow state (NEW)
-   *
-   * IMPORTANT:
-   * - This is optional so it does NOT break existing sessions
-   * - We are NOT using it yet (safe addition)
-   * - Will be activated in later steps
-   */
-  schedulingState?: SchedulingState;
+ * Scheduling flow state (NEW)
+ *
+ * IMPORTANT:
+ * - This is optional so it does NOT break existing sessions
+ * - We are NOT using it yet (safe addition)
+ * - Will be activated in later steps
+ */
+schedulingState?: SchedulingState;
 };

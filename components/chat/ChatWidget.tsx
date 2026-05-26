@@ -119,6 +119,7 @@ export function ChatWidget({
   const scrollContainerRef = useRef<HTMLDivElement | null>(null);
   const composerRef = useRef<HTMLDivElement | null>(null);
   const fileInputRef = useRef<HTMLInputElement | null>(null);
+  const schedulingPickerRef = useRef<HTMLDivElement | null>(null);
 
   const [schedulingState, setSchedulingState] = useState<SchedulingState | null>(null);
 
@@ -305,12 +306,32 @@ export function ChatWidget({
 
   useEffect(() => {
     const container = scrollContainerRef.current;
+  
     if (!container) return;
-
+  
     requestAnimationFrame(() => {
+      /**
+       * If scheduling UI is active,
+       * scroll the picker into view instead
+       * of forcing the entire chat to bottom.
+       */
+      if (schedulingState?.active && schedulingPickerRef.current) {
+        schedulingPickerRef.current.scrollIntoView({
+          behavior: "smooth",
+          block: "start",
+        });
+  
+        return;
+      }
+  
       container.scrollTop = container.scrollHeight;
     });
-  }, [visibleMessages, isSending, isUploading]);
+  }, [
+    visibleMessages,
+    isSending,
+    isUploading,
+    schedulingState,
+  ]);
 
   useEffect(() => {
     function handleClickOutside(event: MouseEvent) {
@@ -326,6 +347,17 @@ export function ChatWidget({
       document.removeEventListener("mousedown", handleClickOutside);
     };
   }, []);
+
+  useEffect(() => {
+    if (!schedulingState?.active) return;
+  
+    window.setTimeout(() => {
+      schedulingPickerRef.current?.scrollIntoView({
+        behavior: "smooth",
+        block: "start",
+      });
+    }, 50);
+  }, [schedulingState]);
 
   const shellClassName =
   variant === "embed"
@@ -425,11 +457,13 @@ export function ChatWidget({
               );
             })}
   
+            <div ref={schedulingPickerRef}>
             <ChatSchedulingPicker
               schedulingState={schedulingState}
               isSending={isSending}
-              onSelectOption={handleSchedulingOptionSelect}
+              onSelectOption={handleSendMessage}
             />
+          </div>
   
             {isSending ? (
               <div className="max-w-[88%] rounded-2xl border bg-white px-4 py-3 text-sm text-gray-500">

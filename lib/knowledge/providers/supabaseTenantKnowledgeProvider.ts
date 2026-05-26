@@ -18,12 +18,26 @@ function mapKnowledgeRow(row: any): TenantKnowledgeItem {
     sourceLabel: row.source_label || undefined,
     createdAt: row.created_at || undefined,
     updatedAt: row.updated_at || undefined,
+    knowledgeScope: row.knowledge_scope || "global",
+    campaignId: row.campaign_id || null,
+    summary: row.summary || null,
+    fileUrl: row.file_url || null,
+    fileName: row.file_name || null,
+    fileSize: row.file_size || null,
+    mimeType: row.mime_type || null,
   };
 }
 
 function scoreKnowledgeItem(item: TenantKnowledgeItem, query: string) {
   const normalizedQuery = query.toLowerCase();
-  const searchable = [item.title, item.content, ...(item.tags || [])]
+  const searchable = [
+    item.title,
+    item.summary || "",
+    item.content,
+    item.fileName || "",
+    item.sourceLabel || "",
+    ...(item.tags || []),
+  ]
     .join(" ")
     .toLowerCase();
 
@@ -42,12 +56,22 @@ export async function retrieveSupabaseTenantKnowledge(
   const supabase = createAdminClient();
   const limit = input.limit ?? 5;
 
-  const { data, error } = await supabase
-    .from("tenant_knowledge_items")
-    .select("*")
-    .eq("tenant_slug", input.tenantSlug)
-    .eq("is_active", true)
-    .limit(50);
+  let query = supabase
+  .from("tenant_knowledge_items")
+  .select("*")
+  .eq("tenant_slug", input.tenantSlug)
+  .eq("is_active", true)
+  .limit(75);
+
+  if (input.campaignId) {
+    query = query.or(
+      `knowledge_scope.eq.global,and(knowledge_scope.eq.campaign,campaign_id.eq.${input.campaignId})`
+    );
+  } else {
+    query = query.eq("knowledge_scope", "global");
+  }
+
+  const { data, error } = await query;
 
   if (error) {
     console.error("Error retrieving tenant knowledge:", error.message);

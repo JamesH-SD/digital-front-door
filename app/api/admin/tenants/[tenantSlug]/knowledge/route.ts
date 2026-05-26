@@ -5,6 +5,12 @@ import {
 } from "@/lib/db/tenant-knowledge";
 import type { TenantKnowledgeSourceType } from "@/lib/types/tenant-knowledge";
 
+import { createRequire } from "module";
+
+export const runtime = "nodejs";
+
+const require = createRequire(import.meta.url);
+
 const VALID_SOURCE_TYPES: TenantKnowledgeSourceType[] = [
   "manual_note",
   "faq",
@@ -19,6 +25,48 @@ const VALID_SOURCE_TYPES: TenantKnowledgeSourceType[] = [
 
 function isValidSourceType(value: unknown): value is TenantKnowledgeSourceType {
   return typeof value === "string" && VALID_SOURCE_TYPES.includes(value as TenantKnowledgeSourceType);
+}
+
+async function extractTextFromUpload(file: File) {
+  const buffer = Buffer.from(await file.arrayBuffer());
+  const fileName = file.name.toLowerCase();
+  const mimeType = file.type;
+
+  if (mimeType === "text/plain" || fileName.endsWith(".txt")) {
+    return buffer.toString("utf-8");
+  }
+
+  if (
+    mimeType ===
+      "application/vnd.openxmlformats-officedocument.wordprocessingml.document" ||
+    fileName.endsWith(".docx")
+  ) {
+    const mammoth = await import("mammoth");
+    const result = await mammoth.extractRawText({ buffer });
+    return result.value || "";
+  }
+
+  if (mimeType === "application/pdf" || fileName.endsWith(".pdf")) {
+    const pdfParse = require("pdf-parse/lib/pdf-parse.js") as (
+      dataBuffer: Buffer
+    ) => Promise<{ text?: string }>;
+  
+    const result = await pdfParse(buffer);
+  
+    return result.text || "";
+  }
+
+  return "";
+}
+
+function truncateKnowledgeContent(value: string, maxLength = 12000) {
+  const trimmed = value.trim();
+
+  if (trimmed.length <= maxLength) {
+    return trimmed;
+  }
+
+  return `${trimmed.slice(0, maxLength)}\n\n[Content truncated for AI context.]`;
 }
 
 export async function GET(
@@ -39,6 +87,127 @@ export async function POST(
   { params }: { params: Promise<{ tenantSlug: string }> }
 ) {
   const { tenantSlug } = await params;
+  const contentType = request.headers.get("content-type") || "";
+
+  if (contentType.includes("multipart/form-data")) {
+    const { createAdminClient } = await import("@/lib/supabase/admin");
+
+    const supabase = createAdminClient();
+    const formData = await request.formData();
+
+    const file = formData.get("file");
+
+    if (!(file instanceof File)) {
+      return NextResponse.json(
+        { error: "File is required." },
+        { status: 400 }
+      );
+    }
+
+    const title = String(formData.get("title") || "").trim();
+    const summary = String(formData.get("summary") || "").trim();
+    const notes = String(formData.get("notes") || "").trim();
+    const sourceTypeRaw = formData.get("sourceType");
+    const tagsRaw = String(formData.get("tags") || "");
+    const knowledgeScopeRaw = String(formData.get("knowledgeScope") || "global");
+    const campaignIdRaw = String(formData.get("campaignId") || "").trim();
+
+    if (!title || !summary) {
+      return NextResponse.json(
+        { error: "Title and summary are required." },
+        { status: 400 }
+      );
+    }
+
+    const sourceType = isValidSourceType(sourceTypeRaw)
+      ? sourceTypeRaw
+      : "document";
+
+    const knowledgeScope =
+      knowledgeScopeRaw === "campaign" ? "campaign" : "global";
+
+    const safeFileName = file.name.replace(/[^a-zA-Z0-9.\-_]/g, "_");
+    const path = `${tenantSlug}/${crypto.randomUUID()}-${safeFileName}`;
+
+    const { error: uploadError } = await supabase.storage
+      .from("tenant-knowledge")
+      .upload(path, file, {
+        contentType: file.type || "application/octet-stream",
+        upsert: false,
+      });
+
+    if (uploadError) {
+      console.error("Knowledge upload error:", uploadError.message);
+
+      return NextResponse.json(
+        { error: "Failed to upload file." },
+        { status: 500 }
+      );
+    }
+
+    const { data: publicUrlData } = supabase.storage
+      .from("tenant-knowledge")
+      .getPublicUrl(path);
+
+    const tags = tagsRaw
+      .split(",")
+      .map((tag) => tag.trim())
+      .filter(Boolean);
+
+      let extractedText = "";
+
+      try {
+        extractedText = await extractTextFromUpload(file);
+      } catch (error) {
+        console.error("Failed to extract uploaded file text:", error);
+      }
+
+      const content = [
+        summary,
+        notes ? `Additional notes: ${notes}` : null,
+        extractedText
+          ? `Extracted file text:\n${truncateKnowledgeContent(extractedText)}`
+          : "No readable text could be extracted from this file. Use the summary, notes, title, and tags for AI context.",
+        `Uploaded file: ${file.name}`,
+      ]
+        .filter(Boolean)
+        .join("\n\n");
+
+    const { data, error } = await supabase
+      .from("tenant_knowledge_items")
+      .insert({
+        tenant_slug: tenantSlug,
+        source_type: sourceType,
+        title,
+        content,
+        summary,
+        tags,
+        confidence: "medium",
+        source_label: "Tenant Upload",
+        knowledge_scope: knowledgeScope,
+        campaign_id: knowledgeScope === "campaign" ? campaignIdRaw || null : null,
+        file_url: publicUrlData.publicUrl,
+        file_name: file.name,
+        file_size: file.size,
+        mime_type: file.type || null,
+        is_active: true,
+      })
+      .select()
+      .single();
+
+    if (error) {
+      console.error("Knowledge record insert error:", error.message);
+
+      return NextResponse.json(
+        { error: "File uploaded, but failed to create knowledge record." },
+        { status: 500 }
+      );
+    }
+
+    return NextResponse.json({ item: data }, { status: 201 });
+  }
+
+  // Existing manual JSON behavior stays below.
   const body = await request.json();
 
   const title = typeof body.title === "string" ? body.title.trim() : "";

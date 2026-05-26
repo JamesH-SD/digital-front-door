@@ -38,6 +38,19 @@ export default function TenantKnowledgeManager({ tenantSlug }: Props) {
     sourceLabel: "Manual Entry",
   });
 
+  const [uploadForm, setUploadForm] = useState({
+    file: null as File | null,
+    sourceType: "document" as TenantKnowledgeSourceType,
+    title: "",
+    summary: "",
+    notes: "",
+    tags: "",
+    knowledgeScope: "global" as "global" | "campaign",
+    campaignId: "",
+  });
+  
+  const [isUploading, setIsUploading] = useState(false);
+
   async function loadItems() {
     try {
       setIsLoading(true);
@@ -118,6 +131,72 @@ export default function TenantKnowledgeManager({ tenantSlug }: Props) {
     }
   }
 
+  async function uploadKnowledgeFile() {
+    if (!uploadForm.file) {
+      setMessage("Please choose a file to upload.");
+      return;
+    }
+  
+    if (!uploadForm.title.trim() || !uploadForm.summary.trim()) {
+      setMessage("Title and summary are required for uploads.");
+      return;
+    }
+  
+    try {
+      setIsUploading(true);
+      setMessage("");
+  
+      const formData = new FormData();
+  
+      formData.append("file", uploadForm.file);
+      formData.append("sourceType", uploadForm.sourceType);
+      formData.append("title", uploadForm.title);
+      formData.append("summary", uploadForm.summary);
+      formData.append("notes", uploadForm.notes);
+      formData.append("tags", uploadForm.tags);
+      formData.append("knowledgeScope", uploadForm.knowledgeScope);
+      formData.append("campaignId", uploadForm.campaignId);
+  
+      const response = await fetch(
+        `/api/admin/tenants/${tenantSlug}/knowledge`,
+        {
+          method: "POST",
+          body: formData,
+        }
+      );
+  
+      const result = await response.json();
+  
+      if (!response.ok) {
+        throw new Error(result.error || "Failed to upload knowledge file.");
+      }
+  
+      setItems((prev) => [result.item, ...prev]);
+  
+      setUploadForm({
+        file: null,
+        sourceType: "document",
+        title: "",
+        summary: "",
+        notes: "",
+        tags: "",
+        knowledgeScope: "global",
+        campaignId: "",
+      });
+  
+      setMessage("Knowledge file uploaded.");
+    } catch (error) {
+      console.error(error);
+      setMessage(
+        error instanceof Error
+          ? error.message
+          : "Failed to upload knowledge file."
+      );
+    } finally {
+      setIsUploading(false);
+    }
+  }
+
   useEffect(() => {
     void loadItems();
   }, [tenantSlug]);
@@ -166,7 +245,193 @@ export default function TenantKnowledgeManager({ tenantSlug }: Props) {
             </p>
           ) : null}
 
-          <div className="grid gap-4 lg:grid-cols-[1fr_1.2fr]">
+          <div className="grid gap-4 xl:grid-cols-3">
+            <div className="rounded-2xl border bg-gray-50 p-4">
+              <h3 className="text-sm font-semibold text-gray-900">
+                Upload Knowledge File
+              </h3>
+
+              <p className="mt-1 text-xs text-gray-500">
+                Upload PDFs, photos, pricing sheets, policies, service lists, or other files
+                the AI should know about.
+              </p>
+
+              <div className="mt-4 space-y-3">
+                <div>
+                  <label className="text-xs font-semibold uppercase tracking-wide text-gray-500">
+                    File
+                  </label>
+
+                  <input
+                    type="file"
+                    onChange={(e) =>
+                      setUploadForm((prev) => ({
+                        ...prev,
+                        file: e.target.files?.[0] || null,
+                      }))
+                    }
+                    className="mt-1 w-full rounded-xl border bg-white px-3 py-2 text-sm"
+                  />
+
+                  {uploadForm.file ? (
+                    <p className="mt-1 text-xs text-gray-500">
+                      Selected: {uploadForm.file.name}
+                    </p>
+                  ) : null}
+                </div>
+
+                <div>
+                  <label className="text-xs font-semibold uppercase tracking-wide text-gray-500">
+                    Type
+                  </label>
+
+                  <select
+                    value={uploadForm.sourceType}
+                    onChange={(e) =>
+                      setUploadForm((prev) => ({
+                        ...prev,
+                        sourceType: e.target.value as TenantKnowledgeSourceType,
+                      }))
+                    }
+                    className="mt-1 w-full rounded-xl border bg-white px-3 py-2 text-sm"
+                  >
+                    {SOURCE_TYPES.map((type) => (
+                      <option key={type} value={type}>
+                        {type.replace("_", " ")}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+
+                <div>
+                  <label className="text-xs font-semibold uppercase tracking-wide text-gray-500">
+                    Title
+                  </label>
+
+                  <input
+                    value={uploadForm.title}
+                    onChange={(e) =>
+                      setUploadForm((prev) => ({
+                        ...prev,
+                        title: e.target.value,
+                      }))
+                    }
+                    className="mt-1 w-full rounded-xl border bg-white px-3 py-2 text-sm"
+                    placeholder="Example: Weekend Rental Policy"
+                  />
+                </div>
+
+                <div>
+                  <label className="text-xs font-semibold uppercase tracking-wide text-gray-500">
+                    Short Summary
+                  </label>
+
+                  <textarea
+                    value={uploadForm.summary}
+                    onChange={(e) =>
+                      setUploadForm((prev) => ({
+                        ...prev,
+                        summary: e.target.value,
+                      }))
+                    }
+                    rows={3}
+                    className="mt-1 w-full rounded-xl border bg-white px-3 py-2 text-sm"
+                    placeholder="Briefly explain what this file teaches the AI."
+                  />
+                </div>
+
+                <div>
+                  <label className="text-xs font-semibold uppercase tracking-wide text-gray-500">
+                    Notes
+                  </label>
+
+                  <textarea
+                    value={uploadForm.notes}
+                    onChange={(e) =>
+                      setUploadForm((prev) => ({
+                        ...prev,
+                        notes: e.target.value,
+                      }))
+                    }
+                    rows={3}
+                    className="mt-1 w-full rounded-xl border bg-white px-3 py-2 text-sm"
+                    placeholder="Optional extra instructions or context."
+                  />
+                </div>
+
+                <div>
+                  <label className="text-xs font-semibold uppercase tracking-wide text-gray-500">
+                    Tags
+                  </label>
+
+                  <input
+                    value={uploadForm.tags}
+                    onChange={(e) =>
+                      setUploadForm((prev) => ({
+                        ...prev,
+                        tags: e.target.value,
+                      }))
+                    }
+                    className="mt-1 w-full rounded-xl border bg-white px-3 py-2 text-sm"
+                    placeholder="pricing, deposit, cancellation"
+                  />
+                </div>
+
+                <div>
+                  <label className="text-xs font-semibold uppercase tracking-wide text-gray-500">
+                    Scope
+                  </label>
+
+                  <select
+                    value={uploadForm.knowledgeScope}
+                    onChange={(e) =>
+                      setUploadForm((prev) => ({
+                        ...prev,
+                        knowledgeScope: e.target.value as "global" | "campaign",
+                      }))
+                    }
+                    className="mt-1 w-full rounded-xl border bg-white px-3 py-2 text-sm"
+                  >
+                    <option value="global">Global business knowledge</option>
+                    <option value="campaign">Campaign-specific knowledge</option>
+                  </select>
+                </div>
+
+                {uploadForm.knowledgeScope === "campaign" ? (
+                  <div>
+                    <label className="text-xs font-semibold uppercase tracking-wide text-gray-500">
+                      Campaign ID
+                    </label>
+
+                    <input
+                      value={uploadForm.campaignId}
+                      onChange={(e) =>
+                        setUploadForm((prev) => ({
+                          ...prev,
+                          campaignId: e.target.value,
+                        }))
+                      }
+                      className="mt-1 w-full rounded-xl border bg-white px-3 py-2 text-sm"
+                      placeholder="Example: 123-main-st"
+                    />
+                  </div>
+                ) : null}
+
+                <button
+                  type="button"
+                  onClick={() => void uploadKnowledgeFile()}
+                  disabled={
+                    isUploading ||
+                    !uploadForm.file ||
+                    !uploadForm.title.trim() ||
+                    !uploadForm.summary.trim()
+                  }
+                  className="w-full rounded-xl bg-gray-900 px-4 py-2 text-sm font-semibold text-white transition hover:bg-gray-800 disabled:cursor-not-allowed disabled:opacity-60"
+                >
+                  {isUploading ? "Uploading..." : "Upload Knowledge File"}
+                </button>
+              </div>
+            </div>
             <div className="rounded-2xl border bg-gray-50 p-4">
               <h3 className="text-sm font-semibold text-gray-900">
                 Add Knowledge Item
@@ -249,7 +514,7 @@ export default function TenantKnowledgeManager({ tenantSlug }: Props) {
               </div>
             </div>
 
-            <div className="rounded-2xl border bg-gray-50 p-4">
+            <div className="rounded-2xl border bg-gray-50 p-4 xl:col-span-1">
               <h3 className="text-sm font-semibold text-gray-900">
                 Current Knowledge
               </h3>
@@ -275,6 +540,23 @@ export default function TenantKnowledgeManager({ tenantSlug }: Props) {
                       <p className="mt-2 whitespace-pre-wrap text-sm text-gray-700">
                         {item.content}
                       </p>
+
+                      {item.summary ? (
+                        <p className="mt-2 rounded-lg bg-gray-50 px-3 py-2 text-xs text-gray-600">
+                          {item.summary}
+                        </p>
+                      ) : null}
+
+                      {item.fileUrl ? (
+                        <a
+                          href={item.fileUrl}
+                          target="_blank"
+                          rel="noreferrer"
+                          className="mt-2 inline-flex text-xs font-semibold text-blue-600 hover:underline"
+                        >
+                          Open uploaded file
+                        </a>
+                      ) : null}
 
                       {item.tags?.length ? (
                         <div className="mt-2 flex flex-wrap gap-1">

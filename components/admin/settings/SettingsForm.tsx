@@ -53,6 +53,8 @@ type CalendarStatusState = {
   primaryConnection: CalendarConnectionSummary | null;
 };
 
+type CalendarProviderOption = "google" | "outlook" | "apple";
+
 const DAYS = [
   "monday",
   "tuesday",
@@ -415,27 +417,33 @@ export default function SettingsForm({ tenant }: SettingsFormProps) {
   const [calendarStatus, setCalendarStatus] =
     useState<CalendarStatusState | null>(null);
   const [isLoadingCalendar, setIsLoadingCalendar] = useState(true);
+  const [selectedCalendarProvider, setSelectedCalendarProvider] =
+  useState<CalendarProviderOption>("google");
+  const [isDisconnectingCalendar, setIsDisconnectingCalendar] = useState(false);
 
   useEffect(() => {
-    async function loadCalendarStatus() {
+    async function fetchCalendarStatus() {
       try {
+        setIsLoadingCalendar(true);
+  
         const response = await fetch(
-          `/api/admin/tenants/${tenant.slug}/calendar-connections`,
+          `/api/admin/tenants/${tenant.slug}/calendar-connections`
         );
-
+  
         const result = await response.json();
-
+  
         if (!response.ok) {
           throw new Error(
-            result.error || "Failed to load calendar connection.",
+            result.error || "Failed to load calendar connection."
           );
         }
-
+  
         setCalendarStatus({
           primaryConnection: result.primaryConnection ?? null,
         });
       } catch (error) {
         console.error(error);
+  
         setToast({
           message:
             error instanceof Error
@@ -447,12 +455,12 @@ export default function SettingsForm({ tenant }: SettingsFormProps) {
         setIsLoadingCalendar(false);
       }
     }
-
-    void loadCalendarStatus();
-
+  
+    fetchCalendarStatus();
+  
     const params = new URLSearchParams(window.location.search);
     const calendarResult = params.get("calendar");
-
+  
     if (calendarResult === "connected") {
       setToast({
         message: "Google Calendar connected successfully.",
@@ -500,10 +508,20 @@ export default function SettingsForm({ tenant }: SettingsFormProps) {
   const tenantHasWebsite = hasWebsiteUrl(tenant.websiteUrl);
 
   function toggleSection(section: CollapsibleSettingsSection) {
-    setOpenSections((prev) => ({
-      ...prev,
-      [section]: !prev[section],
-    }));
+    setOpenSections((prev) => {
+      const shouldOpen = !prev[section];
+  
+      return {
+        businessIdentity: false,
+        locationServiceArea: false,
+        services: false,
+        businessHours: false,
+        calendar: false,
+        chatSettings: false,
+        leadCapture: false,
+        [section]: shouldOpen,
+      };
+    });
   }
 
   function updateHoursDay(day: keyof HoursState, updates: Partial<DayHours>) {
@@ -587,6 +605,67 @@ export default function SettingsForm({ tenant }: SettingsFormProps) {
         ...prev,
         [section]: false,
       }));
+    }
+  }
+
+  function handleConnectCalendar() {
+    if (selectedCalendarProvider !== "google") {
+      setToast({
+        message:
+          selectedCalendarProvider === "outlook"
+            ? "Outlook Calendar support is coming soon."
+            : "Apple Calendar support is coming soon.",
+        variant: "error",
+      });
+  
+      return;
+    }
+  
+    window.location.href = `/api/admin/tenants/${tenant.slug}/calendar-connections/google/start`;
+  }
+  
+  async function handleDisconnectCalendar() {
+    const confirmed = window.confirm(
+      "Disconnect this calendar? Online scheduling will fall back to manual follow-up until a calendar is reconnected."
+    );
+  
+    if (!confirmed) return;
+  
+    try {
+      setIsDisconnectingCalendar(true);
+      setToast(null);
+  
+      const response = await fetch(
+        `/api/admin/tenants/${tenant.slug}/calendar-connections`,
+        {
+          method: "DELETE",
+        }
+      );
+  
+      const result = await response.json();
+  
+      if (!response.ok) {
+        throw new Error(result.error || "Failed to disconnect calendar.");
+      }
+  
+      window.location.reload();
+  
+      setToast({
+        message: "Calendar disconnected. Online scheduling fallback is now active.",
+        variant: "success",
+      });
+    } catch (error) {
+      console.error(error);
+  
+      setToast({
+        message:
+          error instanceof Error
+            ? error.message
+            : "Failed to disconnect calendar.",
+        variant: "error",
+      });
+    } finally {
+      setIsDisconnectingCalendar(false);
     }
   }
 
@@ -1198,58 +1277,102 @@ export default function SettingsForm({ tenant }: SettingsFormProps) {
 
               <div>
                 <h3 className="text-base font-semibold text-gray-900">
-                  Google Calendar
+                  Calendar
                 </h3>
                 <p className="mt-1 text-sm text-gray-600">
-                  Connect or reconnect the calendar used for appointment
-                  availability and booking.
+                  Manage the calendar used for scheduling calls, site visits, and customer follow-up.
                 </p>
               </div>
             </button>
 
-            <button
-              type="button"
-              onClick={() => {
-                window.location.href = `/api/admin/tenants/${tenant.slug}/calendar-connections/google/start`;
-              }}
-              className="rounded-xl bg-gray-900 px-4 py-2 text-sm font-semibold text-white transition hover:bg-gray-800"
-            >
-              {calendarStatus?.primaryConnection
-                ? "Reconnect Google Calendar"
-                : "Connect Google Calendar"}
-            </button>
+            <div className="flex flex-wrap gap-2">
+              <button
+                type="button"
+                onClick={handleConnectCalendar}
+                className="rounded-xl bg-gray-900 px-4 py-2 text-sm font-semibold text-white transition hover:bg-gray-800"
+              >
+                {calendarStatus?.primaryConnection ? "Reconnect" : "Connect"}
+              </button>
+
+              {calendarStatus?.primaryConnection ? (
+                <button
+                  type="button"
+                  onClick={() => void handleDisconnectCalendar()}
+                  disabled={isDisconnectingCalendar}
+                  className="rounded-xl border bg-white px-4 py-2 text-sm font-semibold text-red-700 transition hover:bg-red-50 disabled:cursor-not-allowed disabled:opacity-60"
+                >
+                  {isDisconnectingCalendar ? "Disconnecting..." : "Disconnect"}
+                </button>
+              ) : null}
+            </div>
           </div>
 
           {openSections.calendar ? (
-            <div className="rounded-xl border bg-white p-4 text-sm">
+            <div className="space-y-4 rounded-xl border bg-white p-4 text-sm">
+              <div>
+                <label className="text-xs font-semibold uppercase tracking-wide text-gray-500">
+                  Provider
+                </label>
+
+                <select
+                  value={selectedCalendarProvider}
+                  onChange={(e) =>
+                    setSelectedCalendarProvider(e.target.value as CalendarProviderOption)
+                  }
+                  className="mt-1 w-full rounded-xl border bg-white px-3 py-2 text-sm"
+                >
+                  <option value="google">Google Calendar</option>
+                  <option value="outlook">Outlook Calendar — Coming soon</option>
+                  <option value="apple">Apple Calendar — Coming soon</option>
+                </select>
+              </div>
+
+              {selectedCalendarProvider !== "google" ? (
+                <div className="rounded-xl border border-amber-200 bg-amber-50 px-3 py-2 text-sm text-amber-800">
+                  This calendar provider is coming soon. Google Calendar is currently supported.
+                </div>
+              ) : null}
+
               {isLoadingCalendar ? (
                 <p className="text-gray-600">Checking calendar connection...</p>
               ) : calendarStatus?.primaryConnection ? (
-                <div className="space-y-2">
-                  <p className="font-medium text-green-700">Connected</p>
+                <div className="space-y-3">
+                  <div className="rounded-xl border border-green-200 bg-green-50 px-3 py-2">
+                    <p className="font-semibold text-green-800">Connected</p>
+                    <p className="mt-1 text-xs text-green-700">
+                      Online scheduling is active for this tenant.
+                    </p>
+                  </div>
+
                   <p>
                     <span className="font-medium text-gray-700">Calendar:</span>{" "}
                     {calendarStatus.primaryConnection.calendarName ||
                       calendarStatus.primaryConnection.calendarId}
                   </p>
+
                   <p>
                     <span className="font-medium text-gray-700">Account:</span>{" "}
                     {calendarStatus.primaryConnection.externalAccountEmail ||
                       "Google account connected"}
                   </p>
+
                   <p className="text-xs text-gray-500">
-                    If appointments stop syncing or availability fails,
-                    reconnect Google Calendar to refresh access.
+                    If appointments stop syncing or availability fails, reconnect the calendar to refresh access.
                   </p>
                 </div>
               ) : (
-                <div className="space-y-2">
-                  <p className="font-medium text-amber-700">
-                    Google Calendar is not connected or needs reconnection.
-                  </p>
+                <div className="space-y-3">
+                  <div className="rounded-xl border border-amber-200 bg-amber-50 px-3 py-2">
+                    <p className="font-semibold text-amber-800">
+                      Calendar disconnected
+                    </p>
+                    <p className="mt-1 text-xs text-amber-700">
+                      Online scheduling fallback is active. Customers can still submit requests, but someone will need to follow up manually to confirm a time.
+                    </p>
+                  </div>
+
                   <p className="text-gray-600">
-                    Connect Google Calendar so Digital Front Door can check
-                    availability and book appointments.
+                    Connect Google Calendar so Digital Front Door can check availability and book calls or site visits.
                   </p>
                 </div>
               )}

@@ -19,6 +19,7 @@ import { interpretMessageIntent } from "@/lib/ai/interpretMessageIntent";
 import type { MessageIntentResult } from "@/lib/types/message-intent";
 import { decideNextAction } from "@/lib/workflow/decideNextAction";
 import { retrieveTenantKnowledge } from "@/lib/knowledge/retrieveTenantKnowledge";
+import type { SchedulingIntentResult } from "@/lib/chat/detectSchedulingIntent";
 
 function generateId(prefix: string) {
   return `${prefix}_${Math.random().toString(36).slice(2, 10)}`;
@@ -188,6 +189,69 @@ function detectConversationClose(message: string) {
     normalized === "talk soon" ||
     normalized === "bye" ||
     normalized === "goodbye"
+  );
+}
+
+function isReservationLikeTenant(tenant: Tenant) {
+  return (
+    tenant.bookingType === "reservation" ||
+    tenant.bookingType === "direct_booking"
+  );
+}
+
+function shouldOfferSchedulingAfterLeadCreated(tenant: Tenant) {
+  return (
+    tenant.bookingType === "reservation" ||
+    tenant.bookingType === "direct_booking" ||
+    tenant.bookingType === "consultation" ||
+    tenant.bookingType === "estimate" ||
+    tenant.bookingType === "phone_call"
+  );
+}
+
+function buildLeadCreatedNextStepReply(tenant: Tenant) {
+  const nextStepMessage =
+    tenant.nextStepMessage?.trim() ||
+    "The next step is usually confirming the details and coordinating the best time.";
+
+  if (tenant.bookingType === "reservation") {
+    return `Great, I have enough information to get your rental request started. ${nextStepMessage} Would you like to schedule a quick confirmation call now?`;
+  }
+
+  if (tenant.bookingType === "direct_booking") {
+    return `Great, I have enough information to get your request started. ${nextStepMessage} Would you like to check available booking times now?`;
+  }
+
+  if (tenant.bookingType === "phone_call") {
+    return `Great, I have enough information to get your request started. ${nextStepMessage} Would you like to schedule a quick call now?`;
+  }
+
+  if (tenant.bookingType === "estimate") {
+    return `Great, I have enough information to get your estimate request started. ${nextStepMessage} Would you like to schedule a time to discuss the details?`;
+  }
+
+  return `Great, I have enough information to get your request started. ${nextStepMessage} Would you like to schedule the next step now?`;
+}
+
+function isAffirmativeSchedulingReply(message: string) {
+  const normalized = message.trim().toLowerCase();
+
+  return (
+    normalized === "yes" ||
+    normalized === "yep" ||
+    normalized === "yeah" ||
+    normalized === "sure" ||
+    normalized === "ok" ||
+    normalized === "okay" ||
+    normalized.includes("yes") ||
+    normalized.includes("let's") ||
+    normalized.includes("lets") ||
+    normalized.includes("book") ||
+    normalized.includes("reserve") ||
+    normalized.includes("schedule") ||
+    normalized.includes("confirm") ||
+    normalized.includes("do that") ||
+    normalized.includes("sounds good")
   );
 }
 
@@ -760,6 +824,20 @@ function finalizeSessionStep(session: ChatSession, tenant: Tenant): ChatSession 
   };
 }
 
+function isPostBookingClosingMessage(message: string) {
+  const normalized = message.trim().toLowerCase();
+
+  return (
+    normalized.includes("see you") ||
+    normalized.includes("talk to you then") ||
+    normalized.includes("talk then") ||
+    normalized.includes("looking forward") ||
+    normalized.includes("thanks for your time") ||
+    normalized.includes("thank you for your time") ||
+    normalized.includes("appreciate your time")
+  );
+}
+
 
 async function applyPostCaptureStructuredUpdates(input: {
   leadId: string;
@@ -770,7 +848,6 @@ async function applyPostCaptureStructuredUpdates(input: {
     address: string;
     location: string;
     timeline: string;
-    appointment: string;
   }>;
 }) {
   const { leadId, tenantSlug, previous, updates } = input;
@@ -780,11 +857,11 @@ async function applyPostCaptureStructuredUpdates(input: {
     address: string;
     location: string;
     timeline: string;
-    appointment: string;
   }> = {};
 
   if (typeof updates.email === "string" && updates.email.trim()) {
     const normalized = normalizeEmail(updates.email);
+
     if (normalized) {
       safeUpdates.email = normalized;
     }
@@ -800,10 +877,6 @@ async function applyPostCaptureStructuredUpdates(input: {
 
   if (typeof updates.timeline === "string" && updates.timeline.trim()) {
     safeUpdates.timeline = updates.timeline.trim();
-  }
-
-  if (typeof updates.appointment === "string" && updates.appointment.trim()) {
-    safeUpdates.appointment = updates.appointment.trim();
   }
 
   if (Object.keys(safeUpdates).length === 0) {
@@ -852,15 +925,15 @@ async function applyPostCaptureStructuredUpdates(input: {
     });
   }
 
-  if (safeUpdates.appointment && safeUpdates.appointment !== previous.appointment) {
-    await logStructuredLeadFieldActivity({
-      leadId,
-      tenantSlug,
-      fieldName: "appointment",
-      previousValue: previous.appointment,
-      newValue: safeUpdates.appointment,
-    });
-  }
+  // if (safeUpdates.appointment && safeUpdates.appointment !== previous.appointment) {
+  //   await logStructuredLeadFieldActivity({
+  //     leadId,
+  //     tenantSlug,
+  //     fieldName: "appointment",
+  //     previousValue: previous.appointment,
+  //     newValue: safeUpdates.appointment,
+  //   });
+  // }
 }
 
 export async function createChatSessionForTenantSlug(
@@ -1178,6 +1251,27 @@ if (
 
   if (
     messageIntent.confidence === "high" &&
+    workflowDecision.action === "start_scheduling"
+  ) {
+    const schedulingResult = await runSchedulingWorkflow({
+      session,
+      sessionId,
+      trimmedContent,
+      schedulingIntent: {
+        hasSchedulingIntent: true,
+        type: "schedule",
+        appointmentType: isReservationLikeTenant(tenant) ? "call" : null,
+        confidence: "high",
+      },
+    });
+  
+    if (schedulingResult.handled && schedulingResult.response) {
+      return schedulingResult.response;
+    }
+  }
+
+  if (
+    messageIntent.confidence === "high" &&
     [
       "update_contact_info",
       "add_appointment_note",
@@ -1247,6 +1341,61 @@ if (
   }
 }
 
+  if (
+    session.currentStep === "complete" &&
+    session.leadId &&
+    session.intakeData?.awaitingSchedulingConfirmation &&
+    isAffirmativeSchedulingReply(trimmedContent)
+  ) {
+    session.intakeData = {
+      ...session.intakeData,
+      awaitingSchedulingConfirmation: false,
+    };
+
+    await updateSession(session);
+
+    const inferredSchedulingIntent = await detectSchedulingIntent(trimmedContent);
+
+    const schedulingResult = await runSchedulingWorkflow({
+      session,
+      sessionId,
+      trimmedContent,
+      schedulingIntent: {
+        hasSchedulingIntent: true,
+        type: "schedule",
+        appointmentType: isReservationLikeTenant(tenant)
+          ? "call"
+          : inferredSchedulingIntent.appointmentType ?? undefined,
+        confidence: "high",
+      },
+    });
+
+    if (schedulingResult.handled && schedulingResult.response) {
+      return schedulingResult.response;
+    }
+  }
+
+  if (
+    session.currentStep === "complete" &&
+    session.leadId &&
+    session.intakeData?.schedulingState?.step === "confirm" &&
+    isPostBookingClosingMessage(trimmedContent)
+  ) {
+    const assistantMessage = createMessageObject(
+      sessionId,
+      "assistant",
+      "You’re all set. We’ll see you then."
+    );
+  
+    await insertMessage(assistantMessage);
+  
+    return {
+      sessionId,
+      messages: await getMessagesForSession(sessionId),
+      session,
+    };
+  }
+  
   const schedulingIntent = await detectSchedulingIntent(trimmedContent);
 
   if (schedulingIntent.hasSchedulingIntent) {
@@ -1282,21 +1431,21 @@ if (
    * remember that intent so we can resume scheduling immediately
    * after required intake is complete and the lead is created.
    */
-  // if (
-  //   schedulingIntent.hasSchedulingIntent &&
-  //   schedulingIntent.type === "schedule" &&
-  //   !session.leadCaptured
-  // ) {
-  //   session.intakeData = {
-  //     ...session.intakeData,
-  //     pendingSchedulingRequest: true,
-  //     pendingSchedulingPreference: trimmedContent,
-  //     pendingSchedulingAppointmentType:
-  //       schedulingIntent.appointmentType ?? undefined,
-  //   };
+  if (
+    schedulingIntent.hasSchedulingIntent &&
+    schedulingIntent.type === "schedule" &&
+    !session.leadCaptured
+  ) {
+    session.intakeData = {
+      ...session.intakeData,
+      pendingSchedulingRequest: true,
+      pendingSchedulingPreference: trimmedContent,
+      pendingSchedulingAppointmentType:
+        schedulingIntent.appointmentType ?? undefined,
+    };
   
-  //   await updateSession(session);
-  // }
+    await updateSession(session);
+  }
 
   /**
    * CLOSE POST-CAPTURE CONVERSATION CLEANLY
@@ -1707,33 +1856,99 @@ updatedSession = applyFallbackStepCapture({
   ) {
     updatedSession = await createLeadAndNotifyOnce(updatedSession);
   
+  /**
+   * If the customer previously asked to schedule before the lead existed,
+   * resume scheduling immediately now that the lead has been created.
+   */
+  if (updatedSession.intakeData?.pendingSchedulingRequest) {
     /**
-     * If the customer previously asked to schedule before the lead existed,
-     * resume scheduling immediately now that the lead has been created.
+     * Reservation/direct-booking tenants should not auto-resume into calendar
+     * just because the customer asked about availability earlier.
+     *
+     * We first offer a confirmation call after the lead is created.
      */
-    if (updatedSession.intakeData?.pendingSchedulingRequest) {
-      const resumedSchedulingIntent = {
-        hasSchedulingIntent: true,
-        type: "schedule" as const,
-        appointmentType:
-          updatedSession.intakeData.pendingSchedulingAppointmentType ?? null,
-        confidence: "high" as const,
+    if (isReservationLikeTenant(tenant)) {
+      updatedSession.intakeData = {
+        ...updatedSession.intakeData,
+        pendingSchedulingRequest: false,
+        pendingSchedulingPreference: undefined,
+        pendingSchedulingAppointmentType: undefined,
+        awaitingSchedulingConfirmation: true,
       };
   
-      const schedulingResult = await runSchedulingWorkflow({
-        session: updatedSession,
-        sessionId,
-        trimmedContent:
-          updatedSession.intakeData.pendingSchedulingPreference ||
-          "Customer wants to schedule.",
-        schedulingIntent: resumedSchedulingIntent,
-      });
+      await updateSession(updatedSession);
   
-      if (schedulingResult.handled && schedulingResult.response) {
-        return schedulingResult.response;
-      }
+      const assistantReply = createMessageObject(
+        sessionId,
+        "assistant",
+        buildLeadCreatedNextStepReply(tenant)
+      );
+  
+      await insertMessage(assistantReply);
+  
+      return {
+        sessionId,
+        messages: await getMessagesForSession(sessionId),
+        session: updatedSession,
+      };
+    }
+  
+    const pendingSchedulingPreference =
+      updatedSession.intakeData.pendingSchedulingPreference ||
+      "Customer wants to schedule.";
+  
+    const resumedSchedulingIntent: SchedulingIntentResult = {
+      hasSchedulingIntent: true,
+      type: "schedule",
+      appointmentType:
+        updatedSession.intakeData.pendingSchedulingAppointmentType ?? null,
+      confidence: "high",
+    };
+  
+    updatedSession.intakeData = {
+      ...updatedSession.intakeData,
+      pendingSchedulingRequest: false,
+      pendingSchedulingPreference: undefined,
+      pendingSchedulingAppointmentType: undefined,
+    };
+  
+    await updateSession(updatedSession);
+  
+    const schedulingResult = await runSchedulingWorkflow({
+      session: updatedSession,
+      sessionId,
+      trimmedContent: pendingSchedulingPreference,
+      schedulingIntent: resumedSchedulingIntent,
+    });
+  
+    if (schedulingResult.handled && schedulingResult.response) {
+      return schedulingResult.response;
     }
   }
+
+  if (shouldOfferSchedulingAfterLeadCreated(tenant)) {
+    updatedSession.intakeData = {
+      ...updatedSession.intakeData,
+      awaitingSchedulingConfirmation: true,
+    };
+
+    await updateSession(updatedSession);
+
+    const assistantReply = createMessageObject(
+      sessionId,
+      "assistant",
+      buildLeadCreatedNextStepReply(tenant)
+    );
+
+    await insertMessage(assistantReply);
+
+    return {
+      sessionId,
+      messages: await getMessagesForSession(sessionId),
+      session: updatedSession,
+    };
+  }
+}
 
   const assistantReplyContent =
     aiTurn.status === "generated" && aiTurn.reply

@@ -107,7 +107,13 @@ export default function ChatSchedulingPicker({
     return null;
   }
 
-  if (!days.length) return null;
+  if (schedulingState.step === "select_day" && !days.length) {
+    return null;
+  }
+  
+  if (schedulingState.step === "select_slot" && !slots.length) {
+    return null;
+  }
 
   return (
     <div className="mt-3 max-w-[96%] rounded-2xl border bg-white p-4 shadow-sm">
@@ -160,7 +166,7 @@ export default function ChatSchedulingPicker({
                   disabled={!isAvailable || isSending}
                   onClick={() => {
                     if (availableDay) {
-                      onSelectOption(String(availableDay.optionNumber));
+                      onSelectOption(availableDay.displayLabel);
                     }
                   }}
                   className={[
@@ -187,13 +193,21 @@ export default function ChatSchedulingPicker({
 
         {/* Times */}
         <div className="rounded-xl border bg-gray-50 p-3">
-          <p className="text-sm font-semibold text-gray-900">Select a time</p>
+          <div className="mb-3">
+            <p className="text-sm font-semibold text-gray-900">
+              {schedulingState.step === "select_slot"
+                ? "Select an available time"
+                : "Select an available day"}
+            </p>
 
-          <p className="mt-1 text-xs text-gray-500">
-            {selectedDay?.displayLabel
-              ? selectedDay.displayLabel
-              : "Choose an available date first"}
-          </p>
+            <p className="mt-1 text-xs text-gray-500">
+              {schedulingState.step === "select_slot"
+                ? selectedDay?.displayLabel
+                  ? `Available times for ${selectedDay.displayLabel}`
+                  : "Choose one of the available times below."
+                : "Choose a day below to load available times."}
+            </p>
+          </div>
 
           {schedulingState.step === "select_day" ? (
             <div className="mt-4 rounded-xl border border-dashed bg-white p-4 text-sm text-gray-600">
@@ -206,11 +220,14 @@ export default function ChatSchedulingPicker({
                   key={slot.optionNumber}
                   type="button"
                   disabled={isSending}
-                  onClick={() => onSelectOption(String(slot.optionNumber))}
+                  onClick={() => onSelectOption(slot.displayTime)}
                   className="flex items-center justify-between rounded-xl border bg-white px-3 py-3 text-sm font-medium text-gray-900 transition hover:border-gray-900 hover:bg-gray-50 disabled:opacity-60"
                 >
                   <span>{slot.displayTime}</span>
-                  <span className="text-xs text-gray-400">Select</span>
+
+                  <span className="text-xs text-gray-400">
+                    Tap to select
+                  </span>
                 </button>
               ))}
             </div>

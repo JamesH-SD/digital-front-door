@@ -48,6 +48,39 @@ function detectSchedulingIntentWithRules(message: string): SchedulingIntentResul
     return { hasSchedulingIntent: false, type: "none", confidence: "low" };
   }
 
+  const isClosingAfterBookedAppointment =
+  /\b(see you|see ya|talk to you|talk then|see you then|see you sunday|see you monday|see you tuesday|see you wednesday|see you thursday|see you friday|see you saturday)\b/.test(
+    normalized
+  ) ||
+  /\b(i'll see you|ill see you|we'll see you|see you at)\b/.test(normalized) ||
+  /\b(looking forward|thanks|thank you|appreciate it)\b/.test(normalized);
+
+if (isClosingAfterBookedAppointment) {
+  return {
+    hasSchedulingIntent: false,
+    type: "none",
+    appointmentType: null,
+    confidence: "high",
+  };
+}
+
+  const isPushingBackOnReschedule =
+    normalized.includes("what made you think") ||
+    normalized.includes("why did you think") ||
+    normalized.includes("i said i will see you") ||
+    normalized.includes("i said i'll see you") ||
+    normalized.includes("i did not ask to reschedule") ||
+    normalized.includes("i didn't ask to reschedule");
+
+  if (isPushingBackOnReschedule) {
+    return {
+      hasSchedulingIntent: false,
+      type: "none",
+      appointmentType: null,
+      confidence: "high",
+    };
+  }
+
   const asksIfSomeoneCanHelp =
   /\b(someone|anyone|you)\s+(available|free)\s+to\s+(help|answer|chat|talk)\b/.test(
     normalized

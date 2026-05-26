@@ -10,7 +10,6 @@ type PostCaptureUpdates = {
   address?: string;
   location?: string;
   timeline?: string;
-  appointment?: string;
 };
 
 type PostCaptureSignals = {
@@ -153,7 +152,6 @@ export async function generatePostCaptureTurn(input: {
           "address": "string or omit",
           "location": "string or omit",
           "timeline": "string or omit",
-          "appointment": "string or omit"
         },
         "customerUpdateSummary": "short summary of any extra useful details not already captured",
         "signals": {
@@ -172,6 +170,10 @@ export async function generatePostCaptureTurn(input: {
       - After a lead has already been created, prioritize natural conversation over continued qualification.
       - Answer the customer's direct question first before asking for anything else.
       - Ask at most one follow-up question, and only when it is clearly useful.
+      - After an appointment is booked, continue answering customer questions helpfully and naturally.
+      - Do not make the customer feel like the conversation is over just because an appointment exists.
+      - If the customer asks a business question after booking, answer it directly and warmly.
+      - Avoid phrases that feel dismissive, such as "we can discuss this during your appointment," unless the customer specifically asks what will happen at the appointment.
       - If the customer seems done, do not keep probing for more details.
       - Do not ask for information already clearly known.
       - Avoid repeating or re-confirming details unless necessary for clarity.
@@ -202,6 +204,7 @@ export async function generatePostCaptureTurn(input: {
       - Never provide an address, hours, or location details unless they are explicitly present in Tenant Context and allowed by the sharing rules.
       - Do not guess or infer business operations based on industry type.
       - If unsure, defer to human follow-up instead of answering.
+      - For urgent or emergency-related questions, be helpful and practical. If direct phone contact is appropriate, suggest calling the business rather than sounding dismissive.
       - Never treat a city, neighborhood, or service area as a street address.
       - Only set "address" when the customer clearly provides a real property or street address.
       - Put neighborhoods, cities, and general areas into "location", not "address".
@@ -364,7 +367,6 @@ export async function generatePostCaptureTurn(input: {
         address: sanitizeString(parsed?.updates?.address),
         location: sanitizeString(parsed?.updates?.location),
         timeline: sanitizeString(parsed?.updates?.timeline),
-        appointment: sanitizeString(parsed?.updates?.appointment),
       },
       customerUpdateSummary: sanitizeString(parsed?.customerUpdateSummary),
       signals: {

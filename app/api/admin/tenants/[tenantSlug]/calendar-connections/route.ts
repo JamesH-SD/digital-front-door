@@ -4,6 +4,7 @@ import {
   getActiveCalendarConnectionsByTenantSlug,
   getPrimaryCalendarConnectionByTenantSlug,
   upsertPrimaryCalendarConnection,
+  disconnectPrimaryCalendarConnectionByTenantSlug,
 } from "@/lib/calendar/calendarConnectionService";
 
 type RouteContext = {
@@ -138,6 +139,38 @@ export async function POST(
 
     return NextResponse.json(
       { error: "Failed to save calendar connection" },
+      { status: 500 }
+    );
+  }
+}
+
+export async function DELETE(
+  _request: NextRequest,
+  context: RouteContext
+) {
+  try {
+    const { tenantSlug } = await context.params;
+
+    const tenant = await getTenantBySlug(tenantSlug);
+
+    if (!tenant) {
+      return NextResponse.json(
+        { error: "Tenant not found" },
+        { status: 404 }
+      );
+    }
+
+    await disconnectPrimaryCalendarConnectionByTenantSlug(tenantSlug);
+
+    return NextResponse.json(
+      { success: true },
+      { status: 200 }
+    );
+  } catch (error) {
+    console.error("DELETE calendar connection error:", error);
+
+    return NextResponse.json(
+      { error: "Failed to disconnect calendar connection" },
       { status: 500 }
     );
   }

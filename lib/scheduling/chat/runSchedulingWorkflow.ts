@@ -471,7 +471,7 @@ function parseSelectedDayOption(
     const label = day.displayLabel.toLowerCase();
     const weekday = label.split(",")[0]?.toLowerCase() || "";
 
-    if (weekday && normalized.includes(weekday) && availableDays.length <= 7) {
+    if (weekday && normalized.includes(weekday)) {
       return day.optionNumber;
     }
   }
@@ -536,22 +536,29 @@ function detectAppointmentType(message: string): AppointmentType | null {
     normalized.includes("come take a look") ||
     normalized.includes("take a look") ||
     normalized.includes("look at") ||
+    normalized.includes("look at my space") ||
     normalized.includes("look at the space") ||
+    normalized.includes("look at our space") ||
     normalized.includes("see the space") ||
     normalized.includes("see my space") ||
     normalized.includes("see our space") ||
+    normalized.includes("see the area") ||
     normalized.includes("come to my house") ||
     normalized.includes("come to my home") ||
     normalized.includes("my house") ||
     normalized.includes("my home") ||
     normalized.includes("at my house") ||
     normalized.includes("at my home") ||
+    normalized.includes("see the home") ||
+    normalized.includes("see the house") ||
     normalized.includes("see it") ||
     normalized.includes("look it over") ||
     normalized.includes("walk through") ||
     normalized.includes("walkthrough") ||
+    normalized.includes("walk the property") ||
     normalized.includes("site") ||
     normalized.includes("visit") ||
+    normalized.includes("site visit") ||
     normalized.includes("in person") ||
     normalized.includes("onsite") ||
     normalized.includes("on-site") ||
@@ -1030,7 +1037,13 @@ export async function runSchedulingWorkflow({
   ) {
     const existingLead = await getLeadById(session.leadId);
   
-    if (existingLead?.appointment) {
+    const existingAppointment = existingLead?.appointment?.trim();
+
+  if (
+    existingAppointment &&
+    existingAppointment.toLowerCase() !== "not provided" &&
+    existingAppointment.toLowerCase() !== "unknown"
+  ) {
       const normalized = trimmedContent.toLowerCase();
     
       const isAskingForReminder =
@@ -1049,8 +1062,8 @@ export async function runSchedulingWorkflow({
         normalized.includes("different day");
     
       const reply = isAskingForReminder && !wantsToChangeAppointment
-        ? `You’re scheduled for ${existingLead.appointment}.`
-        : `You’re already scheduled for ${existingLead.appointment}. Did you want to reschedule that appointment?`;
+        ? `You’re scheduled for ${existingAppointment}.`
+        : `You’re already scheduled for ${existingAppointment}. Did you want to reschedule that appointment?`;
     
       const assistantMessage = createMessageObject(
         sessionId,
@@ -1110,11 +1123,17 @@ export async function runSchedulingWorkflow({
         ? "call"
         : detectAppointmentType(trimmedContent));
 
+    const effectiveRequestedAppointmentType =
+      tenant?.bookingType === "reservation" ||
+      tenant?.bookingType === "direct_booking"
+        ? "call"
+        : requestedAppointmentType;
+
   /**
    * If the customer already requested an on-site visit, move directly to
    * address collection.
    */
-  if (requestedAppointmentType === "site_visit") {
+  if (effectiveRequestedAppointmentType === "site_visit") {
     session.intakeData = {
       ...session.intakeData,
       schedulingState: {
@@ -1154,10 +1173,96 @@ export async function runSchedulingWorkflow({
   }
 
   /**
+ * Reservation/direct-booking tenants do not need contractor-style
+ * call/site-visit routing. Once the lead exists and the customer wants
+ * to book/reserve, go straight to available days.
+ *
+ * Example:
+ * - trailer rental pickup
+ * - dog grooming appointment
+ * - mobile detail booking
+ */
+if (
+  tenant &&
+  (tenant.bookingType === "reservation" ||
+    tenant.bookingType === "direct_booking")
+) {
+  try {
+    const availableDays = await getOfferedDaysForTenant({
+      tenantSlug: session.tenantSlug,
+    });
+
+    if (availableDays.length === 0) {
+      return fallbackAndCloseScheduling({
+        session,
+        sessionId,
+        appointmentPreference:
+          trimmedContent || "Customer asked to book or reserve.",
+      });
+    }
+
+    session.intakeData = {
+      ...session.intakeData,
+      schedulingState: {
+        active: true,
+        step: "select_day",
+        appointmentType: "call",
+        interactionType: "phone_call",
+        address: undefined,
+        selectedSlot: undefined,
+        offeredSlots: undefined,
+        availableDays,
+        selectedDay: undefined,
+        preferenceText: trimmedContent,
+        dayRetryCount: 0,
+        timeRetryCount: 0,
+      },
+    };
+
+    await updateSession(session);
+
+    const assistantMessage = createMessageObject(
+      sessionId,
+      "assistant",
+      generateSchedulingResponse({
+        type: "offer_days",
+        days: availableDays,
+      })
+    );
+
+    await insertMessage(assistantMessage);
+
+    return {
+      handled: true,
+      response: {
+        sessionId,
+        messages: await getMessagesForSession(sessionId),
+        session,
+      },
+    };
+  } catch (error) {
+    console.error("Availability fetch failed:", error);
+
+    await markCalendarInvalidIfNeeded({
+      tenantSlug: session.tenantSlug,
+      error,
+    });
+
+    return fallbackAndCloseScheduling({
+      session,
+      sessionId,
+      appointmentPreference:
+        trimmedContent || "Customer asked to book or reserve.",
+      calendarStatus: isCalendarAuthError(error) ? "invalid" : undefined,
+    });
+  }
+}
+
+  /**
    * If the customer already requested a phone call, no address is needed.
    * Load available days immediately.
    */
-  if (requestedAppointmentType === "call") {
+  if (effectiveRequestedAppointmentType === "call") {
     try {
       const availableDays = await getOfferedDaysForTenant({
         tenantSlug: session.tenantSlug,
@@ -1226,6 +1331,95 @@ export async function runSchedulingWorkflow({
       });
     }
   }
+
+    /**
+   * Reservation/direct booking tenants should not be forced into
+   * contractor-style "call vs site visit" language.
+   *
+   * Example:
+   * - trailer rental pickup
+   * - dog grooming booking
+   * - house cleaning appointment
+   * - mobile detailing booking
+   *
+   * If the customer asks about availability for these tenants, load bookable
+   * days immediately.
+   */
+    if (
+      !requestedAppointmentType &&
+      (tenant?.bookingType === "reservation" ||
+        tenant?.bookingType === "direct_booking")
+    ) {
+      try {
+        const availableDays = await getOfferedDaysForTenant({
+          tenantSlug: session.tenantSlug,
+        });
+  
+        if (availableDays.length === 0) {
+          return fallbackAndCloseScheduling({
+            session,
+            sessionId,
+            appointmentPreference:
+              trimmedContent || "Customer asked about availability.",
+          });
+        }
+  
+        session.intakeData = {
+          ...session.intakeData,
+          schedulingState: {
+            active: true,
+            step: "select_day",
+            appointmentType: "call",
+            interactionType: "phone_call",
+            address: undefined,
+            selectedSlot: undefined,
+            offeredSlots: undefined,
+            availableDays,
+            selectedDay: undefined,
+            preferenceText: trimmedContent,
+            dayRetryCount: 0,
+            timeRetryCount: 0,
+          },
+        };
+  
+        await updateSession(session);
+  
+        const assistantMessage = createMessageObject(
+          sessionId,
+          "assistant",
+          generateSchedulingResponse({
+            type: "offer_days",
+            days: availableDays,
+          })
+        );
+  
+        await insertMessage(assistantMessage);
+  
+        return {
+          handled: true,
+          response: {
+            sessionId,
+            messages: await getMessagesForSession(sessionId),
+            session,
+          },
+        };
+      } catch (error) {
+        console.error("Availability fetch failed:", error);
+  
+        await markCalendarInvalidIfNeeded({
+          tenantSlug: session.tenantSlug,
+          error,
+        });
+  
+        return fallbackAndCloseScheduling({
+          session,
+          sessionId,
+          appointmentPreference:
+            trimmedContent || "Customer asked about availability.",
+          calendarStatus: isCalendarAuthError(error) ? "invalid" : undefined,
+        });
+      }
+    }
 
   /**
    * If the customer asked to schedule but did not clearly choose call/site visit,

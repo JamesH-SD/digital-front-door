@@ -70,7 +70,7 @@ import type {
   export function generateSchedulingResponse(input: SchedulingResponseInput) {
     switch (input.type) {
         case "ask_appointment_type":
-          return "Got it. Would you prefer a quick call to confirm the details, or would you like us to help coordinate the next step another way?";
+          return "Got it. Would you prefer a quick call, or would you like us to come out for an on-site visit?"; 
         
         // case "ask_appointment_type":
         //     return "The next step is usually a quick call or an on-site visit so we can understand what you’re looking for. Would you prefer us to come out, or start with a call?";
@@ -79,10 +79,10 @@ import type {
         //     return "Got it, we can definitely come take a look. Do you want us to stop by in person, or would you rather start with a quick call?";
   
       case "ask_address":
-        return "Great, what’s the full project address, including city and ZIP code?";
+        return "Great, what’s the full address, including city and ZIP code?";
   
       case "ask_full_address":
-        return "Can you send the full project address, including city and ZIP code? That helps us schedule the visit accurately.";
+        return "Can you send the full address, including city and ZIP code? That helps us schedule accurately.";
   
       case "offer_days": {
         if (input.days.length === 0) {
@@ -97,7 +97,7 @@ import type {
           return generateSchedulingResponse({ type: "fallback_followup" });
         }
       
-        return `Great, I found available times for ${input.dayLabel}. Tap one below, or reply with the time that works best.`;
+        return `Here are some available times for ${input.dayLabel}. Tap one below, or reply with the time that works best.`;
       }
 
       case "reoffer_days": {
@@ -105,7 +105,7 @@ import type {
           return generateSchedulingResponse({ type: "fallback_followup" });
         }
       
-        return "No problem. Here are the available days again — tap one below to check times.";
+        return "No problem. Here are the available days again, tap one below to check times.";
       }
 
       case "ask_valid_day": {
@@ -123,9 +123,9 @@ import type {
         return "Sounds good, we’ll follow up if anything else is needed.";
   
       case "fallback_followup":
-        return "No problem, I’ll have someone follow up directly to find a time that works.";
+        return "I have your request ready. Our online calendar is temporarily unavailable, so someone will follow up directly to confirm a time. In the meantime, please let me know if you have additional questions.";
   
-      default:
-        return "No problem, I’ll have someone follow up directly to find a time that works.";
+      case "fallback_followup":
+        return "I have your request ready. Our online calendar is temporarily unavailable, so someone will follow up directly to confirm a time. In the meantime, please let me know if you have additional questions.";
     }
   }

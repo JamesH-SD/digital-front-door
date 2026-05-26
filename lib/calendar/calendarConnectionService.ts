@@ -401,3 +401,27 @@ export async function upsertPrimaryCalendarConnection(input: {
     isActive: true,
   });
 }
+
+export async function disconnectPrimaryCalendarConnectionByTenantSlug(
+  tenantSlug: string
+): Promise<void> {
+  const supabase = createAdminClient();
+
+  const { error } = await supabase
+    .from("calendar_connections")
+    .update({
+      is_active: false,
+      is_primary: false,
+      status: "invalid",
+      invalid_reason: "Disconnected by tenant admin.",
+      invalid_at: new Date().toISOString(),
+      updated_at: new Date().toISOString(),
+    })
+    .eq("tenant_slug", tenantSlug)
+    .eq("is_primary", true);
+
+  if (error) {
+    console.error("Error disconnecting primary calendar:", error.message);
+    throw error;
+  }
+}
