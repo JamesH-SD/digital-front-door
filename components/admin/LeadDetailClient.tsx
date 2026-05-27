@@ -299,7 +299,7 @@ function CompactField({
           value={value || ""}
           onChange={(e) => onChange?.(e.target.value)}
           placeholder={placeholder || `Enter ${label.toLowerCase()}`}
-          className="mt-1 w-full rounded-md border border-gray-300 bg-white px-3 py-2 text-sm text-gray-900 outline-none focus:border-gray-500"
+          className="mt-1 w-full rounded-md border border-stone-200 bg-white px-3 py-2 text-sm text-gray-900 outline-none focus:border-stone-400"
         />
       </div>
     );
@@ -1022,7 +1022,7 @@ export default function LeadDetailClient({
                       }))
                     }
                     placeholder="Enter date and time"
-                    className="mt-1 w-full rounded-md border border-gray-300 bg-white px-3 py-2 text-sm text-gray-900 outline-none focus:border-gray-500"
+                    className="mt-1 w-full rounded-md border border-stone-200 bg-white px-3 py-2 text-sm text-gray-900 outline-none focus:border-stone-400"
                   />
                 </>
               ) : (
@@ -1099,7 +1099,7 @@ export default function LeadDetailClient({
                     }))
                   }
                   rows={4}
-                  className="w-full rounded-md border border-gray-300 bg-white px-3 py-2 text-sm text-gray-900 outline-none focus:border-gray-500"
+                  className="w-full rounded-md border border-stone-200 bg-white px-3 py-2 text-sm text-gray-900 outline-none focus:border-stone-400"
                   placeholder="Enter description"
                 />
               ) : (
@@ -1219,7 +1219,7 @@ export default function LeadDetailClient({
                   setForm((prev) => ({ ...prev, notes: e.target.value }))
                 }
                 rows={5}
-                className="w-full rounded-md border border-gray-300 bg-white px-3 py-2 text-sm text-gray-900 outline-none focus:border-gray-500 disabled:bg-gray-100 disabled:text-gray-500"
+                className="w-full rounded-md border border-stone-200 bg-white px-3 py-2 text-sm text-gray-900 outline-none focus:border-stone-400 disabled:bg-gray-100 disabled:text-gray-500"
                 placeholder="Add contractor notes here"
                 disabled={!isEditing}
               />
@@ -1306,7 +1306,7 @@ export default function LeadDetailClient({
                   </div>
                 </div>
               ) : (
-                <div className="rounded-md border border-gray-300 bg-gray-100 px-3 py-2 text-sm text-gray-900">
+                <div className="rounded-md border border-stone-200 bg-gray-100 px-3 py-2 text-sm text-gray-900">
                   No activity recorded yet.
                 </div>
               )}

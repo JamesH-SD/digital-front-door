@@ -102,12 +102,12 @@ function AdminShellContent({
     overrideBreadcrumbs ?? buildBreadcrumbs(pathname, tenant.slug);
 
   return (
-    <div className="min-h-screen bg-gray-50">
+    <div className="saas-shell min-h-screen">
       <div className="mx-auto flex min-h-screen max-w-[1440px]">
         <AdminSidebar tenant={tenant} />
 
         <div className="flex min-w-0 flex-1 flex-col">
-          <header className="h-20 border-b bg-white">
+          <header className="h-20 border-b border-stone-200/70 bg-white/75 backdrop-blur-xl">
             <div className="mx-auto flex h-full w-full max-w-6xl items-center justify-between px-4 sm:px-6">
               <div className="min-w-0">
                 <h1 className="truncate text-lg font-semibold text-gray-900">
@@ -137,7 +137,7 @@ function AdminShellContent({
           </header>
 
           <main className="flex-1">
-            <div className="mx-auto w-full max-w-6xl px-4 py-6 sm:px-6">
+            <div className="mx-auto w-full max-w-6xl px-4 py-8 sm:px-6">
               <nav className="mb-6 flex flex-wrap items-center gap-2 text-sm">
                 {breadcrumbs.map((item, index) => (
                   <span

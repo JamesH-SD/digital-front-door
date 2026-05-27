@@ -20,6 +20,7 @@ import type { MessageIntentResult } from "@/lib/types/message-intent";
 import { decideNextAction } from "@/lib/workflow/decideNextAction";
 import { retrieveTenantKnowledge } from "@/lib/knowledge/retrieveTenantKnowledge";
 import type { SchedulingIntentResult } from "@/lib/chat/detectSchedulingIntent";
+import { getBookingFlowConfig } from "@/lib/config/getBookingFlowConfig";
 
 function generateId(prefix: string) {
   return `${prefix}_${Math.random().toString(36).slice(2, 10)}`;
@@ -169,6 +170,26 @@ function mapMessage(row: any): ChatMessage {
   };
 }
 
+function isReservationLikeTenant(tenant: Tenant) {
+  const bookingFlow = getBookingFlowConfig(tenant);
+
+  return (
+    bookingFlow.bookingType === "reservation" ||
+    bookingFlow.bookingType === "direct_booking"
+  );
+}
+
+function shouldOfferSchedulingAfterLeadCreated(tenant: Tenant) {
+  return getBookingFlowConfig(tenant).shouldOfferSchedulingAfterLeadCreated;
+}
+
+function buildLeadCreatedNextStepReply(tenant: Tenant) {
+  return getBookingFlowConfig(tenant).leadCreatedReply;
+}
+
+function getDefaultSchedulingAppointmentType(tenant: Tenant) {
+  return getBookingFlowConfig(tenant).defaultAppointmentType;
+}
 
 function detectConversationClose(message: string) {
   const normalized = message.trim().toLowerCase();
@@ -190,47 +211,6 @@ function detectConversationClose(message: string) {
     normalized === "bye" ||
     normalized === "goodbye"
   );
-}
-
-function isReservationLikeTenant(tenant: Tenant) {
-  return (
-    tenant.bookingType === "reservation" ||
-    tenant.bookingType === "direct_booking"
-  );
-}
-
-function shouldOfferSchedulingAfterLeadCreated(tenant: Tenant) {
-  return (
-    tenant.bookingType === "reservation" ||
-    tenant.bookingType === "direct_booking" ||
-    tenant.bookingType === "consultation" ||
-    tenant.bookingType === "estimate" ||
-    tenant.bookingType === "phone_call"
-  );
-}
-
-function buildLeadCreatedNextStepReply(tenant: Tenant) {
-  const nextStepMessage =
-    tenant.nextStepMessage?.trim() ||
-    "The next step is usually confirming the details and coordinating the best time.";
-
-  if (tenant.bookingType === "reservation") {
-    return `Great, I have enough information to get your rental request started. ${nextStepMessage} Would you like to schedule a quick confirmation call now?`;
-  }
-
-  if (tenant.bookingType === "direct_booking") {
-    return `Great, I have enough information to get your request started. ${nextStepMessage} Would you like to check available booking times now?`;
-  }
-
-  if (tenant.bookingType === "phone_call") {
-    return `Great, I have enough information to get your request started. ${nextStepMessage} Would you like to schedule a quick call now?`;
-  }
-
-  if (tenant.bookingType === "estimate") {
-    return `Great, I have enough information to get your estimate request started. ${nextStepMessage} Would you like to schedule a time to discuss the details?`;
-  }
-
-  return `Great, I have enough information to get your request started. ${nextStepMessage} Would you like to schedule the next step now?`;
 }
 
 function isAffirmativeSchedulingReply(message: string) {
@@ -1260,7 +1240,7 @@ if (
       schedulingIntent: {
         hasSchedulingIntent: true,
         type: "schedule",
-        appointmentType: isReservationLikeTenant(tenant) ? "call" : null,
+        appointmentType: getDefaultSchedulingAppointmentType(tenant),
         confidence: "high",
       },
     });
@@ -1363,9 +1343,10 @@ if (
       schedulingIntent: {
         hasSchedulingIntent: true,
         type: "schedule",
-        appointmentType: isReservationLikeTenant(tenant)
-          ? "call"
-          : inferredSchedulingIntent.appointmentType ?? undefined,
+        appointmentType:
+          getDefaultSchedulingAppointmentType(tenant) ??
+          inferredSchedulingIntent.appointmentType ??
+          undefined,
         confidence: "high",
       },
     });
@@ -1857,74 +1838,118 @@ updatedSession = applyFallbackStepCapture({
     updatedSession = await createLeadAndNotifyOnce(updatedSession);
   
   /**
-   * If the customer previously asked to schedule before the lead existed,
-   * resume scheduling immediately now that the lead has been created.
+ * If the customer previously asked to schedule before the lead existed,
+ * decide whether to resume scheduling or first ask for the next-step type.
+ *
+ * Important:
+ * - Reservation/direct-booking tenants default to a confirmation call.
+ * - Consultation/estimate tenants should NOT auto-resume into site visit
+ *   unless the customer clearly chose call/site visit.
+ */
+if (updatedSession.intakeData?.pendingSchedulingRequest) {
+  const bookingFlow = getBookingFlowConfig(tenant);
+
+  /**
+   * If this tenant allows the customer to choose call vs site visit,
+   * and we do not have a clear pending appointment type yet,
+   * do NOT start calendar scheduling automatically.
+   *
+   * This preserves the preferred flow:
+   * lead created → next-step message → call OR site visit choice
    */
-  if (updatedSession.intakeData?.pendingSchedulingRequest) {
-    /**
-     * Reservation/direct-booking tenants should not auto-resume into calendar
-     * just because the customer asked about availability earlier.
-     *
-     * We first offer a confirmation call after the lead is created.
-     */
-    if (isReservationLikeTenant(tenant)) {
-      updatedSession.intakeData = {
-        ...updatedSession.intakeData,
-        pendingSchedulingRequest: false,
-        pendingSchedulingPreference: undefined,
-        pendingSchedulingAppointmentType: undefined,
-        awaitingSchedulingConfirmation: true,
-      };
-  
-      await updateSession(updatedSession);
-  
-      const assistantReply = createMessageObject(
-        sessionId,
-        "assistant",
-        buildLeadCreatedNextStepReply(tenant)
-      );
-  
-      await insertMessage(assistantReply);
-  
-      return {
-        sessionId,
-        messages: await getMessagesForSession(sessionId),
-        session: updatedSession,
-      };
-    }
-  
-    const pendingSchedulingPreference =
-      updatedSession.intakeData.pendingSchedulingPreference ||
-      "Customer wants to schedule.";
-  
-    const resumedSchedulingIntent: SchedulingIntentResult = {
-      hasSchedulingIntent: true,
-      type: "schedule",
-      appointmentType:
-        updatedSession.intakeData.pendingSchedulingAppointmentType ?? null,
-      confidence: "high",
-    };
-  
+  if (
+    bookingFlow.allowCustomerToChooseAppointmentType &&
+    !updatedSession.intakeData.pendingSchedulingAppointmentType
+  ) {
     updatedSession.intakeData = {
       ...updatedSession.intakeData,
       pendingSchedulingRequest: false,
       pendingSchedulingPreference: undefined,
       pendingSchedulingAppointmentType: undefined,
+      awaitingSchedulingConfirmation: true,
     };
-  
+
     await updateSession(updatedSession);
-  
-    const schedulingResult = await runSchedulingWorkflow({
-      session: updatedSession,
+
+    const assistantReply = createMessageObject(
       sessionId,
-      trimmedContent: pendingSchedulingPreference,
-      schedulingIntent: resumedSchedulingIntent,
-    });
-  
-    if (schedulingResult.handled && schedulingResult.response) {
-      return schedulingResult.response;
-    }
+      "assistant",
+      buildLeadCreatedNextStepReply(tenant)
+    );
+
+    await insertMessage(assistantReply);
+
+    return {
+      sessionId,
+      messages: await getMessagesForSession(sessionId),
+      session: updatedSession,
+    };
   }
+
+  /**
+   * Reservation/direct-booking tenants should not auto-resume into a fake
+   * reservation or site visit. They should schedule a confirmation call.
+   */
+  if (isReservationLikeTenant(tenant)) {
+    updatedSession.intakeData = {
+      ...updatedSession.intakeData,
+      pendingSchedulingRequest: false,
+      pendingSchedulingPreference: undefined,
+      pendingSchedulingAppointmentType: undefined,
+      awaitingSchedulingConfirmation: true,
+    };
+
+    await updateSession(updatedSession);
+
+    const assistantReply = createMessageObject(
+      sessionId,
+      "assistant",
+      buildLeadCreatedNextStepReply(tenant)
+    );
+
+    await insertMessage(assistantReply);
+
+    return {
+      sessionId,
+      messages: await getMessagesForSession(sessionId),
+      session: updatedSession,
+    };
+  }
+
+  const pendingSchedulingPreference =
+    updatedSession.intakeData.pendingSchedulingPreference ||
+    "Customer wants to schedule.";
+
+  const resumedSchedulingIntent: SchedulingIntentResult = {
+    hasSchedulingIntent: true,
+    type: "schedule",
+    appointmentType:
+      getDefaultSchedulingAppointmentType(tenant) ??
+      updatedSession.intakeData.pendingSchedulingAppointmentType ??
+      null,
+    confidence: "high",
+  };
+
+  updatedSession.intakeData = {
+    ...updatedSession.intakeData,
+    pendingSchedulingRequest: false,
+    pendingSchedulingPreference: undefined,
+    pendingSchedulingAppointmentType: undefined,
+  };
+
+  await updateSession(updatedSession);
+
+  const schedulingResult = await runSchedulingWorkflow({
+    session: updatedSession,
+    sessionId,
+    trimmedContent: pendingSchedulingPreference,
+    schedulingIntent: resumedSchedulingIntent,
+  });
+
+  if (schedulingResult.handled && schedulingResult.response) {
+    return schedulingResult.response;
+  }
+}
 
   if (shouldOfferSchedulingAfterLeadCreated(tenant)) {
     updatedSession.intakeData = {

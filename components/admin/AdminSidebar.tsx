@@ -16,8 +16,8 @@ type NavItem = {
 
 function getLinkClasses(isActive: boolean) {
   return isActive
-    ? "border-gray-900 bg-gray-900 text-white"
-    : "border-gray-200 bg-white text-gray-700 hover:bg-gray-50";
+    ? "border-orange-700 bg-orange-700 text-white shadow-sm"
+    : "border-stone-200 bg-white/70 text-gray-700 hover:border-orange-200 hover:bg-orange-50";
 }
 
 /**
@@ -45,10 +45,10 @@ export default function AdminSidebar({ tenant }: AdminSidebarProps) {
   ];
 
   return (
-    <aside className="hidden w-72 shrink-0 border-r bg-gray-50 lg:block">
+    <aside className="hidden w-72 shrink-0 border-r border-stone-200/70 bg-white/75 backdrop-blur-xl lg:block">
       <div className="sticky top-0 flex h-screen flex-col">
         {/* Sidebar header aligned with top bar height */}
-        <div className="flex h-20 items-center border-b bg-white px-5">
+        <div className="flex h-20 items-center border-b border-stone-200/70 bg-white/60 px-5">
           <div className="min-w-0">
             <p className="text-xs font-semibold uppercase tracking-wide text-gray-500">
               Logo Area
@@ -86,18 +86,6 @@ export default function AdminSidebar({ tenant }: AdminSidebarProps) {
             );
           })}
         </nav>
-
-        <div className="border-t bg-white px-5 py-4">
-          <p className="text-xs font-medium uppercase tracking-wide text-gray-500">
-            Coming Next
-          </p>
-          <ul className="mt-3 space-y-2 text-sm text-gray-600">
-            <li>Dashboard</li>
-            <li>Customers</li>
-            <li>Scheduling</li>
-            <li>Messages</li>
-          </ul>
-        </div>
       </div>
     </aside>
   );

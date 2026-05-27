@@ -361,12 +361,12 @@ export function ChatWidget({
 
   const shellClassName =
   variant === "embed"
-    ? "flex h-full min-h-0 flex-col overflow-hidden rounded-2xl border border-gray-200 bg-white shadow-sm"
-    : "flex h-[620px] flex-col overflow-hidden rounded-2xl border border-gray-200 bg-white shadow-sm";
+    ? "flex h-full min-h-0 flex-col overflow-hidden"
+    : "flex h-[620px] flex-col overflow-hidden";
 
   return (
-    <div className={shellClassName}>
-      <div className="border-b border-gray-100 px-4 py-3">
+    <div className={`${shellClassName} saas-card`}>
+      <div className="border-b border-stone-200/70 bg-white/60 px-4 py-3">
         <h2 className="text-base font-semibold text-gray-900">Ask a question</h2>
         <p className="mt-1 text-xs text-gray-500">
           Ask questions, share details, or schedule an appointment.
@@ -381,7 +381,7 @@ export function ChatWidget({
         <>
           <div
             ref={scrollContainerRef}
-            className="flex-1 space-y-3 overflow-y-auto bg-gray-50 px-4 py-4"
+            className="flex-1 space-y-3 overflow-y-auto bg-stone-50/60 px-4 py-4"
           >
             {visibleMessages.map((message) => {
               if ("role" in message && message.role === "upload") {
@@ -511,7 +511,7 @@ export function ChatWidget({
               </div>
             ) : null}
   
-            <div className="flex items-end gap-2 rounded-2xl border border-gray-300 bg-white px-2 py-2">
+            <div className="flex items-end gap-2 rounded-2xl border border-stone-200 bg-white px-2 py-2">
               <button
                 type="button"
                 onClick={handleAttachmentButtonClick}
@@ -536,14 +536,14 @@ export function ChatWidget({
                 }}
                 placeholder="Type your message..."
                 rows={1}
-                className="max-h-28 min-h-[40px] flex-1 resize-none border-0 bg-transparent px-2 py-2 text-sm outline-none"
+                className="max-h-28 min-h-[40px] flex-1 resize-none border-0 bg-transparent px-2 py-2 text-sm text-gray-900 outline-none placeholder:text-gray-400"
               />
   
               <button
                 type="button"
                 onClick={() => void handleSendMessage()}
                 disabled={isSending || !input.trim()}
-                className="h-10 shrink-0 rounded-xl bg-gray-900 px-4 text-sm font-medium text-white transition hover:bg-gray-800 disabled:cursor-not-allowed disabled:opacity-60"
+                className="saas-button-accent h-10 shrink-0 px-5 text-sm font-semibold shadow-sm disabled:cursor-not-allowed disabled:opacity-60"
               >
                 {isSending ? "..." : "Send"}
               </button>

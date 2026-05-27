@@ -162,7 +162,7 @@ export default function AdminLeadListClient({
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
             placeholder="Search leads..."
-            className="w-full rounded-lg border bg-white py-2 pl-9 pr-3 text-sm text-gray-900 outline-none focus:border-gray-500"
+            className="w-full rounded-lg border bg-white py-2 pl-9 pr-3 text-sm text-gray-900 outline-none focus:border-stone-400"
           />
         </div>
 
@@ -170,7 +170,7 @@ export default function AdminLeadListClient({
           <select
             value={statusFilter}
             onChange={(e) => setStatusFilter(e.target.value as StatusFilter)}
-            className="rounded-lg border bg-white px-3 py-2 text-sm text-gray-900 outline-none focus:border-gray-500"
+            className="rounded-lg border bg-white px-3 py-2 text-sm text-gray-900 outline-none focus:border-stone-400"
           >
             <option value="all">All</option>
             <option value="new">New</option>
@@ -196,7 +196,7 @@ export default function AdminLeadListClient({
             setSortField(field);
             setSortDirection(direction);
           }}
-          className="w-full rounded-lg border bg-white px-3 py-2 text-sm text-gray-900 outline-none focus:border-gray-500"
+          className="w-full rounded-lg border bg-white px-3 py-2 text-sm text-gray-900 outline-none focus:border-stone-400"
         >
           <option value="createdAt:desc">Created (Newest)</option>
           <option value="createdAt:asc">Created (Oldest)</option>

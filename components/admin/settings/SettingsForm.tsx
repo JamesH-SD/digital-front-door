@@ -24,7 +24,7 @@ type EditableSection =
   | "businessHours"
   | "chatSettings";
 
-type CollapsibleSettingsSection =
+type SettingsTab =
   | "businessIdentity"
   | "locationServiceArea"
   | "services"
@@ -256,7 +256,7 @@ function SectionHeader({
               type="button"
               onClick={onSave}
               disabled={isSaving}
-              className="rounded-xl bg-gray-900 px-4 py-2 text-sm font-semibold text-white transition hover:bg-gray-800 disabled:cursor-not-allowed disabled:opacity-60"
+              className="saas-button-accent px-4 py-2 text-sm font-semibold shadow-sm disabled:cursor-not-allowed disabled:opacity-60"
             >
               {isSaving ? "Saving..." : "Save"}
             </button>
@@ -265,7 +265,7 @@ function SectionHeader({
           <button
             type="button"
             onClick={onEdit}
-            className="rounded-xl bg-gray-900 px-4 py-2 text-sm font-semibold text-white transition hover:bg-gray-800"
+            className="saas-button-accent px-4 py-2 text-sm font-semibold shadow-sm"
           >
             Edit
           </button>
@@ -489,40 +489,14 @@ export default function SettingsForm({ tenant }: SettingsFormProps) {
     chatSettings: false,
   });
 
-  const [openSections, setOpenSections] = useState<
-    Record<CollapsibleSettingsSection, boolean>
-  >({
-    businessIdentity: true,
-    locationServiceArea: false,
-    services: false,
-    businessHours: false,
-    calendar: false,
-    chatSettings: false,
-    leadCapture: false,
-  });
+  const [activeTab, setActiveTab] =
+  useState<SettingsTab>("businessIdentity");
 
   const [form, setForm] = useState(createInitialFormState(tenant));
   const hostedPageUrl = buildHostedPageUrl(tenant.slug);
   const qrAutoOpenUrl = buildQrAutoOpenUrl(tenant.slug);
   const existingWebsiteQrUrl = buildExistingWebsiteQrUrl(tenant.websiteUrl);
   const tenantHasWebsite = hasWebsiteUrl(tenant.websiteUrl);
-
-  function toggleSection(section: CollapsibleSettingsSection) {
-    setOpenSections((prev) => {
-      const shouldOpen = !prev[section];
-  
-      return {
-        businessIdentity: false,
-        locationServiceArea: false,
-        services: false,
-        businessHours: false,
-        calendar: false,
-        chatSettings: false,
-        leadCapture: false,
-        [section]: shouldOpen,
-      };
-    });
-  }
 
   function updateHoursDay(day: keyof HoursState, updates: Partial<DayHours>) {
     setForm((prev) => ({
@@ -669,6 +643,40 @@ export default function SettingsForm({ tenant }: SettingsFormProps) {
     }
   }
 
+  const settingsTabs: {
+  id: SettingsTab;
+  label: string;
+}[] = [
+  {
+    id: "businessIdentity",
+    label: "Business",
+  },
+  {
+    id: "locationServiceArea",
+    label: "Service Area",
+  },
+  {
+    id: "services",
+    label: "Services",
+  },
+  {
+    id: "businessHours",
+    label: "Hours",
+  },
+  {
+    id: "calendar",
+    label: "Calendar",
+  },
+  {
+    id: "chatSettings",
+    label: "AI & Chat",
+  },
+  {
+    id: "leadCapture",
+    label: "Lead Capture",
+  },
+];
+
   return (
     <>
       {toast ? (
@@ -679,21 +687,44 @@ export default function SettingsForm({ tenant }: SettingsFormProps) {
         />
       ) : null}
 
-      <div className="space-y-8">
+      <div className="space-y-6">
+        {/* SETTINGS TABS */}
+        <div className="overflow-x-auto">
+          <div className="flex min-w-max gap-2 rounded-2xl border border-stone-200/70 bg-white/70 p-2 backdrop-blur">
+            {settingsTabs.map((tab) => {
+              const isActive = activeTab === tab.id;
+
+              return (
+                <button
+                  key={tab.id}
+                  type="button"
+                  onClick={() => setActiveTab(tab.id)}
+                  className={`rounded-xl px-4 py-2 text-sm font-semibold transition ${
+                    isActive
+                      ? "bg-orange-700 text-white shadow-sm"
+                      : "text-gray-600 hover:bg-orange-50 hover:text-orange-700"
+                  }`}
+                >
+                  {tab.label}
+                </button>
+              );
+            })}
+          </div>
+        </div>
+        
+        {activeTab === "businessIdentity" ? (
         <section className="rounded-2xl border bg-gray-50/60 p-4">
           <SectionHeader
             title="Business Identity"
             description="Core business details used by your website, chat flow, and future Google profile workflow."
             isEditing={editingSections.businessIdentity}
             isSaving={savingSections.businessIdentity}
-            isOpen={openSections.businessIdentity}
-            onToggle={() => toggleSection("businessIdentity")}
+            isOpen
+            onToggle={() => {}}
             onEdit={() => beginEdit("businessIdentity")}
             onCancel={() => cancelEdit("businessIdentity")}
             onSave={() => void saveSection("businessIdentity")}
           />
-
-          {openSections.businessIdentity ? (
             <div className="grid gap-4 md:grid-cols-2">
               <div>
                 <label className="text-sm font-medium text-gray-700">
@@ -898,23 +929,24 @@ export default function SettingsForm({ tenant }: SettingsFormProps) {
                 )}
               </div>
             </div>
-          ) : null}
         </section>
-
+        ) : null}
+      
+      {activeTab === "locationServiceArea" ? (
         <section className="rounded-2xl border bg-gray-50/60 p-4">
           <SectionHeader
             title="Location & Service Area"
             description="These fields support your public site, chat routing, and future Google Business Profile setup."
             isEditing={editingSections.locationServiceArea}
             isSaving={savingSections.locationServiceArea}
-            isOpen={openSections.locationServiceArea}
-            onToggle={() => toggleSection("locationServiceArea")}
+            isOpen
+            onToggle={() => {}}
             onEdit={() => beginEdit("locationServiceArea")}
             onCancel={() => cancelEdit("locationServiceArea")}
             onSave={() => void saveSection("locationServiceArea")}
           />
 
-          {openSections.locationServiceArea ? (
+            
             <div className="space-y-4">
               {editingSections.locationServiceArea ? (
                 <label className="flex items-center gap-2 text-sm text-gray-700">
@@ -1124,23 +1156,22 @@ export default function SettingsForm({ tenant }: SettingsFormProps) {
                 </div>
               </div>
             </div>
-          ) : null}
         </section>
+        ) : null}
 
+        {activeTab === "services" ? (
         <section className="rounded-2xl border bg-gray-50/60 p-4">
           <SectionHeader
             title="Services"
             description="List the services your business offers. Use one service per line."
             isEditing={editingSections.services}
             isSaving={savingSections.services}
-            isOpen={openSections.services}
-            onToggle={() => toggleSection("services")}
+            isOpen
+            onToggle={() => {}}
             onEdit={() => beginEdit("services")}
             onCancel={() => cancelEdit("services")}
             onSave={() => void saveSection("services")}
           />
-
-          {openSections.services ? (
             <div>
               <label className="text-sm font-medium text-gray-700">
                 Services Offered
@@ -1164,23 +1195,22 @@ export default function SettingsForm({ tenant }: SettingsFormProps) {
                 </div>
               )}
             </div>
-          ) : null}
         </section>
+        ) : null}
 
+        {activeTab === "businessHours" ? (
         <section className="rounded-2xl border bg-gray-50/60 p-4">
           <SectionHeader
             title="Business Hours"
             description="These hours support your future Google Business Profile setup and can also be used by the chatbot to answer availability questions."
             isEditing={editingSections.businessHours}
             isSaving={savingSections.businessHours}
-            isOpen={openSections.businessHours}
-            onToggle={() => toggleSection("businessHours")}
+            isOpen
+            onToggle={() => {}}
             onEdit={() => beginEdit("businessHours")}
             onCancel={() => cancelEdit("businessHours")}
             onSave={() => void saveSection("businessHours")}
           />
-
-          {openSections.businessHours ? (
             <div className="space-y-3">
               {DAYS.map((day) => {
                 const dayHours = form.hours[day];
@@ -1256,23 +1286,22 @@ export default function SettingsForm({ tenant }: SettingsFormProps) {
                 );
               })}
             </div>
-          ) : null}
         </section>
+        ) : null}
 
+      {activeTab === "calendar" ? (
         <section className="rounded-2xl border bg-gray-50/60 p-4">
           <div className="mb-4 flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
             <button
               type="button"
-              onClick={() => toggleSection("calendar")}
+              onClick={() => {}}
               className="flex min-w-0 flex-1 items-start gap-3 text-left"
             >
               <span
-                className={`mt-0.5 text-sm text-gray-500 transition-transform ${
-                  openSections.calendar ? "rotate-180" : ""
-                }`}
+                className="mt-0.5 text-sm text-gray-400"
                 aria-hidden="true"
               >
-                ▼
+                →
               </span>
 
               <div>
@@ -1289,7 +1318,7 @@ export default function SettingsForm({ tenant }: SettingsFormProps) {
               <button
                 type="button"
                 onClick={handleConnectCalendar}
-                className="rounded-xl bg-gray-900 px-4 py-2 text-sm font-semibold text-white transition hover:bg-gray-800"
+                className="rounded-xl saas-button-accent px-4 py-2 text-sm font-semibold text-white transition hover:saas-button-accent"
               >
                 {calendarStatus?.primaryConnection ? "Reconnect" : "Connect"}
               </button>
@@ -1306,8 +1335,6 @@ export default function SettingsForm({ tenant }: SettingsFormProps) {
               ) : null}
             </div>
           </div>
-
-          {openSections.calendar ? (
             <div className="space-y-4 rounded-xl border bg-white p-4 text-sm">
               <div>
                 <label className="text-xs font-semibold uppercase tracking-wide text-gray-500">
@@ -1377,23 +1404,22 @@ export default function SettingsForm({ tenant }: SettingsFormProps) {
                 </div>
               )}
             </div>
-          ) : null}
         </section>
+      ) : null}
 
+      {activeTab === "chatSettings" ? (
         <section className="rounded-2xl border bg-gray-50/60 p-4">
           <SectionHeader
             title="Chat Settings"
             description="Control how the intake chat behaves for this business."
             isEditing={editingSections.chatSettings}
             isSaving={savingSections.chatSettings}
-            isOpen={openSections.chatSettings}
-            onToggle={() => toggleSection("chatSettings")}
+            isOpen
+            onToggle={() => {}}
             onEdit={() => beginEdit("chatSettings")}
             onCancel={() => cancelEdit("chatSettings")}
             onSave={() => void saveSection("chatSettings")}
           />
-
-          {openSections.chatSettings ? (
             <div className="space-y-4">
               <div>
                 <label className="text-sm font-medium text-gray-700">
@@ -1519,23 +1545,22 @@ export default function SettingsForm({ tenant }: SettingsFormProps) {
                 ))}
               </div>
             </div>
-          ) : null}
         </section>
+      ) : null}
 
+      {activeTab === "leadCapture" ? (
         <section className="rounded-2xl border bg-gray-50/60 p-4">
           <div className="mb-4 flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
             <button
               type="button"
-              onClick={() => toggleSection("leadCapture")}
+              onClick={() => {}}
               className="flex min-w-0 flex-1 items-start gap-3 text-left"
             >
               <span
-                className={`mt-0.5 text-sm text-gray-500 transition-transform ${
-                  openSections.leadCapture ? "rotate-180" : ""
-                }`}
+                className="mt-0.5 text-sm text-gray-400"
                 aria-hidden="true"
               >
-                ▼
+                →
               </span>
 
               <div>
@@ -1548,8 +1573,6 @@ export default function SettingsForm({ tenant }: SettingsFormProps) {
               </div>
             </button>
           </div>
-
-          {openSections.leadCapture ? (
             <div className="grid gap-4 lg:grid-cols-3">
               <CopyableLinkRow
                 label="Hosted Contactor Page"
@@ -1610,7 +1633,7 @@ export default function SettingsForm({ tenant }: SettingsFormProps) {
 
                       void navigator.clipboard.writeText(snippet);
                     }}
-                    className="rounded-xl bg-gray-900 px-4 py-2 text-xs font-semibold text-white transition hover:bg-gray-800"
+                    className="rounded-xl saas-button-accent px-4 py-2 text-xs font-semibold text-white transition hover:saas-button-accent"
                   >
                     Copy Snippet
                   </button>
@@ -1625,9 +1648,9 @@ export default function SettingsForm({ tenant }: SettingsFormProps) {
                 </p>
               </div>
             </div>
-          ) : null}
         </section>
-      </div>
-    </>
+      ) : null}
+    </div>
+  </>
   );
 }

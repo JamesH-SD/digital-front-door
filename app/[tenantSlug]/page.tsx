@@ -63,11 +63,11 @@ export default async function TenantPage({ params, searchParams  }: PageProps) {
   }
 
   return (
-    <main className="h-screen w-screen overflow-hidden bg-white">
+    <main className="saas-shell min-h-screen w-screen overflow-hidden">
       <ContractorHero tenant={tenant} />
       <section className="mx-auto max-w-6xl px-4 py-8 sm:px-6">
         <div className="grid gap-6 lg:grid-cols-[0.9fr_1.1fr]">
-          <div className="rounded-2xl border p-6 shadow-sm">
+          <div className="saas-card p-6">
             <h2 className="text-xl font-semibold">About</h2>
             <p className="mt-3 text-sm text-gray-600">
               {tenant.businessName} helps local customers get quotes, ask

@@ -22,6 +22,7 @@ import type { TenantInteractionTypeId } from "@/lib/types/tenant-config";
 import { getTenantBySlug } from "@/lib/db/tenants";
 import { getTenantConfig } from "@/lib/config/getTenantConfig";
 import { detectInteractionType } from "@/lib/chat/detectInteractionType";
+import { getBookingFlowConfig } from "@/lib/config/getBookingFlowConfig";
 
 type RunSchedulingWorkflowInput = {
   session: ChatSession;
@@ -924,6 +925,7 @@ export async function runSchedulingWorkflow({
   
   const tenant = await getTenantBySlug(session.tenantSlug);
   const tenantConfig = tenant ? getTenantConfig(tenant) : null;
+  const bookingFlow = tenant ? getBookingFlowConfig(tenant) : null;
 
   /**
    * HARD STOP: actual cancel request.
@@ -1124,10 +1126,7 @@ export async function runSchedulingWorkflow({
         : detectAppointmentType(trimmedContent));
 
     const effectiveRequestedAppointmentType =
-      tenant?.bookingType === "reservation" ||
-      tenant?.bookingType === "direct_booking"
-        ? "call"
-        : requestedAppointmentType;
+      bookingFlow?.defaultAppointmentType ?? requestedAppointmentType;
 
   /**
    * If the customer already requested an on-site visit, move directly to
@@ -1171,92 +1170,6 @@ export async function runSchedulingWorkflow({
       },
     };
   }
-
-  /**
- * Reservation/direct-booking tenants do not need contractor-style
- * call/site-visit routing. Once the lead exists and the customer wants
- * to book/reserve, go straight to available days.
- *
- * Example:
- * - trailer rental pickup
- * - dog grooming appointment
- * - mobile detail booking
- */
-if (
-  tenant &&
-  (tenant.bookingType === "reservation" ||
-    tenant.bookingType === "direct_booking")
-) {
-  try {
-    const availableDays = await getOfferedDaysForTenant({
-      tenantSlug: session.tenantSlug,
-    });
-
-    if (availableDays.length === 0) {
-      return fallbackAndCloseScheduling({
-        session,
-        sessionId,
-        appointmentPreference:
-          trimmedContent || "Customer asked to book or reserve.",
-      });
-    }
-
-    session.intakeData = {
-      ...session.intakeData,
-      schedulingState: {
-        active: true,
-        step: "select_day",
-        appointmentType: "call",
-        interactionType: "phone_call",
-        address: undefined,
-        selectedSlot: undefined,
-        offeredSlots: undefined,
-        availableDays,
-        selectedDay: undefined,
-        preferenceText: trimmedContent,
-        dayRetryCount: 0,
-        timeRetryCount: 0,
-      },
-    };
-
-    await updateSession(session);
-
-    const assistantMessage = createMessageObject(
-      sessionId,
-      "assistant",
-      generateSchedulingResponse({
-        type: "offer_days",
-        days: availableDays,
-      })
-    );
-
-    await insertMessage(assistantMessage);
-
-    return {
-      handled: true,
-      response: {
-        sessionId,
-        messages: await getMessagesForSession(sessionId),
-        session,
-      },
-    };
-  } catch (error) {
-    console.error("Availability fetch failed:", error);
-
-    await markCalendarInvalidIfNeeded({
-      tenantSlug: session.tenantSlug,
-      error,
-    });
-
-    return fallbackAndCloseScheduling({
-      session,
-      sessionId,
-      appointmentPreference:
-        trimmedContent || "Customer asked to book or reserve.",
-      calendarStatus: isCalendarAuthError(error) ? "invalid" : undefined,
-    });
-  }
-}
 
   /**
    * If the customer already requested a phone call, no address is needed.
@@ -1331,95 +1244,6 @@ if (
       });
     }
   }
-
-    /**
-   * Reservation/direct booking tenants should not be forced into
-   * contractor-style "call vs site visit" language.
-   *
-   * Example:
-   * - trailer rental pickup
-   * - dog grooming booking
-   * - house cleaning appointment
-   * - mobile detailing booking
-   *
-   * If the customer asks about availability for these tenants, load bookable
-   * days immediately.
-   */
-    if (
-      !requestedAppointmentType &&
-      (tenant?.bookingType === "reservation" ||
-        tenant?.bookingType === "direct_booking")
-    ) {
-      try {
-        const availableDays = await getOfferedDaysForTenant({
-          tenantSlug: session.tenantSlug,
-        });
-  
-        if (availableDays.length === 0) {
-          return fallbackAndCloseScheduling({
-            session,
-            sessionId,
-            appointmentPreference:
-              trimmedContent || "Customer asked about availability.",
-          });
-        }
-  
-        session.intakeData = {
-          ...session.intakeData,
-          schedulingState: {
-            active: true,
-            step: "select_day",
-            appointmentType: "call",
-            interactionType: "phone_call",
-            address: undefined,
-            selectedSlot: undefined,
-            offeredSlots: undefined,
-            availableDays,
-            selectedDay: undefined,
-            preferenceText: trimmedContent,
-            dayRetryCount: 0,
-            timeRetryCount: 0,
-          },
-        };
-  
-        await updateSession(session);
-  
-        const assistantMessage = createMessageObject(
-          sessionId,
-          "assistant",
-          generateSchedulingResponse({
-            type: "offer_days",
-            days: availableDays,
-          })
-        );
-  
-        await insertMessage(assistantMessage);
-  
-        return {
-          handled: true,
-          response: {
-            sessionId,
-            messages: await getMessagesForSession(sessionId),
-            session,
-          },
-        };
-      } catch (error) {
-        console.error("Availability fetch failed:", error);
-  
-        await markCalendarInvalidIfNeeded({
-          tenantSlug: session.tenantSlug,
-          error,
-        });
-  
-        return fallbackAndCloseScheduling({
-          session,
-          sessionId,
-          appointmentPreference:
-            trimmedContent || "Customer asked about availability.",
-          calendarStatus: isCalendarAuthError(error) ? "invalid" : undefined,
-        });
-      }
-    }
 
   /**
    * If the customer asked to schedule but did not clearly choose call/site visit,
@@ -2106,7 +1930,7 @@ if (schedulingState.step === "collect_email") {
         const assistantMessage = createMessageObject(
           sessionId,
           "assistant",
-          `Perfect — I can book ${schedulingState.selectedDay?.displayLabel || "that day"} at ${selectedSlot.displayTime}. What’s the best email for the appointment details? You can also say “skip.”`
+          `Ok, I can book ${schedulingState.selectedDay?.displayLabel || "that day"} at ${selectedSlot.displayTime}. What’s the best email for the appointment details? You can also say “skip.”`
         );
 
         await insertMessage(assistantMessage);

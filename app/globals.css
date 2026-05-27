@@ -1,8 +1,33 @@
 @import "tailwindcss";
 
 :root {
-  --background: #ffffff;
-  --foreground: #171717;
+  --background: #f5f2ed;
+  --foreground: #111827;
+
+  --card: rgba(255, 255, 255, 0.86);
+  --border: rgba(120, 113, 108, 0.18);
+
+  --primary: #1f2937;
+  --primary-foreground: #ffffff;
+
+  --muted: #6b7280;
+  --muted-background: #faf8f4;
+
+  --accent: #c2410c;
+  --accent-hover: #9a3412;
+  --accent-soft: #fff7ed;
+  --accent-border: #fed7aa;
+  --accent-text: #9a3412;
+
+  --olive: #556b2f;
+  --olive-soft: #f0f4ea;
+
+  --radius-lg: 18px;
+  --radius-xl: 28px;
+
+  --shadow-soft:
+    0 1px 2px rgba(17, 24, 39, 0.04),
+    0 18px 45px rgba(17, 24, 39, 0.08);
 }
 
 @theme inline {
@@ -12,15 +37,163 @@
   --font-mono: var(--font-geist-mono);
 }
 
-@media (prefers-color-scheme: dark) {
-  :root {
-    --background: #0a0a0a;
-    --foreground: #ededed;
-  }
+html {
+  scroll-behavior: smooth;
 }
 
 body {
   background: var(--background);
   color: var(--foreground);
   font-family: Arial, Helvetica, sans-serif;
+}
+
+/* =========================
+   SaaS Surface System
+========================= */
+
+.saas-shell {
+  background:
+    radial-gradient(circle at top left, rgba(194, 65, 12, 0.08), transparent 30%),
+    radial-gradient(circle at top right, rgba(85, 107, 47, 0.06), transparent 25%),
+    linear-gradient(180deg, #faf8f4 0%, #f5f2ed 100%);
+}
+
+.saas-card {
+  background: var(--card);
+  backdrop-filter: blur(14px);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-xl);
+  box-shadow: var(--shadow-soft);
+}
+
+.saas-panel {
+  background: rgba(255, 255, 255, 0.72);
+  backdrop-filter: blur(12px);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+}
+
+.saas-glass {
+  background: rgba(255, 255, 255, 0.62);
+  backdrop-filter: blur(18px);
+  border: 1px solid rgba(255, 255, 255, 0.7);
+  box-shadow: var(--shadow-soft);
+}
+
+/* =========================
+   Buttons
+========================= */
+
+.saas-button-accent {
+  background: var(--accent);
+  color: white;
+  border-radius: 14px;
+  transition:
+    transform 0.2s ease,
+    opacity 0.2s ease,
+    background 0.2s ease;
+}
+
+.saas-button-accent:hover {
+  background: var(--accent-hover);
+  transform: translateY(-1px);
+}
+
+.saas-button-secondary {
+  background: rgba(255, 255, 255, 0.86);
+  color: #1f2937;
+  border: 1px solid var(--border);
+  border-radius: 14px;
+  transition:
+    transform 0.2s ease,
+    background 0.2s ease,
+    border-color 0.2s ease;
+}
+
+.saas-button-secondary:hover {
+  background: white;
+  border-color: rgba(194, 65, 12, 0.28);
+  transform: translateY(-1px);
+}
+
+.saas-button-danger {
+  background: #dc2626;
+  color: white;
+  border-radius: 14px;
+  transition:
+    transform 0.2s ease,
+    background 0.2s ease;
+}
+
+.saas-button-danger:hover {
+  background: #b91c1c;
+  transform: translateY(-1px);
+}
+
+.saas-button-ghost {
+  background: transparent;
+  color: #4b5563;
+  border-radius: 14px;
+  transition:
+    background 0.2s ease,
+    color 0.2s ease;
+}
+
+.saas-button-ghost:hover {
+  background: rgba(194, 65, 12, 0.07);
+  color: var(--accent-text);
+}
+
+/* =========================
+   Inputs
+========================= */
+
+.saas-input {
+  background: rgba(255, 255, 255, 0.94);
+  border: 1px solid rgba(120, 113, 108, 0.28);
+  border-radius: 16px;
+  transition:
+    border-color 0.2s ease,
+    box-shadow 0.2s ease,
+    background 0.2s ease;
+}
+
+.saas-input:focus {
+  outline: none;
+  border-color: var(--accent);
+  box-shadow: 0 0 0 4px rgba(194, 65, 12, 0.08);
+  background: white;
+}
+
+/* =========================
+   Utility
+========================= */
+
+.saas-accent-pill {
+  background: var(--accent-soft);
+  color: var(--accent-text);
+  border: 1px solid var(--accent-border);
+  border-radius: 999px;
+}
+
+.saas-olive-pill {
+  background: var(--olive-soft);
+  color: var(--olive);
+  border: 1px solid rgba(85, 107, 47, 0.18);
+  border-radius: 999px;
+}
+
+.saas-muted {
+  color: var(--muted);
+}
+
+.saas-section-title {
+  font-size: 1rem;
+  font-weight: 650;
+  color: #111827;
+}
+
+.saas-subtitle {
+  font-size: 0.875rem;
+  color: var(--muted);
 }
