@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 import type { Tenant } from "@/lib/types/tenant";
 import ToastMessage from "@/components/ui/ToastMessage";
 import QRCode from "qrcode";
+import TenantKnowledgeManager from "@/components/admin/settings/TenantKnowledgeManager";
 
 type SettingsFormProps = {
   tenant: Tenant;
@@ -24,14 +25,15 @@ type EditableSection =
   | "businessHours"
   | "chatSettings";
 
-type SettingsTab =
+  type SettingsTab =
   | "businessIdentity"
   | "locationServiceArea"
   | "services"
   | "businessHours"
   | "calendar"
   | "chatSettings"
-  | "leadCapture";
+  | "leadCapture"
+  | "knowledge";
 
 type ToastState = {
   message: string;
@@ -227,13 +229,9 @@ function SectionHeader({
         className="flex min-w-0 flex-1 items-start gap-3 text-left"
       >
         <span
-          className={`mt-0.5 text-sm text-gray-500 transition-transform ${
-            isOpen ? "rotate-180" : ""
-          }`}
+          className="mt-1 h-2 w-2 rounded-full bg-orange-700"
           aria-hidden="true"
-        >
-          ▼
-        </span>
+        />
 
         <div>
           <h3 className="text-base font-semibold text-gray-900">{title}</h3>
@@ -365,12 +363,12 @@ function CopyableLinkRow({
           <img
             src={qrPreviewUrl}
             alt={`${label} QR`}
-            className="h-20 w-20 shrink-0 rounded-lg border bg-white p-1"
+            className="h-20 w-20 shrink-0 rounded-xl border border-stone-200 bg-white p-1"
           />
         ) : null}
       </div>
   
-      <div className="mt-4 rounded-lg border bg-gray-50 px-3 py-2">
+      <div className="mt-4 rounded-xl border border-stone-200 bg-gray-50 px-3 py-2">
         <p className="truncate text-xs text-gray-700">
           {value || disabledMessage || "Not available"}
         </p>
@@ -675,6 +673,10 @@ export default function SettingsForm({ tenant }: SettingsFormProps) {
     id: "leadCapture",
     label: "Lead Capture",
   },
+  {
+    id: "knowledge",
+    label: "Knowledge",
+  },
 ];
 
   return (
@@ -690,7 +692,7 @@ export default function SettingsForm({ tenant }: SettingsFormProps) {
       <div className="space-y-6">
         {/* SETTINGS TABS */}
         <div className="overflow-x-auto">
-          <div className="flex min-w-max gap-2 rounded-2xl border border-stone-200/70 bg-white/70 p-2 backdrop-blur">
+          <div className="flex min-w-max gap-2 rounded-2xl border border-stone-200/50 bg-white/85 p-2 shadow-sm backdrop-blur">
             {settingsTabs.map((tab) => {
               const isActive = activeTab === tab.id;
 
@@ -713,7 +715,7 @@ export default function SettingsForm({ tenant }: SettingsFormProps) {
         </div>
         
         {activeTab === "businessIdentity" ? (
-        <section className="rounded-2xl border bg-gray-50/60 p-4">
+        <section className="rounded-2xl border border-stone-200/50 bg-white/90 p-4 shadow-[0_8px_24px_rgba(17,24,39,0.045)]">
           <SectionHeader
             title="Business Identity"
             description="Core business details used by your website, chat flow, and future Google profile workflow."
@@ -739,11 +741,11 @@ export default function SettingsForm({ tenant }: SettingsFormProps) {
                         businessName: e.target.value,
                       }))
                     }
-                    className="mt-1 w-full rounded-lg border bg-white px-3 py-2 text-sm"
+                    className="saas-input mt-1 w-full px-3 py-2 text-sm"
                     placeholder="Business name"
                   />
                 ) : (
-                  <div className="mt-1 rounded-lg border bg-white px-3 py-2 text-sm">
+                  <div className="mt-1 rounded-xl border border-stone-200 bg-white px-3 py-2 text-sm shadow-[inset_0_1px_1px_rgba(17,24,39,0.03)]">
                     {displayValue(form.businessName)}
                   </div>
                 )}
@@ -762,11 +764,11 @@ export default function SettingsForm({ tenant }: SettingsFormProps) {
                         primaryPhone: e.target.value,
                       }))
                     }
-                    className="mt-1 w-full rounded-lg border bg-white px-3 py-2 text-sm"
+                    className="saas-input mt-1 w-full px-3 py-2 text-sm"
                     placeholder="Primary business phone"
                   />
                 ) : (
-                  <div className="mt-1 rounded-lg border bg-white px-3 py-2 text-sm">
+                  <div className="mt-1 rounded-xl border border-stone-200 bg-white px-3 py-2 text-sm shadow-[inset_0_1px_1px_rgba(17,24,39,0.03)]">
                     {displayValue(form.primaryPhone)}
                   </div>
                 )}
@@ -782,11 +784,11 @@ export default function SettingsForm({ tenant }: SettingsFormProps) {
                     onChange={(e) =>
                       setForm((prev) => ({ ...prev, email: e.target.value }))
                     }
-                    className="mt-1 w-full rounded-lg border bg-white px-3 py-2 text-sm"
+                    className="saas-input mt-1 w-full px-3 py-2 text-sm"
                     placeholder="Business email"
                   />
                 ) : (
-                  <div className="mt-1 rounded-lg border bg-white px-3 py-2 text-sm">
+                  <div className="mt-1 rounded-xl border border-stone-200 bg-white px-3 py-2 text-sm shadow-[inset_0_1px_1px_rgba(17,24,39,0.03)]">
                     {displayValue(form.email)}
                   </div>
                 )}
@@ -805,11 +807,11 @@ export default function SettingsForm({ tenant }: SettingsFormProps) {
                         websiteUrl: e.target.value,
                       }))
                     }
-                    className="mt-1 w-full rounded-lg border bg-white px-3 py-2 text-sm"
+                    className="saas-input mt-1 w-full px-3 py-2 text-sm"
                     placeholder="https://example.com"
                   />
                 ) : (
-                  <div className="mt-1 rounded-lg border bg-white px-3 py-2 text-sm">
+                  <div className="mt-1 rounded-xl border border-stone-200 bg-white px-3 py-2 text-sm shadow-[inset_0_1px_1px_rgba(17,24,39,0.03)]">
                     {displayValue(form.websiteUrl)}
                   </div>
                 )}
@@ -828,11 +830,11 @@ export default function SettingsForm({ tenant }: SettingsFormProps) {
                         primaryCategory: e.target.value,
                       }))
                     }
-                    className="mt-1 w-full rounded-lg border bg-white px-3 py-2 text-sm"
+                    className="saas-input mt-1 w-full px-3 py-2 text-sm"
                     placeholder="Roofing Contractor, General Contractor, etc."
                   />
                 ) : (
-                  <div className="mt-1 rounded-lg border bg-white px-3 py-2 text-sm">
+                  <div className="mt-1 rounded-xl border border-stone-200 bg-white px-3 py-2 text-sm shadow-[inset_0_1px_1px_rgba(17,24,39,0.03)]">
                     {displayValue(form.primaryCategory)}
                   </div>
                 )}
@@ -852,11 +854,11 @@ export default function SettingsForm({ tenant }: SettingsFormProps) {
                           licenseNumber: e.target.value,
                         }))
                       }
-                      className="mt-1 w-full rounded-lg border bg-white px-3 py-2 text-sm"
+                      className="saas-input mt-1 w-full px-3 py-2 text-sm"
                       placeholder="License number"
                     />
                   ) : (
-                    <div className="mt-1 rounded-lg border bg-white px-3 py-2 text-sm">
+                    <div className="mt-1 rounded-xl border border-stone-200 bg-white px-3 py-2 text-sm shadow-[inset_0_1px_1px_rgba(17,24,39,0.03)]">
                       {displayValue(form.licenseNumber)}
                     </div>
                   )}
@@ -867,7 +869,7 @@ export default function SettingsForm({ tenant }: SettingsFormProps) {
                     Insured
                   </label>
                   {editingSections.businessIdentity ? (
-                    <label className="mt-1 flex min-h-[42px] items-center gap-2 rounded-lg border bg-white px-3 py-2 text-sm text-gray-700">
+                    <label className="mt-1 flex min-h-[42px] items-center gap-2 rounded-xl border border-stone-200 bg-white px-3 py-2 text-sm text-gray-700">
                       <input
                         type="checkbox"
                         checked={form.isInsured}
@@ -881,7 +883,7 @@ export default function SettingsForm({ tenant }: SettingsFormProps) {
                       Yes
                     </label>
                   ) : (
-                    <div className="mt-1 rounded-lg border bg-white px-3 py-2 text-sm">
+                    <div className="mt-1 rounded-xl border border-stone-200 bg-white px-3 py-2 text-sm shadow-[inset_0_1px_1px_rgba(17,24,39,0.03)]">
                       {form.isInsured ? "Yes" : "No"}
                     </div>
                   )}
@@ -898,11 +900,11 @@ export default function SettingsForm({ tenant }: SettingsFormProps) {
                     onChange={(e) =>
                       setForm((prev) => ({ ...prev, tagline: e.target.value }))
                     }
-                    className="mt-1 w-full rounded-lg border bg-white px-3 py-2 text-sm"
+                    className="saas-input mt-1 w-full px-3 py-2 text-sm"
                     placeholder="Short business tagline"
                   />
                 ) : (
-                  <div className="mt-1 rounded-lg border bg-white px-3 py-2 text-sm">
+                  <div className="mt-1 rounded-xl border border-stone-200 bg-white px-3 py-2 text-sm shadow-[inset_0_1px_1px_rgba(17,24,39,0.03)]">
                     {displayValue(form.tagline)}
                   </div>
                 )}
@@ -919,11 +921,11 @@ export default function SettingsForm({ tenant }: SettingsFormProps) {
                       setForm((prev) => ({ ...prev, aboutUs: e.target.value }))
                     }
                     rows={4}
-                    className="mt-1 w-full rounded-lg border bg-white px-3 py-2 text-sm"
+                    className="saas-input mt-1 w-full px-3 py-2 text-sm"
                     placeholder="Business description"
                   />
                 ) : (
-                  <div className="mt-1 rounded-lg border bg-white px-3 py-2 text-sm whitespace-pre-wrap">
+                  <div className="mt-1 rounded-xl border border-stone-200 bg-white px-3 py-2 text-sm whitespace-pre-wrap">
                     {displayValue(form.aboutUs)}
                   </div>
                 )}
@@ -933,7 +935,7 @@ export default function SettingsForm({ tenant }: SettingsFormProps) {
         ) : null}
       
       {activeTab === "locationServiceArea" ? (
-        <section className="rounded-2xl border bg-gray-50/60 p-4">
+        <section className="rounded-2xl border border-stone-200/50 bg-white/90 p-4 shadow-[0_8px_24px_rgba(17,24,39,0.045)]">
           <SectionHeader
             title="Location & Service Area"
             description="These fields support your public site, chat routing, and future Google Business Profile setup."
@@ -963,7 +965,7 @@ export default function SettingsForm({ tenant }: SettingsFormProps) {
                   Service area business
                 </label>
               ) : (
-                <div className="rounded-lg border bg-white px-3 py-2 text-sm">
+                <div className="rounded-xl border border-stone-200 bg-white px-3 py-2 text-sm">
                   <span className="font-medium text-gray-700">
                     Service area business:
                   </span>{" "}
@@ -987,11 +989,11 @@ export default function SettingsForm({ tenant }: SettingsFormProps) {
                               addressLine1: e.target.value,
                             }))
                           }
-                          className="mt-1 w-full rounded-lg border bg-white px-3 py-2 text-sm"
+                          className="saas-input mt-1 w-full px-3 py-2 text-sm"
                           placeholder="Street address"
                         />
                       ) : (
-                        <div className="mt-1 rounded-lg border bg-white px-3 py-2 text-sm">
+                        <div className="mt-1 rounded-xl border border-stone-200 bg-white px-3 py-2 text-sm shadow-[inset_0_1px_1px_rgba(17,24,39,0.03)]">
                           {displayValue(form.addressLine1)}
                         </div>
                       )}
@@ -1002,7 +1004,7 @@ export default function SettingsForm({ tenant }: SettingsFormProps) {
                         Share Address in Chat
                       </label>
                       {editingSections.locationServiceArea ? (
-                        <label className="mt-1 flex min-h-[42px] items-center gap-2 rounded-lg border bg-white px-3 py-2 text-sm text-gray-700">
+                        <label className="mt-1 flex min-h-[42px] items-center gap-2 rounded-xl border border-stone-200 bg-white px-3 py-2 text-sm text-gray-700">
                           <input
                             type="checkbox"
                             checked={form.shareBusinessAddressInChat}
@@ -1016,7 +1018,7 @@ export default function SettingsForm({ tenant }: SettingsFormProps) {
                           Yes
                         </label>
                       ) : (
-                        <div className="mt-1 rounded-lg border bg-white px-3 py-2 text-sm">
+                        <div className="mt-1 rounded-xl border border-stone-200 bg-white px-3 py-2 text-sm shadow-[inset_0_1px_1px_rgba(17,24,39,0.03)]">
                           {form.shareBusinessAddressInChat ? "Yes" : "No"}
                         </div>
                       )}
@@ -1034,11 +1036,11 @@ export default function SettingsForm({ tenant }: SettingsFormProps) {
                       onChange={(e) =>
                         setForm((prev) => ({ ...prev, city: e.target.value }))
                       }
-                      className="mt-1 w-full rounded-lg border bg-white px-3 py-2 text-sm"
+                      className="saas-input mt-1 w-full px-3 py-2 text-sm"
                       placeholder="City"
                     />
                   ) : (
-                    <div className="mt-1 rounded-lg border bg-white px-3 py-2 text-sm">
+                    <div className="mt-1 rounded-xl border border-stone-200 bg-white px-3 py-2 text-sm shadow-[inset_0_1px_1px_rgba(17,24,39,0.03)]">
                       {displayValue(form.city)}
                     </div>
                   )}
@@ -1054,11 +1056,11 @@ export default function SettingsForm({ tenant }: SettingsFormProps) {
                       onChange={(e) =>
                         setForm((prev) => ({ ...prev, state: e.target.value }))
                       }
-                      className="mt-1 w-full rounded-lg border bg-white px-3 py-2 text-sm"
+                      className="saas-input mt-1 w-full px-3 py-2 text-sm"
                       placeholder="State"
                     />
                   ) : (
-                    <div className="mt-1 rounded-lg border bg-white px-3 py-2 text-sm">
+                    <div className="mt-1 rounded-xl border border-stone-200 bg-white px-3 py-2 text-sm shadow-[inset_0_1px_1px_rgba(17,24,39,0.03)]">
                       {displayValue(form.state)}
                     </div>
                   )}
@@ -1074,11 +1076,11 @@ export default function SettingsForm({ tenant }: SettingsFormProps) {
                       onChange={(e) =>
                         setForm((prev) => ({ ...prev, zip: e.target.value }))
                       }
-                      className="mt-1 w-full rounded-lg border bg-white px-3 py-2 text-sm"
+                      className="saas-input mt-1 w-full px-3 py-2 text-sm"
                       placeholder="ZIP code"
                     />
                   ) : (
-                    <div className="mt-1 rounded-lg border bg-white px-3 py-2 text-sm">
+                    <div className="mt-1 rounded-xl border border-stone-200 bg-white px-3 py-2 text-sm shadow-[inset_0_1px_1px_rgba(17,24,39,0.03)]">
                       {displayValue(form.zip)}
                     </div>
                   )}
@@ -1097,11 +1099,11 @@ export default function SettingsForm({ tenant }: SettingsFormProps) {
                           serviceAreaSummary: e.target.value,
                         }))
                       }
-                      className="mt-1 w-full rounded-lg border bg-white px-3 py-2 text-sm"
+                      className="saas-input mt-1 w-full px-3 py-2 text-sm"
                       placeholder="Serving San Diego County"
                     />
                   ) : (
-                    <div className="mt-1 rounded-lg border bg-white px-3 py-2 text-sm">
+                    <div className="mt-1 rounded-xl border border-stone-200 bg-white px-3 py-2 text-sm shadow-[inset_0_1px_1px_rgba(17,24,39,0.03)]">
                       {displayValue(form.serviceAreaSummary)}
                     </div>
                   )}
@@ -1121,11 +1123,11 @@ export default function SettingsForm({ tenant }: SettingsFormProps) {
                         }))
                       }
                       rows={5}
-                      className="mt-1 w-full rounded-lg border bg-white px-3 py-2 text-sm"
+                      className="saas-input mt-1 w-full px-3 py-2 text-sm"
                       placeholder="One city per line"
                     />
                   ) : (
-                    <div className="mt-1 rounded-lg border bg-white px-3 py-2 text-sm whitespace-pre-wrap">
+                    <div className="mt-1 rounded-xl border border-stone-200 bg-white px-3 py-2 text-sm whitespace-pre-wrap">
                       {displayValue(form.serviceCities)}
                     </div>
                   )}
@@ -1145,11 +1147,11 @@ export default function SettingsForm({ tenant }: SettingsFormProps) {
                         }))
                       }
                       rows={3}
-                      className="mt-1 w-full rounded-lg border bg-white px-3 py-2 text-sm"
+                      className="saas-input mt-1 w-full px-3 py-2 text-sm"
                       placeholder="Message to use when a request is outside the normal service area"
                     />
                   ) : (
-                    <div className="mt-1 rounded-lg border bg-white px-3 py-2 text-sm whitespace-pre-wrap">
+                    <div className="mt-1 rounded-xl border border-stone-200 bg-white px-3 py-2 text-sm whitespace-pre-wrap">
                       {displayValue(form.outOfAreaMessage)}
                     </div>
                   )}
@@ -1160,7 +1162,7 @@ export default function SettingsForm({ tenant }: SettingsFormProps) {
         ) : null}
 
         {activeTab === "services" ? (
-        <section className="rounded-2xl border bg-gray-50/60 p-4">
+        <section className="rounded-2xl border border-stone-200/50 bg-white/90 p-4 shadow-[0_8px_24px_rgba(17,24,39,0.045)]">
           <SectionHeader
             title="Services"
             description="List the services your business offers. Use one service per line."
@@ -1186,11 +1188,11 @@ export default function SettingsForm({ tenant }: SettingsFormProps) {
                     }))
                   }
                   rows={6}
-                  className="mt-1 w-full rounded-lg border bg-white px-3 py-2 text-sm"
+                  className="saas-input mt-1 w-full px-3 py-2 text-sm"
                   placeholder="One service per line"
                 />
               ) : (
-                <div className="mt-1 rounded-lg border bg-white px-3 py-2 text-sm whitespace-pre-wrap">
+                <div className="mt-1 rounded-xl border border-stone-200 bg-white px-3 py-2 text-sm whitespace-pre-wrap">
                   {displayValue(form.servicesOffered)}
                 </div>
               )}
@@ -1199,7 +1201,7 @@ export default function SettingsForm({ tenant }: SettingsFormProps) {
         ) : null}
 
         {activeTab === "businessHours" ? (
-        <section className="rounded-2xl border bg-gray-50/60 p-4">
+        <section className="rounded-2xl border border-stone-200/50 bg-white/90 p-4 shadow-[0_8px_24px_rgba(17,24,39,0.045)]">
           <SectionHeader
             title="Business Hours"
             description="These hours support your future Google Business Profile setup and can also be used by the chatbot to answer availability questions."
@@ -1218,7 +1220,7 @@ export default function SettingsForm({ tenant }: SettingsFormProps) {
                 return (
                   <div
                     key={day}
-                    className="grid gap-3 rounded-xl border bg-white p-3 md:grid-cols-[140px_1fr_1fr_120px]"
+                    className="grid gap-3 rounded-xl border border-stone-200 bg-white p-3 md:grid-cols-[140px_1fr_1fr_120px]"
                   >
                     <div className="flex items-center">
                       <p className="text-sm font-medium text-gray-800">
@@ -1239,7 +1241,7 @@ export default function SettingsForm({ tenant }: SettingsFormProps) {
                               updateHoursDay(day, { open: e.target.value })
                             }
                             disabled={dayHours.closed}
-                            className="mt-1 w-full rounded-lg border bg-white px-3 py-2 text-sm disabled:bg-gray-100"
+                            className="mt-1 w-full rounded-xl border border-stone-200 bg-white px-3 py-2 text-sm disabled:bg-gray-100"
                           />
                         </div>
 
@@ -1254,7 +1256,7 @@ export default function SettingsForm({ tenant }: SettingsFormProps) {
                               updateHoursDay(day, { close: e.target.value })
                             }
                             disabled={dayHours.closed}
-                            className="mt-1 w-full rounded-lg border bg-white px-3 py-2 text-sm disabled:bg-gray-100"
+                            className="mt-1 w-full rounded-xl border border-stone-200 bg-white px-3 py-2 text-sm disabled:bg-gray-100"
                           />
                         </div>
 
@@ -1278,7 +1280,7 @@ export default function SettingsForm({ tenant }: SettingsFormProps) {
                         </label>
                       </>
                     ) : (
-                      <div className="md:col-span-3 flex items-center rounded-lg border bg-gray-50 px-3 py-2 text-sm text-gray-900">
+                      <div className="md:col-span-3 flex items-center rounded-xl border border-stone-200 bg-gray-50 px-3 py-2 text-sm text-gray-900">
                         {formatHoursForDisplay(form.hours, day)}
                       </div>
                     )}
@@ -1290,7 +1292,7 @@ export default function SettingsForm({ tenant }: SettingsFormProps) {
         ) : null}
 
       {activeTab === "calendar" ? (
-        <section className="rounded-2xl border bg-gray-50/60 p-4">
+        <section className="rounded-2xl border border-stone-200/50 bg-white/90 p-4 shadow-[0_8px_24px_rgba(17,24,39,0.045)]">
           <div className="mb-4 flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
             <button
               type="button"
@@ -1298,11 +1300,9 @@ export default function SettingsForm({ tenant }: SettingsFormProps) {
               className="flex min-w-0 flex-1 items-start gap-3 text-left"
             >
               <span
-                className="mt-0.5 text-sm text-gray-400"
+                className="mt-1 h-2 w-2 rounded-full bg-orange-700"
                 aria-hidden="true"
-              >
-                →
-              </span>
+              />
 
               <div>
                 <h3 className="text-base font-semibold text-gray-900">
@@ -1335,7 +1335,7 @@ export default function SettingsForm({ tenant }: SettingsFormProps) {
               ) : null}
             </div>
           </div>
-            <div className="space-y-4 rounded-xl border bg-white p-4 text-sm">
+            <div className="space-y-4 rounded-xl border border-stone-200 bg-white p-4 text-sm">
               <div>
                 <label className="text-xs font-semibold uppercase tracking-wide text-gray-500">
                   Provider
@@ -1346,7 +1346,7 @@ export default function SettingsForm({ tenant }: SettingsFormProps) {
                   onChange={(e) =>
                     setSelectedCalendarProvider(e.target.value as CalendarProviderOption)
                   }
-                  className="mt-1 w-full rounded-xl border bg-white px-3 py-2 text-sm"
+                  className="mt-1 w-full rounded-xl border border-stone-200 bg-white px-3 py-2 text-sm"
                 >
                   <option value="google">Google Calendar</option>
                   <option value="outlook">Outlook Calendar — Coming soon</option>
@@ -1355,7 +1355,7 @@ export default function SettingsForm({ tenant }: SettingsFormProps) {
               </div>
 
               {selectedCalendarProvider !== "google" ? (
-                <div className="rounded-xl border border-amber-200 bg-amber-50 px-3 py-2 text-sm text-amber-800">
+                <div className="rounded-xl border border-stone-200 border-amber-200 bg-amber-50 px-3 py-2 text-sm text-amber-800">
                   This calendar provider is coming soon. Google Calendar is currently supported.
                 </div>
               ) : null}
@@ -1364,7 +1364,7 @@ export default function SettingsForm({ tenant }: SettingsFormProps) {
                 <p className="text-gray-600">Checking calendar connection...</p>
               ) : calendarStatus?.primaryConnection ? (
                 <div className="space-y-3">
-                  <div className="rounded-xl border border-green-200 bg-green-50 px-3 py-2">
+                  <div className="rounded-xl border border-stone-200 border-green-200 bg-green-50 px-3 py-2">
                     <p className="font-semibold text-green-800">Connected</p>
                     <p className="mt-1 text-xs text-green-700">
                       Online scheduling is active for this tenant.
@@ -1389,7 +1389,7 @@ export default function SettingsForm({ tenant }: SettingsFormProps) {
                 </div>
               ) : (
                 <div className="space-y-3">
-                  <div className="rounded-xl border border-amber-200 bg-amber-50 px-3 py-2">
+                  <div className="rounded-xl border border-stone-200 border-amber-200 bg-amber-50 px-3 py-2">
                     <p className="font-semibold text-amber-800">
                       Calendar disconnected
                     </p>
@@ -1408,7 +1408,7 @@ export default function SettingsForm({ tenant }: SettingsFormProps) {
       ) : null}
 
       {activeTab === "chatSettings" ? (
-        <section className="rounded-2xl border bg-gray-50/60 p-4">
+        <section className="rounded-2xl border border-stone-200/50 bg-white/90 p-4 shadow-[0_8px_24px_rgba(17,24,39,0.045)]">
           <SectionHeader
             title="Chat Settings"
             description="Control how the intake chat behaves for this business."
@@ -1439,7 +1439,7 @@ export default function SettingsForm({ tenant }: SettingsFormProps) {
                           bookingType: e.target.value,
                         }))
                       }
-                      className="w-full rounded-xl border px-3 py-2 text-sm"
+                      className="w-full rounded-xl border border-stone-200 px-3 py-2 text-sm"
                     >
                       <option value="consultation">Consultation / estimate</option>
                       <option value="reservation">Reservation / rental</option>
@@ -1465,7 +1465,7 @@ export default function SettingsForm({ tenant }: SettingsFormProps) {
                     }
                     rows={3}
                     placeholder="Example: The next step is usually confirming trailer type, rental dates, delivery or pickup details, and deposit information."
-                    className="w-full rounded-xl border px-3 py-2 text-sm"
+                    className="w-full rounded-xl border border-stone-200 px-3 py-2 text-sm"
                   />
 
                   <span className="block text-xs text-gray-500">
@@ -1482,11 +1482,11 @@ export default function SettingsForm({ tenant }: SettingsFormProps) {
                       }))
                     }
                     rows={3}
-                    className="mt-1 w-full rounded-lg border bg-white px-3 py-2 text-sm"
+                    className="saas-input mt-1 w-full px-3 py-2 text-sm"
                     placeholder="Greeting shown at the start of chat"
                   />
                 ) : (
-                  <div className="mt-1 rounded-lg border bg-white px-3 py-2 text-sm whitespace-pre-wrap">
+                  <div className="mt-1 rounded-xl border border-stone-200 bg-white px-3 py-2 text-sm whitespace-pre-wrap">
                     {displayValue(form.greetingMessage)}
                   </div>
                 )}
@@ -1513,7 +1513,7 @@ export default function SettingsForm({ tenant }: SettingsFormProps) {
                 ].map((item) => (
                   <div
                     key={item.key}
-                    className="rounded-lg border bg-white px-3 py-2 text-sm"
+                    className="rounded-xl border border-stone-200 bg-white px-3 py-2 text-sm"
                   >
                     {editingSections.chatSettings ? (
                       <label className="flex items-center gap-2 text-gray-700">
@@ -1549,7 +1549,7 @@ export default function SettingsForm({ tenant }: SettingsFormProps) {
       ) : null}
 
       {activeTab === "leadCapture" ? (
-        <section className="rounded-2xl border bg-gray-50/60 p-4">
+        <section className="rounded-2xl border border-stone-200/50 bg-white/90 p-4 shadow-[0_8px_24px_rgba(17,24,39,0.045)]">
           <div className="mb-4 flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
             <button
               type="button"
@@ -1557,11 +1557,9 @@ export default function SettingsForm({ tenant }: SettingsFormProps) {
               className="flex min-w-0 flex-1 items-start gap-3 text-left"
             >
               <span
-                className="mt-0.5 text-sm text-gray-400"
+                className="mt-1 h-2 w-2 rounded-full bg-orange-700"
                 aria-hidden="true"
-              >
-                →
-              </span>
+              />
 
               <div>
                 <h3 className="text-base font-semibold text-gray-900">
@@ -1606,7 +1604,7 @@ export default function SettingsForm({ tenant }: SettingsFormProps) {
                     the tenant’s existing site with Contactor chat.
                   </p>
 
-                  <div className="mt-4 rounded-lg border bg-gray-50 px-3 py-2">
+                  <div className="mt-4 rounded-xl border border-stone-200 bg-gray-50 px-3 py-2">
                     <p className="truncate text-xs text-gray-400">
                       No existing website URL added yet.
                     </p>
@@ -1614,7 +1612,7 @@ export default function SettingsForm({ tenant }: SettingsFormProps) {
                 </div>
               )}
 
-              <div className="rounded-xl border border-dashed bg-white p-4 lg:col-span-3">
+              <div className="rounded-xl border border-stone-200 border-dashed bg-white p-4 lg:col-span-3">
                 <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
                   <div>
                     <p className="text-sm font-semibold text-gray-900">
@@ -1649,6 +1647,9 @@ export default function SettingsForm({ tenant }: SettingsFormProps) {
               </div>
             </div>
         </section>
+      ) : null}
+      {activeTab === "knowledge" ? (
+        <TenantKnowledgeManager tenantSlug={tenant.slug} />
       ) : null}
     </div>
   </>

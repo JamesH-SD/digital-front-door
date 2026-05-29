@@ -107,14 +107,16 @@ function AdminShellContent({
         <AdminSidebar tenant={tenant} />
 
         <div className="flex min-w-0 flex-1 flex-col">
-          <header className="h-20 border-b border-stone-200/70 bg-white/75 backdrop-blur-xl">
-            <div className="mx-auto flex h-full w-full max-w-6xl items-center justify-between px-4 sm:px-6">
-              <div className="min-w-0">
-                <h1 className="truncate text-lg font-semibold text-gray-900">
-                  {tenant.businessName}
-                </h1>
-                <p className="text-sm text-gray-500">Admin</p>
-              </div>
+          <header className="sticky top-0 z-30 h-[72px] border-b border-stone-200/60 bg-white/90 backdrop-blur-xl shadow-[0_8px_30px_rgba(17,24,39,0.045)]">
+            <div className="flex h-full w-full items-center justify-between px-5 sm:px-6 lg:px-8">
+            <div className="min-w-0">
+              <p className="text-xs font-semibold uppercase tracking-wide text-orange-700">
+                Admin Workspace
+              </p>
+              <h1 className="mt-1 truncate text-lg font-semibold text-gray-950">
+                {tenant.businessName}
+              </h1>
+            </div>
 
               <div className="flex items-center gap-4">
                 <CalendarConnectionStatus tenantSlug={tenant.slug} />
@@ -137,8 +139,8 @@ function AdminShellContent({
           </header>
 
           <main className="flex-1">
-            <div className="mx-auto w-full max-w-6xl px-4 py-8 sm:px-6">
-              <nav className="mb-6 flex flex-wrap items-center gap-2 text-sm">
+            <div className="w-full px-5 py-4 sm:px-6 lg:px-8">
+              {/* <nav className="mb-3 flex flex-wrap items-center gap-2 text-xs">
                 {breadcrumbs.map((item, index) => (
                   <span
                     key={`${item.label}-${index}`}
@@ -162,7 +164,7 @@ function AdminShellContent({
                     ) : null}
                   </span>
                 ))}
-              </nav>
+              </nav> */}
 
               {children}
             </div>

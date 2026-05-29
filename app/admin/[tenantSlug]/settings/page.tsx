@@ -20,7 +20,7 @@ export default async function SettingsPage({ params }: PageProps) {
 
   return (
     <div className="space-y-6">
-      <section className="rounded-2xl border bg-white p-5 shadow-sm sm:p-6">
+      <section className="saas-workspace-card p-6 sm:p-7">
         <div className="mb-6">
           <h2 className="text-lg font-semibold text-gray-900">Settings</h2>
           <p className="mt-2 text-sm text-gray-600">

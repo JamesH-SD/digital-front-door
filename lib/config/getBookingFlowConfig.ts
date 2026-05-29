@@ -33,7 +33,7 @@ export function getBookingFlowConfig(tenant: Tenant): BookingFlowConfig {
   const bookingType = normalizeBookingType(tenant.bookingType);
   const nextStepMessage =
     tenant.nextStepMessage?.trim() ||
-    "The next step is usually confirming the details and coordinating the best time.";
+    "The next step is usually confirming the details and coordinating a time that works best for you.";
 
   switch (bookingType) {
     case "reservation":

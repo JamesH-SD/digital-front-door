@@ -86,8 +86,20 @@ function buildKnownContext(session: ChatSession, tenant: Tenant) {
   ].join("\n");
 }
 
+/**
+ * Keep recent conversation context intentionally small.
+ *
+ * Why:
+ * - Large prompt context increases response latency and token cost.
+ * - The chat session already stores structured lead fields separately.
+ * - We only need enough recent conversation to preserve immediate context.
+ *
+ * Future:
+ * - RAG/vector retrieval will provide targeted knowledge context without
+ *   sending large raw knowledge/history blocks on every turn.
+ */
 function buildConversation(messages: ChatMessage[]) {
-  const recentMessages = messages.slice(-10);
+  const recentMessages = messages.slice(-6);
 
   return recentMessages
     .map((message) => `${message.role.toUpperCase()}: ${message.content}`)

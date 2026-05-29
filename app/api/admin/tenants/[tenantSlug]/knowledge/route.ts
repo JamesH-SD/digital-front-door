@@ -240,3 +240,116 @@ export async function POST(
 
   return NextResponse.json({ item }, { status: 201 });
 }
+
+export async function PATCH(
+  request: NextRequest,
+  { params }: { params: Promise<{ tenantSlug: string }> }
+) {
+  const { tenantSlug } = await params;
+  const body = await request.json();
+
+  const id = typeof body.id === "string" ? body.id : "";
+  const title = typeof body.title === "string" ? body.title.trim() : "";
+  const content = typeof body.content === "string" ? body.content.trim() : "";
+
+  if (!id || !title || !content) {
+    return NextResponse.json(
+      { error: "ID, title, and content are required." },
+      { status: 400 }
+    );
+  }
+
+  const { createAdminClient } = await import("@/lib/supabase/admin");
+  const supabase = createAdminClient();
+
+  const { data, error } = await supabase
+    .from("tenant_knowledge_items")
+    .update({
+      title,
+      content,
+      source_type: isValidSourceType(body.sourceType)
+        ? body.sourceType
+        : "manual_note",
+      tags: Array.isArray(body.tags) ? body.tags : [],
+      confidence:
+        body.confidence === "low" ||
+        body.confidence === "medium" ||
+        body.confidence === "high"
+          ? body.confidence
+          : "medium",
+      updated_at: new Date().toISOString(),
+    })
+    .eq("id", id)
+    .eq("tenant_slug", tenantSlug)
+    .select()
+    .single();
+
+  if (error) {
+    return NextResponse.json(
+      { error: "Failed to update knowledge item." },
+      { status: 500 }
+    );
+  }
+
+  return NextResponse.json({ item: data });
+}
+
+export async function DELETE(
+  request: NextRequest,
+  { params }: { params: Promise<{ tenantSlug: string }> }
+) {
+  const { tenantSlug } = await params;
+  const { searchParams } = new URL(request.url);
+  const id = searchParams.get("id");
+
+  if (!id) {
+    return NextResponse.json(
+      { error: "Knowledge item ID is required." },
+      { status: 400 }
+    );
+  }
+
+  const { createAdminClient } = await import("@/lib/supabase/admin");
+  const supabase = createAdminClient();
+
+  const { data: existingItem, error: fetchError } = await supabase
+    .from("tenant_knowledge_items")
+    .select("id, file_url")
+    .eq("id", id)
+    .eq("tenant_slug", tenantSlug)
+    .single();
+
+  if (fetchError) {
+    return NextResponse.json(
+      { error: "Knowledge item not found." },
+      { status: 404 }
+    );
+  }
+
+  if (existingItem?.file_url) {
+    const marker = "/tenant-knowledge/";
+    const fileUrl = String(existingItem.file_url);
+    const path = fileUrl.includes(marker)
+      ? decodeURIComponent(fileUrl.split(marker)[1])
+      : "";
+
+    if (path) {
+      await supabase.storage.from("tenant-knowledge").remove([path]);
+    }
+  }
+
+  const { error: deleteError } = await supabase
+    .from("tenant_knowledge_items")
+    .delete()
+    .eq("id", id)
+    .eq("tenant_slug", tenantSlug);
+
+  if (deleteError) {
+    return NextResponse.json(
+      { error: "Failed to delete knowledge item." },
+      { status: 500 }
+    );
+  }
+
+  return NextResponse.json({ success: true });
+}

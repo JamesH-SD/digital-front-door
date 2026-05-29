@@ -5,7 +5,13 @@ import { Search } from "lucide-react";
 import { useMemo, useState } from "react";
 import type { Lead } from "@/lib/types/lead";
 
-type SortField = "customerName" | "location" | "status" | "createdAt";
+type SortField =
+  | "leadNumber"
+  | "customerName"
+  | "projectType"
+  | "location"
+  | "status"
+  | "createdAt";
 type SortDirection = "asc" | "desc";
 type StatusFilter = "all" | "new" | "contacted" | "booked" | "closed";
 
@@ -21,18 +27,36 @@ function formatDate(dateString: string) {
   }).format(date);
 }
 
+function toTitleCase(value?: string | null) {
+  if (!value) return "Not provided";
+
+  return value
+    .toLowerCase()
+    .split(" ")
+    .map((word) => {
+      if (!word.length) return word;
+
+      return word.charAt(0).toUpperCase() + word.slice(1);
+    })
+    .join(" ");
+}
+
 function getStatusClasses(status: string) {
   switch (status) {
     case "new":
-      return "bg-green-100 text-green-700 border-green-200";
+      return "border-emerald-200 bg-emerald-50 text-emerald-700";
+
     case "contacted":
-      return "bg-yellow-100 text-yellow-700 border-yellow-200";
+      return "border-amber-200 bg-amber-50 text-amber-700";
+
     case "booked":
-      return "bg-blue-100 text-blue-700 border-blue-200";
+      return "border-blue-200 bg-blue-50 text-blue-700";
+
     case "closed":
-      return "bg-gray-100 text-gray-700 border-gray-200";
+      return "border-stone-200 bg-stone-100 text-stone-600";
+
     default:
-      return "bg-gray-100 text-gray-700 border-gray-200";
+      return "border-stone-200 bg-stone-100 text-stone-600";
   }
 }
 
@@ -129,6 +153,15 @@ export default function AdminLeadListClient({
           valueA = new Date(a.createdAt).getTime();
           valueB = new Date(b.createdAt).getTime();
           break;
+        case "leadNumber":
+          valueA = (a.leadNumber || a.id || "").toLowerCase();
+          valueB = (b.leadNumber || b.id || "").toLowerCase();
+          break;
+        
+        case "projectType":
+          valueA = (a.projectType || "").toLowerCase();
+          valueB = (b.projectType || "").toLowerCase();
+          break;
       }
 
       if (valueA < valueB) return sortDirection === "asc" ? -1 : 1;
@@ -153,16 +186,24 @@ export default function AdminLeadListClient({
   }
 
   return (
-    <div className="space-y-4">
-      <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
-        <div className="relative w-full md:w-72">
+    <div className="space-y-3">
+      <div className="flex flex-col gap-4 border-b border-stone-100 pb-4 lg:flex-row lg:items-center lg:justify-between">
+        <div>
+          <h2 className="text-lg font-semibold text-gray-950">Leads</h2>
+          <p className="mt-1 text-sm text-gray-500">
+            Search, filter, and open captured leads.
+          </p>
+        </div>
+
+        <div className="flex flex-col gap-3 sm:flex-row sm:items-center">
+        <div className="relative w-full sm:w-80">
           <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-gray-400" />
           <input
             type="text"
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
             placeholder="Search leads..."
-            className="w-full rounded-lg border bg-white py-2 pl-9 pr-3 text-sm text-gray-900 outline-none focus:border-stone-400"
+            className="w-full rounded-2xl border border-stone-200 bg-white/90 py-2.5 pl-10 pr-4 text-sm text-gray-900 shadow-sm outline-none transition focus:border-[#d35400]/40 focus:ring-4 focus:ring-orange-100"
           />
         </div>
 
@@ -170,19 +211,20 @@ export default function AdminLeadListClient({
           <select
             value={statusFilter}
             onChange={(e) => setStatusFilter(e.target.value as StatusFilter)}
-            className="rounded-lg border bg-white px-3 py-2 text-sm text-gray-900 outline-none focus:border-stone-400"
+            className="rounded-2xl border border-stone-200 bg-white/90 px-4 py-2.5 text-sm text-gray-900 shadow-sm outline-none transition focus:border-[#d35400]/40 focus:ring-4 focus:ring-orange-100"
           >
-            <option value="all">All</option>
+            <option value="all">All statuses</option>
             <option value="new">New</option>
             <option value="contacted">Contacted</option>
             <option value="booked">Booked</option>
             <option value="closed">Closed</option>
           </select>
 
-          <div className="whitespace-nowrap text-xs text-gray-500">
+          <span className="whitespace-nowrap rounded-full bg-stone-100 px-3 py-1 text-xs font-semibold text-stone-600">
             {filteredAndSortedLeads.length} / {leads.length}
-          </div>
+          </span>
         </div>
+      </div>
       </div>
 
       <div className="md:hidden">
@@ -206,6 +248,10 @@ export default function AdminLeadListClient({
           <option value="location:desc">Location (Z-A)</option>
           <option value="status:asc">Status (A-Z)</option>
           <option value="status:desc">Status (Z-A)</option>
+          <option value="leadNumber:asc">Lead (A-Z)</option>
+          <option value="leadNumber:desc">Lead (Z-A)</option>
+          <option value="projectType:asc">Project (A-Z)</option>
+          <option value="projectType:desc">Project (Z-A)</option>
         </select>
       </div>
 
@@ -219,9 +265,18 @@ export default function AdminLeadListClient({
           </p>
         </div>
       ) : (
-        <div className="overflow-hidden rounded-2xl border bg-white shadow-sm">
-          <div className="hidden grid-cols-6 gap-4 border-b bg-gray-50 px-4 py-3 text-xs font-semibold uppercase tracking-wide text-gray-500 md:grid">
-            <div>Lead</div>
+        <div className="overflow-hidden rounded-3xl border border-stone-200/70 bg-white/95 shadow-[0_12px_30px_rgba(17,24,39,0.06)]">
+          <div className="hidden grid-cols-6 gap-4 border-b border-stone-200 bg-stone-50/80 px-5 py-3 text-[11px] font-semibold tracking-[0.12em] text-stone-500 md:grid">
+            <div>
+              <SortableHeader
+                label="Lead"
+                field="leadNumber"
+                activeField={sortField}
+                direction={sortDirection}
+                onSort={handleSort}
+              />
+            </div>
+
             <div>
               <SortableHeader
                 label="Name"
@@ -231,7 +286,17 @@ export default function AdminLeadListClient({
                 onSort={handleSort}
               />
             </div>
-            <div>Project</div>
+
+            <div>
+              <SortableHeader
+                label="Project"
+                field="projectType"
+                activeField={sortField}
+                direction={sortDirection}
+                onSort={handleSort}
+              />
+            </div>
+
             <div>
               <SortableHeader
                 label="Location"
@@ -241,6 +306,7 @@ export default function AdminLeadListClient({
                 onSort={handleSort}
               />
             </div>
+
             <div>
               <SortableHeader
                 label="Status"
@@ -250,6 +316,7 @@ export default function AdminLeadListClient({
                 onSort={handleSort}
               />
             </div>
+
             <div>
               <SortableHeader
                 label="Created"
@@ -266,12 +333,12 @@ export default function AdminLeadListClient({
               <Link
                 key={lead.id}
                 href={`/admin/${tenantSlug}/leads/${lead.id}`}
-                className="block border-b px-4 py-4 transition hover:bg-gray-50"
+                className="block border-b border-stone-100 px-5 py-4 transition hover:bg-orange-50/40 hover:shadow-[inset_3px_0_0_#c2410c]"
               >
                 <div className="space-y-2 md:hidden">
                   <div className="flex items-start justify-between gap-3">
                     <div>
-                      <p className="text-xs font-medium uppercase tracking-wide text-gray-500">
+                      <p className="text-xs font-medium tracking-wide text-gray-500">
                         {lead.leadNumber || lead.id}
                       </p>
                       <h2 className="mt-1 text-sm font-semibold text-gray-900">
@@ -280,7 +347,7 @@ export default function AdminLeadListClient({
                     </div>
 
                     <span
-                      className={`inline-flex rounded-full border px-2.5 py-1 text-xs font-medium capitalize ${getStatusClasses(
+                      className={`inline-flex rounded-full border px-3 py-1 text-[11px] font-semibold tracking-wide capitalize shadow-sm ${getStatusClasses(
                         lead.status
                       )}`}
                     >
@@ -289,7 +356,7 @@ export default function AdminLeadListClient({
                   </div>
 
                   <div className="text-sm text-gray-600">
-                    <p>{lead.projectType}</p>
+                    <p>{toTitleCase(lead.projectType)}</p>
                     <p>{lead.location}</p>
                     <p className="text-xs text-gray-500">
                       {formatDate(lead.createdAt)}
@@ -304,11 +371,11 @@ export default function AdminLeadListClient({
                   <div className="text-sm font-medium text-gray-900">
                     {lead.customerName}
                   </div>
-                  <div className="text-sm text-gray-600">{lead.projectType}</div>
+                  <div className="text-sm text-gray-600">{toTitleCase(lead.projectType)}</div>
                   <div className="text-sm text-gray-600">{lead.location}</div>
                   <div>
                     <span
-                      className={`inline-flex rounded-full border px-2.5 py-1 text-xs font-medium capitalize ${getStatusClasses(
+                      className={`inline-flex rounded-full border px-3 py-1 text-[11px] font-semibold tracking-wide capitalize shadow-sm ${getStatusClasses(
                         lead.status
                       )}`}
                     >

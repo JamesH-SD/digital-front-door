@@ -11,7 +11,10 @@ import { sendLeadNotification } from "@/lib/notifications/sendLeadNotification";
 import { createLeadActivity } from "@/lib/db/lead-activities";
 import { extractStructuredLeadUpdateFromMessage } from "@/lib/chat/extractStructuredLeadUpdate";
 import { generateChatTurn } from "@/lib/ai/generateChatTurn";
-import { generatePostCaptureTurn } from "@/lib/ai/generatePostCaptureTurn";
+import {
+  generatePostCaptureTurn,
+  generatePostCaptureReplyOnly,
+} from "@/lib/ai/generatePostCaptureTurn";
 import type { Tenant } from "@/lib/types/tenant";
 import { detectSchedulingIntent } from "@/lib/chat/detectSchedulingIntent";
 import { runSchedulingWorkflow } from "@/lib/scheduling/chat/runSchedulingWorkflow";
@@ -429,6 +432,59 @@ function buildKnowledgeRetrievalQuery(
   ].join("\n");
 }
 
+/**
+ * Decide whether this customer message is likely to benefit from tenant
+ * knowledge retrieval.
+ *
+ * Why this exists:
+ * - Today, knowledge retrieval loads tenant knowledge records and scores them
+ *   before sending context into the AI prompt.
+ * - Doing that for every message adds latency, especially for simple replies
+ *   like "yes", "thanks", phone numbers, emails, dates, and time selections.
+ * - This helper is intentionally platform-neutral. Do NOT add contractor-only
+ *   keywords here such as "permit", "subcontractor", or "roofing" because
+ *   Digital Front Door must support many business types later.
+ *
+ * Future note:
+ * - RAG/vector search with embeddings will make retrieval faster and more
+ *   semantically accurate. Once pgvector/RAG is added, this gating can become
+ *   less important or be replaced by smarter retrieval scoring.
+ */
+function shouldRetrieveKnowledge(message: string) {
+  const normalized = message.trim().toLowerCase();
+
+  if (!normalized) return false;
+
+  const obviousSkips = new Set([
+    "yes",
+    "no",
+    "ok",
+    "okay",
+    "thanks",
+    "thank you",
+    "skip",
+    "sounds good",
+  ]);
+
+  if (obviousSkips.has(normalized)) return false;
+
+  const looksLikePhone = /^\D*(?:\d\D*){10,11}$/.test(normalized);
+  if (looksLikePhone) return false;
+
+  const looksLikeEmail = /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(normalized);
+  if (looksLikeEmail) return false;
+
+  const looksLikeIsoDate = /^\d{4}-\d{2}-\d{2}$/.test(normalized);
+  if (looksLikeIsoDate) return false;
+
+  const looksLikeTime = /^\d{1,2}(:\d{2})?\s?(am|pm)$/i.test(normalized);
+  if (looksLikeTime) return false;
+
+  if (normalized.includes("?")) return true;
+
+  return normalized.length >= 18;
+}
+
 async function appendCustomerUpdateToLead(leadId: string, content: string) {
   const supabase = await createClient();
 
@@ -559,6 +615,8 @@ async function createLeadAndNotifyOnce(session: ChatSession) {
 
   const intake = session.intakeData;
 
+  const createLeadStart = Date.now();
+
   const lead = await createLead({
     tenantId: session.tenantId,
     tenantSlug: session.tenantSlug,
@@ -576,9 +634,15 @@ async function createLeadAndNotifyOnce(session: ChatSession) {
     images: [],
   });
 
+  console.log("⏱️ createLead db insert ms:", Date.now() - createLeadStart);
+
   session.leadId = lead.id;
 
+  const notificationStart = Date.now();
+
   const notificationResult = await safeSendLeadNotification(lead);
+
+  console.log("⏱️ safeSendLeadNotification ms:", Date.now() - notificationStart);
 
   if (notificationResult.status === "sent") {
     session.notificationSentAt = new Date().toISOString();
@@ -586,7 +650,11 @@ async function createLeadAndNotifyOnce(session: ChatSession) {
     console.error("Lead notification was skipped:", notificationResult.reason);
   }
 
+  const sessionUpdateStart = Date.now();
+
   await updateSession(session);
+
+  console.log("⏱️ updateSession after lead create ms:", Date.now() - sessionUpdateStart);
 
   return session;
 }
@@ -1194,6 +1262,8 @@ if (
  */
 let messageIntent: MessageIntentResult | null = null;
 
+let workflowDecision: ReturnType<typeof decideNextAction> | null = null;
+
 const activeSchedulingState = session.intakeData?.schedulingState;
 
 if (
@@ -1205,6 +1275,8 @@ if (
   const lead = await getLeadById(session.leadId);
   const messages = await getMessagesForSession(sessionId);
 
+  const intentStart = Date.now();
+
   messageIntent = await interpretMessageIntent({
     tenant,
     lead,
@@ -1212,7 +1284,41 @@ if (
     latestUserMessage: trimmedContent,
   });
 
-  const workflowDecision = decideNextAction(messageIntent);
+  console.log("⏱️ interpretMessageIntent ms:", Date.now() - intentStart);
+
+  workflowDecision = decideNextAction(messageIntent);
+
+  /**
+ * Fast-path simple conversation closings.
+ *
+ * Why:
+ * - If the customer is clearly wrapping up, we do not need another AI reply-generation call.
+ * - Logs showed "Thanks" / closing messages still falling through into
+ *   generatePostCaptureTurn(), adding several seconds of avoidable latency.
+ * - This keeps the receptionist fast and prevents over-processing simple closes.
+ *
+ * Future:
+ * - RAG/vector search will improve knowledge retrieval speed and accuracy,
+ *   but simple closing messages should still bypass expensive AI/retrieval work.
+ */
+if (
+  messageIntent.confidence === "high" &&
+  workflowDecision.action === "handle_conversation_close"
+) {
+  const assistantMessage = createMessageObject(
+    sessionId,
+    "assistant",
+    "You’re welcome — we’ll follow up from here."
+  );
+
+  await insertMessage(assistantMessage);
+
+  return {
+    sessionId,
+    messages: await getMessagesForSession(sessionId),
+    session,
+  };
+}
 
   console.log("🧭 Workflow decision:", {
     sessionId,
@@ -1472,11 +1578,65 @@ if (
     const previousLeadState = await getLeadFieldState(session.leadId);
     const tenantSlug = previousLeadState.tenantSlug || session.tenantSlug;
 
-    const tenantKnowledgeResult = await retrieveTenantKnowledge({
+    const tenantKnowledgeResult = shouldRetrieveKnowledge(trimmedContent)
+  ? await retrieveTenantKnowledge({
       tenantSlug: session.tenantSlug,
       query: buildKnowledgeRetrievalQuery(messages, trimmedContent),
-      limit: 8,
-    });
+      limit: 5,
+    })
+  : { items: [] };
+
+    const aiStart = Date.now();
+
+    /**
+     * Fast path for post-capture business questions.
+     *
+     * Why:
+     * - After a lead is created, many customer messages are simple business questions:
+     *   "Do you subcontract?", "Do you pull permits?", "Do you charge for quotes?"
+     * - Those do NOT need the heavier post-capture AI call that also extracts lead
+     *   updates, urgency, budget, shopping status, scope notes, and summaries.
+     * - This keeps the receptionist faster without losing quality.
+     *
+     * Future:
+     * - RAG/vector search will improve the retrieval side by finding smaller,
+     *   more relevant knowledge chunks. Even with RAG, simple answer-only turns
+     *   should stay lightweight.
+     */
+    if (
+      messageIntent?.confidence === "high" &&
+      workflowDecision?.action === "answer_business_question"
+    ) {
+      const replyOnlyStart = Date.now();
+
+      const replyOnlyTurn = await generatePostCaptureReplyOnly({
+        tenant,
+        lead,
+        messages,
+        latestUserMessage: trimmedContent,
+        tenantKnowledge: tenantKnowledgeResult.items,
+      });
+
+      console.log("⏱️ generatePostCaptureReplyOnly ms:", Date.now() - replyOnlyStart);
+
+      if (replyOnlyTurn.status === "generated") {
+        const assistantReply = createMessageObject(
+          sessionId,
+          "assistant",
+          replyOnlyTurn.reply
+        );
+
+        await insertMessage(assistantReply);
+
+        return {
+          sessionId,
+          messages: await getMessagesForSession(sessionId),
+          session,
+        };
+      }
+    }
+
+    
 
     const aiTurn = await generatePostCaptureTurn({
       tenant,
@@ -1485,6 +1645,8 @@ if (
       latestUserMessage: trimmedContent,
       tenantKnowledge: tenantKnowledgeResult.items,
     });
+
+    console.log("⏱️ generatePostCaptureTurn ms:", Date.now() - aiStart);
 
     if (aiTurn.status === "generated") {
       await applyPostCaptureStructuredUpdates({
@@ -1754,11 +1916,15 @@ if (
    */
   const messages = await getMessagesForSession(sessionId);
 
-  const tenantKnowledgeResult = await retrieveTenantKnowledge({
-    tenantSlug: session.tenantSlug,
-    query: buildKnowledgeRetrievalQuery(messages, trimmedContent),
-    limit: 8,
-  });
+  const tenantKnowledgeResult = shouldRetrieveKnowledge(trimmedContent)
+  ? await retrieveTenantKnowledge({
+      tenantSlug: session.tenantSlug,
+      query: buildKnowledgeRetrievalQuery(messages, trimmedContent),
+      limit: 5,
+    })
+  : { items: [] };
+
+  const aiStart = Date.now();
 
   const aiTurn = await generateChatTurn({
     tenant,
@@ -1766,6 +1932,8 @@ if (
     messages,
     tenantKnowledge: tenantKnowledgeResult.items,
   });
+
+  console.log("⏱️ generateChatTurn ms:", Date.now() - aiStart);
 
   let updatedSession = session;
 
@@ -1835,7 +2003,11 @@ updatedSession = applyFallbackStepCapture({
     updatedSession.leadCaptured &&
     !updatedSession.leadId
   ) {
+    const leadCreateStart = Date.now();
+
     updatedSession = await createLeadAndNotifyOnce(updatedSession);
+
+    console.log("⏱️ createLeadAndNotifyOnce ms:", Date.now() - leadCreateStart);
   
   /**
  * If the customer previously asked to schedule before the lead existed,

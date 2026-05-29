@@ -166,7 +166,7 @@ export default function ChatSchedulingPicker({
                   disabled={!isAvailable || isSending}
                   onClick={() => {
                     if (availableDay) {
-                      onSelectOption(availableDay.displayLabel);
+                      onSelectOption(availableDay.dateKey);
                     }
                   }}
                   className={[

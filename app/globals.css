@@ -1,17 +1,17 @@
 @import "tailwindcss";
 
 :root {
-  --background: #f5f2ed;
+  --background: #f8f7f4;
   --foreground: #111827;
 
-  --card: rgba(255, 255, 255, 0.86);
-  --border: rgba(120, 113, 108, 0.18);
+  --card: rgba(255, 255, 255, 0.94);
+  --border: rgba(28, 25, 23, 0.08);
 
   --primary: #1f2937;
   --primary-foreground: #ffffff;
 
   --muted: #6b7280;
-  --muted-background: #faf8f4;
+  --muted-background: #f6f5f2;
 
   --accent: #c2410c;
   --accent-hover: #9a3412;
@@ -53,17 +53,28 @@ body {
 
 .saas-shell {
   background:
-    radial-gradient(circle at top left, rgba(194, 65, 12, 0.08), transparent 30%),
-    radial-gradient(circle at top right, rgba(85, 107, 47, 0.06), transparent 25%),
-    linear-gradient(180deg, #faf8f4 0%, #f5f2ed 100%);
+    radial-gradient(circle at top left, rgba(194, 65, 12, 0.055), transparent 26%),
+    radial-gradient(circle at top right, rgba(85, 107, 47, 0.045), transparent 22%),
+    linear-gradient(180deg, #ffffff 0%, #f8f7f4 42%, #f3f1ec 100%);
 }
 
 .saas-card {
   background: var(--card);
-  backdrop-filter: blur(14px);
+  backdrop-filter: blur(16px);
   border: 1px solid var(--border);
   border-radius: var(--radius-xl);
-  box-shadow: var(--shadow-soft);
+  box-shadow:
+    0 1px 2px rgba(17, 24, 39, 0.04),
+    0 14px 38px rgba(17, 24, 39, 0.075);
+}
+
+.saas-workspace-card {
+  background: rgba(255, 255, 255, 0.96);
+  border: 1px solid rgba(28, 25, 23, 0.08);
+  border-radius: 28px;
+  box-shadow:
+    0 1px 2px rgba(17, 24, 39, 0.04),
+    0 18px 45px rgba(17, 24, 39, 0.08);
 }
 
 .saas-panel {

@@ -422,6 +422,18 @@ function parseSelectedDayOption(
   }
 
   /**
+   * 0. Match exact ISO date keys from the calendar UI.
+   *
+   * The frontend picker sends dateKey values like "2026-06-12".
+   * This is safer than parsing labels like "Friday, June 12".
+   */
+  for (const day of availableDays) {
+    if (normalized === day.dateKey.toLowerCase()) {
+      return day.optionNumber;
+    }
+  }
+
+  /**
    * 1. Match actual date language first.
    *
    * Example:

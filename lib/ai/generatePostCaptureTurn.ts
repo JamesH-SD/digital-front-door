@@ -108,11 +108,158 @@ function buildLeadContext(lead: Lead) {
   ].join("\\n");
 }
 
+/**
+ * Keep recent conversation context intentionally small.
+ *
+ * Why:
+ * - Large prompt context increases response latency and token cost.
+ * - The chat session already stores structured lead fields separately.
+ * - We only need enough recent conversation to preserve immediate context.
+ *
+ * Future:
+ * - RAG/vector retrieval will provide targeted knowledge context without
+ *   sending large raw knowledge/history blocks on every turn.
+ */
 function buildConversation(messages: ChatMessage[]) {
   return messages
-    .slice(-12)
+    .slice(-6)
     .map((message) => `${message.role.toUpperCase()}: ${message.content}`)
     .join("\\n");
+}
+
+export type GeneratePostCaptureReplyOnlyResult =
+  | {
+      status: "generated";
+      reply: string;
+    }
+  | {
+      status: "skipped";
+      reason: string;
+      reply?: string;
+    };
+
+/**
+ * Lightweight post-capture reply generator.
+ *
+ * Why this exists:
+ * - The full generatePostCaptureTurn() function is intentionally powerful,
+ *   but it does a lot: structured updates, customer summaries, urgency,
+ *   budget, quote-shopping signals, and scope notes.
+ * - For simple business questions after a lead is already created, we only
+ *   need a natural answer grounded in Tenant Context and Tenant Knowledge.
+ * - This reduces latency and avoids unnecessary extraction work.
+ *
+ * Future:
+ * - RAG/vector search will make tenant knowledge retrieval faster and more
+ *   accurate by injecting only the most relevant chunks instead of broad
+ *   raw knowledge context.
+ */
+export async function generatePostCaptureReplyOnly(input: {
+  tenant: Tenant;
+  lead: Lead;
+  messages: ChatMessage[];
+  latestUserMessage: string;
+  tenantKnowledge?: TenantKnowledgeItem[];
+}): Promise<GeneratePostCaptureReplyOnlyResult> {
+  const { tenant, lead, messages, latestUserMessage, tenantKnowledge = [] } =
+    input;
+
+  const tenantKnowledgeContext = formatTenantKnowledgeForPrompt(tenantKnowledge);
+
+  try {
+    const client = getOpenAIClient();
+
+    const prompt = `
+You are the AI receptionist for this business.
+
+A lead has already been created. Your job is to answer the customer's latest
+business question clearly, warmly, and briefly.
+
+Return STRICT JSON only:
+{
+  "reply": "short natural response"
+}
+
+Rules:
+- Use "we", "us", and "our" when speaking for the business.
+- Answer the customer's direct question first.
+- Do not ask for scheduling if an appointment is already present.
+- Current Lead includes an Appointment field.
+- If Current Lead Appointment is anything other than "Not provided", treat the appointment as already scheduled.
+- Do not say "the next step is usually..." when an appointment already exists.
+- Do not collect new lead details in this lightweight mode.
+- Do not generate summaries, urgency, budget, or sales signals.
+- If the answer is in Tenant Context, answer directly.
+- If the answer is in Additional Tenant Knowledge, answer directly.
+- If the answer is not known, do not guess. Say you can have someone follow up.
+- Keep the reply short and natural.
+- Do not include markdown.
+- Do not include text outside JSON.
+
+Tenant Context:
+${buildTenantContext(tenant)}
+
+Additional Tenant Knowledge:
+${tenantKnowledgeContext}
+
+Current Lead:
+${buildLeadContext(lead)}
+
+Recent Conversation:
+${buildConversation(messages)}
+
+Latest Customer Message:
+${latestUserMessage}
+`.trim();
+
+    const response = await client.responses.create({
+      model: "gpt-4.1-mini",
+      input: prompt,
+    });
+
+    const raw = response.output_text?.trim();
+
+    if (!raw) {
+      return {
+        status: "skipped",
+        reason: "OpenAI returned an empty response.",
+      };
+    }
+
+    let parsed: any;
+
+    try {
+      parsed = JSON.parse(stripCodeFences(raw));
+    } catch (error) {
+      console.error("generatePostCaptureReplyOnly parse error:", error, raw);
+
+      return {
+        status: "skipped",
+        reason: "OpenAI returned non-JSON output.",
+      };
+    }
+
+    const reply = sanitizeString(parsed?.reply);
+
+    if (!reply) {
+      return {
+        status: "skipped",
+        reason: "OpenAI returned no usable reply.",
+      };
+    }
+
+    return {
+      status: "generated",
+      reply,
+    };
+  } catch (error) {
+    console.error("generatePostCaptureReplyOnly error:", error);
+
+    return {
+      status: "skipped",
+      reason: "Failed to generate lightweight AI response.",
+    };
+  }
 }
 
 export async function generatePostCaptureTurn(input: {
