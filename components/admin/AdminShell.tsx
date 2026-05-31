@@ -108,7 +108,7 @@ function AdminShellContent({
 
         <div className="flex min-w-0 flex-1 flex-col">
           <header className="sticky top-0 z-30 h-[72px] border-b border-stone-200/60 bg-white/90 backdrop-blur-xl shadow-[0_8px_30px_rgba(17,24,39,0.045)]">
-            <div className="flex h-full w-full items-center justify-between px-5 sm:px-6 lg:px-8">
+            <div className="flex h-full w-full items-center justify-between pl-20 pr-5 sm:px-6 lg:px-8">
             <div className="min-w-0">
               <p className="text-xs font-semibold uppercase tracking-wide text-orange-700">
                 Admin Workspace
@@ -118,23 +118,29 @@ function AdminShellContent({
               </h1>
             </div>
 
-              <div className="flex items-center gap-4">
-                <CalendarConnectionStatus tenantSlug={tenant.slug} />
+            <div className="flex shrink-0 items-center gap-2 sm:gap-3">
+            <div className="hidden md:block">
+              <CalendarConnectionStatus tenantSlug={tenant.slug} />
+            </div>
 
-                <button
-                  type="button"
-                  className="flex items-center gap-2 rounded-lg border bg-white px-3 py-1.5 text-sm text-gray-700 transition hover:bg-gray-50"
-                >
-                  <span aria-hidden="true">🌐</span>
-                  <span>EN</span>
-                </button>
+            <div className="md:hidden">
+              <CalendarConnectionStatus tenantSlug={tenant.slug} compact />
+            </div>
 
-                <AdminUserMenu
-                  email={user.email}
-                  role={user.role}
-                  tenantSlug={tenant.slug}
-                />
-              </div>
+              <button
+                type="button"
+                className="flex items-center gap-1.5 rounded-xl border border-stone-200 bg-white px-2.5 py-1.5 text-sm text-gray-700 shadow-sm transition hover:bg-stone-50 sm:gap-2 sm:px-3"
+              >
+                <span aria-hidden="true">🌐</span>
+                <span>EN</span>
+              </button>
+
+              <AdminUserMenu
+                email={user.email}
+                role={user.role}
+                tenantSlug={tenant.slug}
+              />
+            </div>
             </div>
           </header>
 

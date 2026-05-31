@@ -1272,6 +1272,52 @@ if (
   session.leadId &&
   !activeSchedulingState?.active
 ) {
+  if (canFastPathPostCaptureBusinessQuestion(trimmedContent)) {
+    const lead = await getLeadById(session.leadId);
+    const messages = await getMessagesForSession(sessionId);
+  
+    if (lead) {
+      const tenantKnowledgeResult = shouldRetrieveKnowledge(trimmedContent)
+        ? await retrieveTenantKnowledge({
+            tenantSlug: session.tenantSlug,
+            query: buildKnowledgeRetrievalQuery(messages, trimmedContent),
+            limit: 5,
+          })
+        : { items: [] };
+  
+      const replyOnlyStart = Date.now();
+  
+      const replyOnlyTurn = await generatePostCaptureReplyOnly({
+        tenant,
+        lead,
+        messages,
+        latestUserMessage: trimmedContent,
+        tenantKnowledge: tenantKnowledgeResult.items,
+      });
+  
+      console.log(
+        "⏱️ fast-path generatePostCaptureReplyOnly ms:",
+        Date.now() - replyOnlyStart
+      );
+  
+      if (replyOnlyTurn.status === "generated") {
+        const assistantReply = createMessageObject(
+          sessionId,
+          "assistant",
+          replyOnlyTurn.reply
+        );
+  
+        await insertMessage(assistantReply);
+  
+        return {
+          sessionId,
+          messages: await getMessagesForSession(sessionId),
+          session,
+        };
+      }
+    }
+  }
+
   const lead = await getLeadById(session.leadId);
   const messages = await getMessagesForSession(sessionId);
 
@@ -1483,7 +1529,15 @@ if (
     };
   }
   
-  const schedulingIntent = await detectSchedulingIntent(trimmedContent);
+  const schedulingIntent =
+  session.currentStep === "timeline" && !session.leadCaptured
+    ? ({
+        hasSchedulingIntent: false,
+        type: "schedule",
+        appointmentType: null,
+        confidence: "low",
+      } as SchedulingIntentResult)
+    : await detectSchedulingIntent(trimmedContent);
 
   if (schedulingIntent.hasSchedulingIntent) {
     console.log("📅 Scheduling intent detected:", {
@@ -1915,6 +1969,88 @@ if (
    * PRE-CAPTURE AI MODE
    */
   const messages = await getMessagesForSession(sessionId);
+
+  /**
+   * Conservative fast-path detector for obvious business/FAQ questions.
+   *
+   * Why:
+   * - Post-capture business questions were doing two AI calls:
+   *   1) interpretMessageIntent()
+   *   2) generatePostCaptureReplyOnly()
+   * - For clear FAQ-style questions, the intent call adds latency without much value.
+   *
+   * Safety:
+   * - This does NOT bypass AI answering.
+   * - This does NOT bypass knowledge retrieval.
+   * - It only bypasses the separate intent-classification AI call.
+   * - Anything that could affect scheduling, contact info, appointment changes,
+   *   cancellation, address, email, phone, or timing still goes through the normal
+   *   intent/workflow layer.
+   *
+   * Future:
+   * - RAG/vector search will improve the knowledge retrieval side by returning
+   *   smaller, more accurate context. This helper is still useful because workflow
+   *   classification and FAQ answering are separate jobs.
+   */
+  function canFastPathPostCaptureBusinessQuestion(message: string) {
+    const normalized = message.trim().toLowerCase();
+  
+    if (!normalized) return false;
+  
+    /**
+     * Do not fast-path anything that may change workflow/state.
+     * These should keep going through the intent layer.
+     */
+    const riskyTerms = [
+      "schedule",
+      "book",
+      "appointment",
+      "reschedule",
+      "cancel",
+      "move",
+      "change",
+      "call me",
+      "phone number",
+      "email",
+      "address",
+      "today",
+      "tomorrow",
+      "next week",
+      "wife",
+      "husband",
+      "spouse",
+      "partner",
+    ];
+  
+    if (riskyTerms.some((term) => normalized.includes(term))) {
+      return false;
+    }
+  
+    /**
+     * Safe FAQ-style business questions.
+     *
+     * Important:
+     * - We check whether these appear anywhere in the message because customers
+     *   often add polite lead-ins like:
+     *   "A few more questions. Do you..."
+     *   "Ok, do you..."
+     * - This still does NOT bypass the AI answer.
+     * - It only bypasses the separate intent-classification AI call.
+     */
+    const safeQuestionPatterns = [
+      /\bdo you\b/,
+      /\bare you\b/,
+      /\bcan you\b/,
+      /\bwill you\b/,
+      /\bwould you\b/,
+      /\bwhat do you\b/,
+      /\bwhat services\b/,
+      /\bhow much\b/,
+      /\bdo i have to\b/,
+    ];
+  
+    return safeQuestionPatterns.some((pattern) => pattern.test(normalized));
+  }
 
   const tenantKnowledgeResult = shouldRetrieveKnowledge(trimmedContent)
   ? await retrieveTenantKnowledge({

@@ -392,7 +392,7 @@ export default function TenantKnowledgeManager({ tenantSlug }: Props) {
   }, [tenantSlug]);
 
   const entryModeToggle = (
-    <div className="inline-flex rounded-2xl border border-stone-200 bg-stone-50 p-1">
+    <div className="flex w-full flex-col gap-2 sm:inline-flex sm:w-auto sm:flex-row rounded-2xl border border-stone-200 bg-stone-50 p-1">
       <button
         type="button"
         onClick={() => setEntryMode("upload")}
@@ -446,7 +446,7 @@ export default function TenantKnowledgeManager({ tenantSlug }: Props) {
         </p>
       ) : null}
 
-      <div className="mt-5 grid gap-5 xl:grid-cols-[0.85fr_1.15fr]">
+      <div className="mt-5 grid min-w-0 gap-5 xl:grid-cols-[0.85fr_1.15fr]">
         <div className="rounded-2xl border border-stone-200/60 bg-white p-4 shadow-sm">
           {entryMode === "upload" ? (
             <div className="space-y-4">
@@ -465,14 +465,14 @@ export default function TenantKnowledgeManager({ tenantSlug }: Props) {
                   File
                 </label>
 
-                <label className="mt-1 flex cursor-pointer items-center justify-between gap-3 rounded-2xl border border-dashed border-stone-300 bg-stone-50 px-4 py-4 text-sm transition hover:border-orange-300 hover:bg-orange-50/40">
-                  <span className="min-w-0 truncate text-gray-700">
+                <label className="mt-1 flex cursor-pointer flex-col gap-3 rounded-2xl border border-dashed border-stone-300 bg-stone-50 px-4 py-4 text-sm transition hover:border-orange-300 hover:bg-orange-50/40 sm:flex-row sm:items-center sm:justify-between">
+                  <span className="w-full min-w-0 wrap-break-words text-gray-700 sm:truncate">
                     {uploadForm.file
                       ? uploadForm.file.name
                       : "Choose a PDF, DOCX, TXT, or image file"}
                   </span>
 
-                  <span className="shrink-0 rounded-xl bg-white px-3 py-1 text-xs font-semibold text-gray-700 shadow-sm">
+                  <span className="w-full shrink-0 rounded-xl bg-white px-3 py-2 text-center text-xs font-semibold text-gray-700 shadow-sm sm:w-auto sm:py-1">
                     Browse
                   </span>
 
@@ -489,7 +489,7 @@ export default function TenantKnowledgeManager({ tenantSlug }: Props) {
                 </label>
               </div>
 
-              <div className="grid gap-4 md:grid-cols-[1fr_220px]">
+              <div className="grid gap-4 md:grid-cols-[1fr_minmax(160px,220px)]">
                 <label className="space-y-1">
                   <span className="text-xs font-semibold uppercase tracking-wide text-gray-500">
                     Type
@@ -528,8 +528,8 @@ export default function TenantKnowledgeManager({ tenantSlug }: Props) {
                     }
                     className="saas-input w-full px-3 py-2 text-sm"
                   >
-                    <option value="global">Global Business Knowledge</option>
-                    <option value="campaign">Campaign-Specific Knowledge</option>
+                    <option value="global">Global</option>
+                    <option value="campaign">Campaign</option>
                   </select>
                 </label>
               </div>
@@ -761,7 +761,7 @@ export default function TenantKnowledgeManager({ tenantSlug }: Props) {
           )}
         </div>
 
-        <div className="rounded-2xl border border-stone-200/60 bg-white p-4 shadow-sm">
+        <div className="min-w-0 rounded-2xl border border-stone-200/60 bg-white p-4 shadow-sm">
           <div className="flex flex-col gap-2 border-b border-stone-100 pb-4 sm:flex-row sm:items-center sm:justify-between">
             <div>
               <h3 className="text-sm font-semibold text-gray-900">

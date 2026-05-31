@@ -350,11 +350,11 @@ function CopyableLinkRow({
   }, [value]);
 
   return (
-    <div className="rounded-2xl border bg-white p-4 shadow-sm">
-      <div className="flex items-start justify-between gap-3">
+    <div className="w-full min-w-0 max-w-full overflow-hidden rounded-2xl border border-stone-200 bg-white p-4 shadow-sm">
+      <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
         <div className="min-w-0">
           <p className="text-sm font-semibold text-gray-900">{label}</p>
-          <p className="mt-1 line-clamp-2 text-xs text-gray-500">
+          <p className="mt-1 text-xs leading-5 text-gray-500">
             {description}
           </p>
         </div>
@@ -368,30 +368,30 @@ function CopyableLinkRow({
         ) : null}
       </div>
   
-      <div className="mt-4 rounded-xl border border-stone-200 bg-gray-50 px-3 py-2">
-        <p className="truncate text-xs text-gray-700">
+      <div className="mt-4 min-h-[56px] min-w-0 rounded-xl border border-stone-200 bg-gray-50 px-3 py-2 flex items-center">
+        <p className="line-clamp-2 break-all text-xs text-gray-700">
           {value || disabledMessage || "Not available"}
         </p>
       </div>
   
-      <div className="mt-4 flex gap-2">
-      <button
+      <div className="mt-4 grid w-full min-w-0 grid-cols-1 gap-2 sm:grid-cols-3">
+        <button
           type="button"
           onClick={() => {
             if (!value) return;
             window.open(value, "_blank", "noopener,noreferrer");
           }}
           disabled={!value}
-          className="flex-1 rounded-xl border bg-white px-3 py-2 text-xs font-semibold text-gray-800 transition hover:bg-gray-50 disabled:cursor-not-allowed disabled:opacity-50"
+          className="w-full min-w-0 rounded-xl border border-stone-200 bg-white px-3 py-2 text-xs font-semibold text-gray-800 shadow-sm transition hover:border-orange-200 hover:bg-orange-50 hover:text-orange-700"
         >
           Open
         </button>
-        
+  
         <button
           type="button"
           onClick={handleCopy}
           disabled={!value}
-          className="flex-1 rounded-xl border bg-white px-3 py-2 text-xs font-semibold text-gray-800 transition hover:bg-gray-50 disabled:cursor-not-allowed disabled:opacity-50"
+          className="w-full min-w-0 rounded-xl border border-stone-200 bg-white px-3 py-2 text-xs font-semibold text-gray-800 shadow-sm transition hover:border-orange-200 hover:bg-orange-50 hover:text-orange-700"
         >
           {copied ? "Copied" : "Copy"}
         </button>
@@ -400,7 +400,7 @@ function CopyableLinkRow({
           type="button"
           onClick={handleDownloadQr}
           disabled={!value || isGeneratingQr}
-          className="flex-1 rounded-xl border bg-white px-3 py-2 text-xs font-semibold text-gray-800 transition hover:bg-gray-50 disabled:cursor-not-allowed disabled:opacity-50"
+          className="w-full min-w-0 rounded-xl border border-stone-200 bg-white px-3 py-2 text-xs font-semibold text-gray-800 shadow-sm transition hover:border-orange-200 hover:bg-orange-50 hover:text-orange-700"
         >
           {isGeneratingQr ? "Generating..." : "Download"}
         </button>
@@ -689,10 +689,10 @@ export default function SettingsForm({ tenant }: SettingsFormProps) {
         />
       ) : null}
 
-      <div className="space-y-6">
+      <div className="w-full min-w-0 max-w-full space-y-6 overflow-x-hidden">
         {/* SETTINGS TABS */}
-        <div className="overflow-x-auto">
-          <div className="flex min-w-max gap-2 rounded-2xl border border-stone-200/50 bg-white/85 p-2 shadow-sm backdrop-blur">
+        <div className="w-full min-w-0 max-w-full overflow-x-auto">
+          <div className="inline-flex min-w-full gap-2 rounded-2xl border border-stone-200/50 bg-white/85 p-2 shadow-sm backdrop-blur">
             {settingsTabs.map((tab) => {
               const isActive = activeTab === tab.id;
 
@@ -1328,7 +1328,7 @@ export default function SettingsForm({ tenant }: SettingsFormProps) {
                   type="button"
                   onClick={() => void handleDisconnectCalendar()}
                   disabled={isDisconnectingCalendar}
-                  className="rounded-xl border bg-white px-4 py-2 text-sm font-semibold text-red-700 transition hover:bg-red-50 disabled:cursor-not-allowed disabled:opacity-60"
+                  className="rounded-xl border border-red-200 bg-white px-4 py-2 text-sm font-semibold text-red-700 shadow-sm transition hover:border-red-300 hover:bg-red-50 hover:text-red-800"
                 >
                   {isDisconnectingCalendar ? "Disconnecting..." : "Disconnect"}
                 </button>
@@ -1549,7 +1549,7 @@ export default function SettingsForm({ tenant }: SettingsFormProps) {
       ) : null}
 
       {activeTab === "leadCapture" ? (
-        <section className="rounded-2xl border border-stone-200/50 bg-white/90 p-4 shadow-[0_8px_24px_rgba(17,24,39,0.045)]">
+        <section className="w-full min-w-0 max-w-full rounded-2xl border border-stone-200/50 bg-white/90 p-4 shadow-[0_8px_24px_rgba(17,24,39,0.045)]">
           <div className="mb-4 flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
             <button
               type="button"
@@ -1571,7 +1571,7 @@ export default function SettingsForm({ tenant }: SettingsFormProps) {
               </div>
             </button>
           </div>
-            <div className="grid gap-4 lg:grid-cols-3">
+            <div className="grid w-full min-w-0 max-w-full grid-cols-1 gap-4 lg:grid-cols-3">
               <CopyableLinkRow
                 label="Hosted Contactor Page"
                 description="Use this link for a simple AI-first landing page."
@@ -1594,7 +1594,7 @@ export default function SettingsForm({ tenant }: SettingsFormProps) {
                   fileName={`${tenant.slug}-site-chat.png`}
                 />
               ) : (
-                <div className="rounded-2xl border border-dashed bg-white p-4 shadow-sm">
+                <div className="rounded-2xl border border-dashed border-stone-200 bg-white p-4 shadow-sm">
                   <p className="text-sm font-semibold text-gray-900">
                     Existing Website QR
                   </p>
