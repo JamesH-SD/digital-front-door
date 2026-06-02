@@ -1,8 +1,8 @@
 import { notFound } from "next/navigation";
 import type { Metadata } from "next";
 import { getTenantBySlug } from "@/lib/db/tenants";
-import { ContractorHero } from "@/components/tenant/ContractorHero"; 
 import { ChatWidget } from "@/components/chat/ChatWidget";
+import { TenantWebsite } from "@/components/tenant/TenantWebsite";
 
 type PageProps = {
   params: Promise<{
@@ -15,16 +15,16 @@ type PageProps = {
   }>;
 };
 
-export async function generateMetadata(
-  { params }: PageProps
-): Promise<Metadata> {
+export async function generateMetadata({
+  params,
+}: PageProps): Promise<Metadata> {
   const { tenantSlug } = await params;
   const tenant = await getTenantBySlug(tenantSlug);
 
   if (!tenant) {
     return {
-      title: "Contractor Not Found",
-      description: "The contractor page you requested could not be found.",
+      title: "Business Not Found",
+      description: "The business page you requested could not be found.",
     };
   }
 
@@ -32,11 +32,11 @@ export async function generateMetadata(
     title: `${tenant.businessName} | Digital Front Door`,
     description:
       tenant.tagline ??
-      `Connect instantly with ${tenant.businessName} for service inquiries and lead capture.`,
+      `Connect instantly with ${tenant.businessName} for questions, quotes, and scheduling.`,
   };
 }
 
-export default async function TenantPage({ params, searchParams  }: PageProps) {
+export default async function TenantPage({ params, searchParams }: PageProps) {
   const { tenantSlug } = await params;
   const tenant = await getTenantBySlug(tenantSlug);
 
@@ -46,15 +46,18 @@ export default async function TenantPage({ params, searchParams  }: PageProps) {
 
   const query = searchParams ? await searchParams : {};
   const leadSource = query.source || "website";
-  const autoOpenChat = query.openChat === "0" ? false : true;
   const isEmbed = query.embed === "1";
+
+  // QR/ad links can pass ?openChat=1 to open the AI immediately.
+  // Normal website visitors see the trust page first with a visible AI launcher.
+  const autoOpenChat = query.openChat === "1";
 
   if (isEmbed) {
     return (
       <main className="h-screen w-screen overflow-hidden bg-white p-3">
         <ChatWidget
           tenant={tenant}
-          autoOpen={autoOpenChat}
+          autoOpen
           leadSource={leadSource}
           variant="embed"
         />
@@ -63,40 +66,10 @@ export default async function TenantPage({ params, searchParams  }: PageProps) {
   }
 
   return (
-    <main className="saas-shell min-h-screen w-screen overflow-hidden">
-      <ContractorHero tenant={tenant} />
-      <section className="mx-auto max-w-6xl px-4 py-8 sm:px-6">
-        <div className="grid gap-6 lg:grid-cols-[0.9fr_1.1fr]">
-          <div className="saas-card p-6">
-            <h2 className="text-xl font-semibold">About</h2>
-            <p className="mt-3 text-sm text-gray-600">
-              {tenant.businessName} helps local customers get quotes, ask
-              questions, and connect quickly without waiting for callbacks.
-            </p>
-
-            <div className="mt-6 space-y-2 text-sm text-gray-700">
-            {tenant.primaryPhone && (
-              <p>
-                <span className="font-medium">Phone:</span> {tenant.primaryPhone}
-              </p>
-            )}
-              {tenant.email && <p><span className="font-medium">Email:</span> {tenant.email}</p>}
-              {tenant.serviceAreaSummary && (
-                <p>
-                  <span className="font-medium">Service Area:</span>{" "}
-                  {tenant.serviceAreaSummary}
-                </p>
-              )}
-            </div>
-          </div>
-
-          <ChatWidget
-            tenant={tenant}
-            autoOpen={autoOpenChat}
-            leadSource={leadSource}
-          />
-        </div>
-      </section>
-    </main>
+    <TenantWebsite
+      tenant={tenant}
+      leadSource={leadSource}
+      autoOpenChat={autoOpenChat}
+    />
   );
 }

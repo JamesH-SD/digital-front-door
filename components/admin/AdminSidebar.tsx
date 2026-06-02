@@ -4,10 +4,12 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import {
   BarChart3,
+  BotIcon,
   CalendarDays,
   ChevronLeft,
   ChevronRight,
   FileText,
+  Globe,
   Home,
   Menu,
   Plug,
@@ -54,7 +56,13 @@ export default function AdminSidebar({ tenant }: AdminSidebarProps) {
 
   const navItems: NavItem[] = [
     {
-      label: "Business Settings",
+      label: "Analytics",
+      description: "Performance and conversion data",
+      icon: BarChart3,
+      isEnabled: false,
+    },
+    {
+      label: "Business Identity",
       href: `/admin/${tenant.slug}/settings`,
       description: "Business and chat configuration",
       icon: Settings,
@@ -68,33 +76,42 @@ export default function AdminSidebar({ tenant }: AdminSidebarProps) {
       isEnabled: true,
     },
     {
+      label: "Website",
+      href: `/admin/${tenant.slug}/website`,
+      description: "Website configuration",
+      icon: Globe,
+      isEnabled: true,
+    },
+    {
+      label: "Knowledge Base",
+      href: `/admin/${tenant.slug}/knowledge`,
+      description: "Business knowledge library",
+      icon: FileText,
+      isEnabled: true,
+    },
+    {
+      label: "AI & Chat",
+      href: `/admin/${tenant.slug}/ai-chat`,
+      description: "AI and chat configuration",
+      icon: BotIcon,
+      isEnabled: true,
+    },
+    { label: "Automations",
+      href: `/admin/${tenant.slug}/automations`,
+      description: "Rules and follow-up flows",
+      icon: Plug,
+      isEnabled: false,
+    },
+    {
       label: "Appointments",
       description: "Scheduled calls and visits",
       icon: CalendarDays,
       isEnabled: false,
     },
     {
-      label: "Knowledge Base",
-      description: "Business knowledge library",
-      icon: FileText,
-      isEnabled: false,
-    },
-    {
       label: "Lead Capture",
       description: "QR codes and website embed",
       icon: Sparkles,
-      isEnabled: false,
-    },
-    {
-      label: "Analytics",
-      description: "Performance and conversion data",
-      icon: BarChart3,
-      isEnabled: false,
-    },
-    {
-      label: "Automations",
-      description: "Rules and follow-up flows",
-      icon: Plug,
       isEnabled: false,
     },
     {

@@ -57,5 +57,6 @@ export async function getTenantBySlug(
     askForEmailAfterPhone: data.ask_for_email_after_phone,
     askForImagesAfterCapture: data.ask_for_images_after_capture,
     requirePhoneForLead: data.require_phone_for_lead,
+    websiteSettings: data.website_settings || {},
   };
 }

@@ -1,11 +1,3 @@
-export type TenantWebsiteService = {
-  id: string;
-  title: string;
-  description?: string;
-  imageUrl?: string;
-  enabled?: boolean;
-};
-
 export type TenantWebsiteSettings = {
   template?: "ai_trust_v1";
   primaryColor?: string;
@@ -47,27 +39,6 @@ export type TenantWebsiteSettings = {
   aboutTitle?: string;
   aboutBody?: string;
   aboutCtaLabel?: string;
-
-  bannerHeading?: string;
-  bannerTitle?: string;
-  bannerDescription?: string;
-  bannerButtonLabel?: string;
-
-  serviceAreasHeading?: string;
-  serviceAreasTitle?: string;
-
-  reviewsHeading?: string;
-  reviewsTitle?: string;
-
-  faqsHeading?: string;
-  faqsTitle?: string;
-  faqsDescription?: string;
-  faqsButtonLabel?: string;
-
-  servicesSectionHeading?: string;
-  servicesSectionTitle?: string;
-  servicesSectionDescription?: string;
-  services?: TenantWebsiteService[];
 };
 
 export type Tenant = {
