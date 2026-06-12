@@ -100,6 +100,12 @@ export default function AdminLeadListClient({
   const [statusFilter, setStatusFilter] = useState<StatusFilter>("all");
   const [sortField, setSortField] = useState<SortField>("createdAt");
   const [sortDirection, setSortDirection] = useState<SortDirection>("desc");
+  const [currentPage, setCurrentPage] = useState(1);
+  const pageSize = 25;
+
+  function resetToFirstPage() {
+    setCurrentPage(1);
+  }
 
   function handleSort(field: SortField) {
     if (sortField === field) {
@@ -172,6 +178,16 @@ export default function AdminLeadListClient({
     return sorted;
   }, [leads, searchQuery, statusFilter, sortField, sortDirection]);
 
+  const totalPages = Math.max(
+    1,
+    Math.ceil(filteredAndSortedLeads.length / pageSize)
+  );
+  
+  const paginatedLeads = filteredAndSortedLeads.slice(
+    (currentPage - 1) * pageSize,
+    currentPage * pageSize
+  );
+
   if (leads.length === 0) {
     return (
       <div className="rounded-2xl border border-dashed bg-white px-6 py-16 text-center shadow-sm">
@@ -187,21 +203,17 @@ export default function AdminLeadListClient({
 
   return (
     <div className="space-y-3">
-      <div className="flex flex-col gap-4 border-b border-stone-100 pb-4 lg:flex-row lg:items-center lg:justify-between">
-        <div>
-          <h2 className="text-lg font-semibold text-gray-950">Leads</h2>
-          <p className="mt-1 text-sm text-gray-500">
-            Search, filter, and open captured leads.
-          </p>
-        </div>
-
+      <div className="flex flex-col gap-4 border-b border-stone-100 pb-4 lg:flex-row lg:items-center lg:justify-end">
         <div className="flex flex-col gap-3 sm:flex-row sm:items-center">
         <div className="relative w-full sm:w-80">
           <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-gray-400" />
           <input
             type="text"
             value={searchQuery}
-            onChange={(e) => setSearchQuery(e.target.value)}
+            onChange={(e) => {
+              setSearchQuery(e.target.value);
+              resetToFirstPage();
+            }}
             placeholder="Search leads..."
             className="w-full rounded-2xl border border-stone-200 bg-white/90 py-2.5 pl-10 pr-4 text-sm text-gray-900 shadow-sm outline-none transition focus:border-[#d35400]/40 focus:ring-4 focus:ring-orange-100"
           />
@@ -210,7 +222,10 @@ export default function AdminLeadListClient({
         <div className="flex items-center gap-3">
           <select
             value={statusFilter}
-            onChange={(e) => setStatusFilter(e.target.value as StatusFilter)}
+            onChange={(e) => {
+              setStatusFilter(e.target.value as StatusFilter);
+              resetToFirstPage();
+            }}
             className="rounded-2xl border border-stone-200 bg-white/90 px-4 py-2.5 text-sm text-gray-900 shadow-sm outline-none transition focus:border-[#d35400]/40 focus:ring-4 focus:ring-orange-100"
           >
             <option value="all">All statuses</option>
@@ -256,15 +271,16 @@ export default function AdminLeadListClient({
       </div>
 
       {filteredAndSortedLeads.length === 0 ? (
-        <div className="rounded-2xl border bg-white px-6 py-16 text-center shadow-sm">
-          <h2 className="text-xl font-semibold text-gray-900">
-            No matching leads
-          </h2>
-          <p className="mt-2 text-sm text-gray-600">
-            Try adjusting your search or status filter.
-          </p>
-        </div>
-      ) : (
+      <div className="rounded-2xl border bg-white px-6 py-16 text-center shadow-sm">
+        <h2 className="text-xl font-semibold text-gray-900">
+          No matching leads
+        </h2>
+        <p className="mt-2 text-sm text-gray-600">
+          Try adjusting your search or status filter.
+        </p>
+      </div>
+    ) : (
+      <>
         <div className="overflow-hidden rounded-3xl border border-stone-200/70 bg-white/95 shadow-[0_12px_30px_rgba(17,24,39,0.06)]">
           <div className="hidden grid-cols-6 gap-4 border-b border-stone-200 bg-stone-50/80 px-5 py-3 text-[11px] font-semibold tracking-[0.12em] text-stone-500 md:grid">
             <div>
@@ -329,7 +345,7 @@ export default function AdminLeadListClient({
           </div>
 
           <div>
-            {filteredAndSortedLeads.map((lead) => (
+            {paginatedLeads.map((lead) => (
               <Link
                 key={lead.id}
                 href={`/admin/${tenantSlug}/leads/${lead.id}`}
@@ -368,11 +384,19 @@ export default function AdminLeadListClient({
                   <div className="text-sm text-gray-600">
                     {lead.leadNumber || lead.id}
                   </div>
+
                   <div className="text-sm font-medium text-gray-900">
                     {lead.customerName}
                   </div>
-                  <div className="text-sm text-gray-600">{toTitleCase(lead.projectType)}</div>
-                  <div className="text-sm text-gray-600">{lead.location}</div>
+
+                  <div className="text-sm text-gray-600">
+                    {toTitleCase(lead.projectType)}
+                  </div>
+
+                  <div className="text-sm text-gray-600">
+                    {lead.location}
+                  </div>
+
                   <div>
                     <span
                       className={`inline-flex rounded-full border px-3 py-1 text-[11px] font-semibold tracking-wide capitalize shadow-sm ${getStatusClasses(
@@ -382,6 +406,7 @@ export default function AdminLeadListClient({
                       {lead.status}
                     </span>
                   </div>
+
                   <div className="text-sm text-gray-600">
                     {formatDate(lead.createdAt)}
                   </div>
@@ -390,7 +415,54 @@ export default function AdminLeadListClient({
             ))}
           </div>
         </div>
-      )}
+
+        {filteredAndSortedLeads.length > pageSize ? (
+          <div className="mt-4 flex flex-col gap-3 rounded-2xl border border-stone-200 bg-white px-4 py-3 text-sm text-gray-600 sm:flex-row sm:items-center sm:justify-between">
+            <p>
+              Showing{" "}
+              <span className="font-semibold text-gray-900">
+                {(currentPage - 1) * pageSize + 1}
+              </span>{" "}
+              to{" "}
+              <span className="font-semibold text-gray-900">
+                {Math.min(currentPage * pageSize, filteredAndSortedLeads.length)}
+              </span>{" "}
+              of{" "}
+              <span className="font-semibold text-gray-900">
+                {filteredAndSortedLeads.length}
+              </span>{" "}
+              leads
+            </p>
+
+            <div className="flex items-center gap-2">
+              <button
+                type="button"
+                onClick={() => setCurrentPage((prev) => Math.max(1, prev - 1))}
+                disabled={currentPage === 1}
+                className="saas-button-secondary px-3 py-2 text-sm font-semibold disabled:cursor-not-allowed disabled:opacity-50"
+              >
+                Previous
+              </button>
+
+              <span className="rounded-xl bg-stone-100 px-3 py-2 text-xs font-semibold text-stone-600">
+                Page {currentPage} of {totalPages}
+              </span>
+
+              <button
+                type="button"
+                onClick={() =>
+                  setCurrentPage((prev) => Math.min(totalPages, prev + 1))
+                }
+                disabled={currentPage === totalPages}
+                className="saas-button-secondary px-3 py-2 text-sm font-semibold disabled:cursor-not-allowed disabled:opacity-50"
+              >
+                Next
+              </button>
+            </div>
+          </div>
+        ) : null}
+      </>
+    )}
     </div>
   );
 }

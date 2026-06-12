@@ -423,16 +423,6 @@ export default function TenantKnowledgeManager({ tenantSlug }: Props) {
     
     <section className="rounded-2xl border border-stone-200/50 bg-white/90 p-4 shadow-[0_8px_24px_rgba(17,24,39,0.045)]">
       <div className="flex flex-col gap-3 border-b border-stone-100 pb-4 lg:flex-row lg:items-start lg:justify-between">
-        <div>
-          <h2 className="text-lg font-semibold text-gray-950">
-            Knowledge Base
-          </h2>
-          <p className="mt-1 text-sm text-gray-500">
-            Upload documents or add business-specific facts the AI can use when
-            answering customer questions.
-          </p>
-        </div>
-
         <div className="rounded-full bg-stone-100 px-3 py-1 text-xs font-semibold text-stone-600">
           {isLoading
             ? "Loading..."
@@ -818,7 +808,7 @@ export default function TenantKnowledgeManager({ tenantSlug }: Props) {
                         <button
                           type="button"
                           onClick={() => toggleExpanded(item.id)}
-                          className="rounded-xl border border-stone-200 bg-white px-3 py-1.5 text-xs font-semibold text-gray-700 transition hover:bg-stone-50"
+                          className="saas-button-secondary px-3 py-1.5 text-xs font-semibold"
                         >
                           {isExpanded ? "Hide" : "View"}
                         </button>
@@ -986,7 +976,7 @@ export default function TenantKnowledgeManager({ tenantSlug }: Props) {
                           <button
                             type="button"
                             onClick={cancelEdit}
-                            className="rounded-xl border border-stone-200 bg-white px-4 py-2 text-sm font-semibold text-gray-700 transition hover:bg-stone-50"
+                            className="saas-button-secondary px-3 py-1.5 text-xs font-semibold"
                           >
                             Cancel
                           </button>
@@ -999,7 +989,7 @@ export default function TenantKnowledgeManager({ tenantSlug }: Props) {
                               !editForm.title.trim() ||
                               !editForm.content.trim()
                             }
-                            className="saas-button-accent px-4 py-2 text-sm font-semibold shadow-sm disabled:cursor-not-allowed disabled:opacity-60"
+                            className="saas-button-accent px-4 py-2 text-sm font-semibold disabled:cursor-not-allowed disabled:opacity-60"
                           >
                             {isSaving ? "Saving..." : "Save"}
                           </button>

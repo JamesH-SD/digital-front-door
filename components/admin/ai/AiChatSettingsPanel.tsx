@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import QRCode from "qrcode";
 import type { Tenant } from "@/lib/types/tenant";
 import ToastMessage from "@/components/ui/ToastMessage";
@@ -16,16 +16,6 @@ type ToastState = {
 
 function displayValue(value?: string | null) {
   return value && value.trim() ? value : "Not provided";
-}
-
-function buildHostedPageUrl(tenantSlug: string) {
-  if (typeof window === "undefined") return `/${tenantSlug}`;
-  return `${window.location.origin}/${tenantSlug}`;
-}
-
-function buildQrAutoOpenUrl(tenantSlug: string) {
-  if (typeof window === "undefined") return `/${tenantSlug}?source=qr&openChat=1`;
-  return `${window.location.origin}/${tenantSlug}?source=qr&openChat=1`;
 }
 
 function buildExistingWebsiteQrUrl(websiteUrl?: string | null) {
@@ -98,23 +88,36 @@ function CopyableLinkRow({
     }
   }
 
-  async function generatePreview() {
-    if (!value || qrPreviewUrl) return;
-
-    try {
-      const dataUrl = await QRCode.toDataURL(value, {
-        width: 320,
-        margin: 2,
-        errorCorrectionLevel: "H",
-      });
-
-      setQrPreviewUrl(dataUrl);
-    } catch (error) {
-      console.error("Failed generating QR preview:", error);
+  useEffect(() => {
+    let isMounted = true;
+  
+    async function generatePreview() {
+      if (!value) {
+        setQrPreviewUrl("");
+        return;
+      }
+  
+      try {
+        const dataUrl = await QRCode.toDataURL(value, {
+          width: 320,
+          margin: 2,
+          errorCorrectionLevel: "H",
+        });
+  
+        if (isMounted) {
+          setQrPreviewUrl(dataUrl);
+        }
+      } catch (error) {
+        console.error("Failed generating QR preview:", error);
+      }
     }
-  }
-
-  void generatePreview();
+  
+    void generatePreview();
+  
+    return () => {
+      isMounted = false;
+    };
+  }, [value]);
 
   return (
     <div className="w-full min-w-0 max-w-full overflow-hidden rounded-2xl border border-stone-200 bg-white p-4 shadow-sm">
@@ -147,7 +150,7 @@ function CopyableLinkRow({
             window.open(value, "_blank", "noopener,noreferrer");
           }}
           disabled={!value}
-          className="w-full min-w-0 rounded-xl border border-stone-200 bg-white px-3 py-2 text-xs font-semibold text-gray-800 shadow-sm transition hover:border-orange-200 hover:bg-orange-50 hover:text-orange-700"
+          className="saas-button-secondary w-full min-w-0 px-3 py-2 text-xs font-semibold"
         >
           Open
         </button>
@@ -156,7 +159,7 @@ function CopyableLinkRow({
           type="button"
           onClick={handleCopy}
           disabled={!value}
-          className="w-full min-w-0 rounded-xl border border-stone-200 bg-white px-3 py-2 text-xs font-semibold text-gray-800 shadow-sm transition hover:border-orange-200 hover:bg-orange-50 hover:text-orange-700"
+          className="saas-button-secondary w-full min-w-0 px-3 py-2 text-xs font-semibold"
         >
           {copied ? "Copied" : "Copy"}
         </button>
@@ -165,7 +168,7 @@ function CopyableLinkRow({
           type="button"
           onClick={handleDownloadQr}
           disabled={!value || isGeneratingQr}
-          className="w-full min-w-0 rounded-xl border border-stone-200 bg-white px-3 py-2 text-xs font-semibold text-gray-800 shadow-sm transition hover:border-orange-200 hover:bg-orange-50 hover:text-orange-700"
+          className="saas-button-secondary w-full min-w-0 px-3 py-2 text-xs font-semibold"
         >
           {isGeneratingQr ? "Generating..." : "Download"}
         </button>
@@ -188,9 +191,22 @@ export default function AiChatSettingsPanel({ tenant }: Props) {
     requirePhoneForLead: tenant.requirePhoneForLead ?? true,
   });
 
-  const hostedPageUrl = buildHostedPageUrl(tenant.slug);
-  const qrAutoOpenUrl = buildQrAutoOpenUrl(tenant.slug);
+  const [origin, setOrigin] = useState("");
+
+  useEffect(() => {
+    setOrigin(window.location.origin);
+  }, []);
+
+  const hostedPageUrl = origin
+    ? `${origin}/${tenant.slug}`
+    : `/${tenant.slug}`;
+
+  const qrAutoOpenUrl = origin
+    ? `${origin}/${tenant.slug}?source=qr&openChat=1`
+    : `/${tenant.slug}?source=qr&openChat=1`;
+
   const existingWebsiteQrUrl = buildExistingWebsiteQrUrl(tenant.websiteUrl);
+
   const tenantHasWebsite = hasWebsiteUrl(tenant.websiteUrl);
 
   async function saveAiChatSettings() {
@@ -264,7 +280,7 @@ export default function AiChatSettingsPanel({ tenant }: Props) {
               type="button"
               onClick={saveAiChatSettings}
               disabled={isSaving}
-              className="saas-button-accent rounded-xl px-4 py-2 text-sm font-semibold shadow-sm disabled:cursor-not-allowed disabled:opacity-60"
+              className="saas-button-accent px-4 py-2 text-sm font-semibold disabled:cursor-not-allowed disabled:opacity-60"
             >
               {isSaving ? "Saving..." : "Save AI & Chat Settings"}
             </button>
@@ -447,7 +463,7 @@ export default function AiChatSettingsPanel({ tenant }: Props) {
                     const snippet = `<script src="https://app.contactor.ai/widget.js" data-tenant="${tenant.slug}"></script>`;
                     void navigator.clipboard.writeText(snippet);
                   }}
-                  className="saas-button-accent rounded-xl px-4 py-2 text-xs font-semibold text-white"
+                  className="saas-button-secondary px-3 py-1 text-xs font-medium"
                 >
                   Copy Snippet
                 </button>

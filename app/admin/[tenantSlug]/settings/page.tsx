@@ -1,7 +1,7 @@
 import { notFound } from "next/navigation";
 import { getTenantBySlug } from "@/lib/db/tenants";
 import SettingsForm from "@/components/admin/settings/SettingsForm";
-// import TenantKnowledgeManager from "@/components/admin/settings/TenantKnowledgeManager";
+import AdminPageHeader from "@/components/admin/ui/AdminPageHeader";
 
 type PageProps = {
   params: Promise<{
@@ -20,19 +20,16 @@ export default async function SettingsPage({ params }: PageProps) {
 
   return (
     <div className="space-y-6">
-      <section className="saas-workspace-card p-6 sm:p-7">
-        <div className="mb-6">
-          <h2 className="text-lg font-semibold text-gray-900">Settings</h2>
-          <p className="mt-2 text-sm text-gray-600">
-            Manage your business profile, service area, services, and chat
-            behavior from one place.
-          </p>
-        </div>
+      <AdminPageHeader
+        title="Business Identity"
+        description="Manage the business profile, service area, services, hours, and calendar details used by the website and AI receptionist."
+      />
 
-        <SettingsForm tenant={tenant} />
-      </section>
-
-      {/* <TenantKnowledgeManager tenantSlug={tenant.slug} /> */}
+      <SettingsForm
+        tenant={tenant}
+        initialTab="businessIdentity"
+        showTabs={false}
+      />
     </div>
   );
 }

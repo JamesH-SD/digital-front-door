@@ -63,6 +63,12 @@ export type TenantWebsiteSettings = {
   faqsTitle?: string;
   faqsDescription?: string;
   faqsButtonLabel?: string;
+  faqs?: {
+    id: string;
+    question: string;
+    answer: string;
+    enabled?: boolean;
+  }[];
 
   servicesSectionHeading?: string;
   servicesSectionTitle?: string;
@@ -82,6 +88,9 @@ export type Tenant = {
   email?: string;
   websiteUrl?: string;
   primaryCategory?: string;
+  addressLine2?: string | null;
+  country?: string | null;
+  serviceRadiusMiles?: number | null;
 
   // ===============================
   // GBP_COMPATIBLE: Location / Service Area
@@ -93,6 +102,7 @@ export type Tenant = {
   zip?: string;
   serviceAreaSummary?: string;
   serviceCities?: string[];
+  excludedServiceCities?: string[];
   outOfAreaMessage?: string;
   isInsured?: boolean;
   shareBusinessAddressInChat?: boolean; 

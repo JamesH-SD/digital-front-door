@@ -105,6 +105,14 @@ body {
     background 0.2s ease;
 }
 
+.saas-button-secondary {
+  @apply rounded-xl border border-stone-200 bg-white text-gray-700 shadow-sm transition hover:border-orange-200 hover:bg-orange-50 hover:text-orange-700;
+}
+
+.saas-button-danger {
+  @apply rounded-xl border border-red-200 bg-white text-red-700 shadow-sm transition hover:border-red-300 hover:bg-red-50 hover:text-red-800;
+}
+
 .saas-button-accent:hover {
   background: var(--accent-hover);
   transform: translateY(-1px);

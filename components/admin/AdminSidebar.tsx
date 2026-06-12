@@ -6,6 +6,7 @@ import {
   BarChart3,
   BotIcon,
   CalendarDays,
+  ChevronDown,
   ChevronLeft,
   ChevronRight,
   FileText,
@@ -26,21 +27,26 @@ type AdminSidebarProps = {
   tenant: Tenant;
 };
 
+type NavChildItem = {
+  label: string;
+  href: string;
+};
+
 type NavItem = {
   label: string;
   href?: string;
   description: string;
   icon: React.ElementType;
   isEnabled: boolean;
+  children?: NavChildItem[];
 };
 
 function getLinkClasses(isActive: boolean, isCollapsed: boolean) {
-  const base =
-    "group relative flex items-center gap-3 rounded-xl transition";
+  const base = "group relative flex items-center rounded-xl transition";
 
   const size = isCollapsed
-    ? "justify-center px-3 py-3"
-    : "w-full px-3 py-2.5";
+    ? "mx-auto h-11 w-11 justify-center"
+    : "w-full justify-start gap-3 px-3 py-2.5 text-left";
 
   const color = isActive
     ? "bg-orange-700 text-white shadow-sm"
@@ -54,19 +60,50 @@ export default function AdminSidebar({ tenant }: AdminSidebarProps) {
   const [isCollapsed, setIsCollapsed] = useState(false);
   const [isMobileOpen, setIsMobileOpen] = useState(false);
 
+  const [expandedGroups, setExpandedGroups] = useState<string[]>([]);
+
+  function toggleGroup(label: string) {
+    setExpandedGroups((prev) =>
+      prev.includes(label)
+        ? prev.filter((item) => item !== label)
+        : [...prev, label]
+    );
+  }
+
   const navItems: NavItem[] = [
-    {
-      label: "Analytics",
-      description: "Performance and conversion data",
-      icon: BarChart3,
-      isEnabled: false,
-    },
+    // {
+    //   label: "Analytics",
+    //   description: "Performance and conversion data",
+    //   icon: BarChart3,
+    //   isEnabled: false,
+    // },
     {
       label: "Business Identity",
-      href: `/admin/${tenant.slug}/settings`,
-      description: "Business and chat configuration",
+      description: "Business profile and operating details",
       icon: Settings,
       isEnabled: true,
+      children: [
+        {
+          label: "Business Details",
+          href: `/admin/${tenant.slug}/settings`,
+        },
+        {
+          label: "Service Area",
+          href: `/admin/${tenant.slug}/settings/service-area`,
+        },
+        {
+          label: "Services",
+          href: `/admin/${tenant.slug}/settings/services`,
+        },
+        {
+          label: "Hours",
+          href: `/admin/${tenant.slug}/settings/hours`,
+        },
+        {
+          label: "Calendar",
+          href: `/admin/${tenant.slug}/settings/calendar`,
+        },
+      ],
     },
     {
       label: "Leads",
@@ -77,10 +114,47 @@ export default function AdminSidebar({ tenant }: AdminSidebarProps) {
     },
     {
       label: "Website",
-      href: `/admin/${tenant.slug}/website`,
       description: "Website configuration",
       icon: Globe,
       isEnabled: true,
+      children: [
+        {
+          label: "Brand",
+          href: `/admin/${tenant.slug}/website/brand`,
+        },
+        {
+          label: "Hero",
+          href: `/admin/${tenant.slug}/website/hero`,
+        },
+        {
+          label: "Why Us",
+          href: `/admin/${tenant.slug}/website/why-us`,
+        },
+        {
+          label: "Services",
+          href: `/admin/${tenant.slug}/website/services`,
+        },
+        {
+          label: "Banner",
+          href: `/admin/${tenant.slug}/website/banner`,
+        },
+        {
+          label: "Service Areas",
+          href: `/admin/${tenant.slug}/website/service-areas`,
+        },
+        {
+          label: "About",
+          href: `/admin/${tenant.slug}/website/about`,
+        },
+        {
+          label: "Reviews",
+          href: `/admin/${tenant.slug}/website/reviews`,
+        },
+        {
+          label: "FAQs",
+          href: `/admin/${tenant.slug}/website/faqs`,
+        },
+      ],
     },
     {
       label: "Knowledge Base",
@@ -96,51 +170,64 @@ export default function AdminSidebar({ tenant }: AdminSidebarProps) {
       icon: BotIcon,
       isEnabled: true,
     },
-    { label: "Automations",
-      href: `/admin/${tenant.slug}/automations`,
-      description: "Rules and follow-up flows",
-      icon: Plug,
-      isEnabled: false,
-    },
-    {
-      label: "Appointments",
-      description: "Scheduled calls and visits",
-      icon: CalendarDays,
-      isEnabled: false,
-    },
+    // { label: "Automations",
+    //   href: `/admin/${tenant.slug}/automations`,
+    //   description: "Rules and follow-up flows",
+    //   icon: Plug,
+    //   isEnabled: false,
+    // },
+    // {
+    //   label: "Appointments",
+    //   description: "Scheduled calls and visits",
+    //   icon: CalendarDays,
+    //   isEnabled: false,
+    // },
     {
       label: "Lead Capture",
       description: "QR codes and website embed",
       icon: Sparkles,
       isEnabled: false,
     },
-    {
-      label: "Billing",
-      description: "Plan and payment settings",
-      icon: WalletCards,
-      isEnabled: false,
-    },
+    // {
+    //   label: "Billing",
+    //   description: "Plan and payment settings",
+    //   icon: WalletCards,
+    //   isEnabled: false,
+    // },
   ];
 
   function renderNavItem(item: NavItem) {
     const Icon = item.icon;
-
+    const hasChildren = Boolean(item.children?.length);
+    const isExpanded = expandedGroups.includes(item.label);
+  
+    const isParentActive =
+      hasChildren &&
+      item.children?.some((child) => pathname === child.href);
+  
     const isActive =
       item.href &&
       (pathname === item.href ||
-        (item.href !== `/admin/${tenant.slug}` &&
-          pathname.startsWith(item.href)));
-
+        (item.href !== `/admin/${tenant.slug}` && pathname.startsWith(item.href)));
+  
     const content = (
       <>
         <Icon className="h-5 w-5 shrink-0" />
-
+  
         {!isCollapsed ? (
-          <span className="min-w-0 truncate text-sm font-semibold">
+          <span className="min-w-0 flex-1 truncate text-sm font-semibold">
             {item.label}
           </span>
         ) : null}
-
+  
+        {hasChildren && !isCollapsed ? (
+          <ChevronDown
+            className={`h-4 w-4 shrink-0 transition ${
+              isExpanded ? "rotate-180" : ""
+            }`}
+          />
+        ) : null}
+  
         {isCollapsed ? (
           <div className="pointer-events-none absolute left-full top-1/2 z-50 ml-3 hidden -translate-y-1/2 whitespace-nowrap rounded-xl bg-gray-950 px-3 py-2 text-xs font-medium text-white shadow-lg group-hover:block">
             {item.label}
@@ -148,7 +235,50 @@ export default function AdminSidebar({ tenant }: AdminSidebarProps) {
         ) : null}
       </>
     );
-
+  
+    if (hasChildren) {
+      return (
+        <div key={item.label} className="space-y-1">
+          <button
+            type="button"
+            onClick={() => {
+              if (isCollapsed) {
+                setIsCollapsed(false);
+              }
+  
+              toggleGroup(item.label);
+            }}
+            className={getLinkClasses(Boolean(isParentActive), isCollapsed)}
+          >
+            {content}
+          </button>
+  
+          {isExpanded && !isCollapsed ? (
+            <div className="ml-7 mt-1 space-y-1 border-l border-stone-200 pl-4">
+              {item.children?.map((child) => {
+                const childIsActive = pathname === child.href;
+  
+                return (
+                  <Link
+                    key={child.href}
+                    href={child.href}
+                    onClick={() => setIsMobileOpen(false)}
+                    className={`block w-full rounded-lg px-3 py-1.5 text-left text-sm font-medium transition ${
+                      childIsActive
+                        ? "bg-orange-50 text-orange-700"
+                        : "text-gray-600 hover:bg-orange-50 hover:text-orange-700"
+                    }`}
+                  >
+                    {child.label}
+                  </Link>
+                );
+              })}
+            </div>
+          ) : null}
+        </div>
+      );
+    }
+  
     if (item.isEnabled && item.href) {
       return (
         <Link
@@ -161,7 +291,7 @@ export default function AdminSidebar({ tenant }: AdminSidebarProps) {
         </Link>
       );
     }
-
+  
     return (
       <button
         key={item.label}
@@ -194,7 +324,7 @@ export default function AdminSidebar({ tenant }: AdminSidebarProps) {
         </div>
       </div>
 
-      <nav className="flex-1 space-y-2 px-3 py-4">
+      <nav className="min-h-0 flex-1 space-y-1 overflow-y-auto px-3 py-4">
         {navItems.map(renderNavItem)}
       </nav>
 

@@ -31,11 +31,15 @@ export async function PATCH(request: Request, context: RouteContext) {
         // ===============================
         is_service_area_business: body.isServiceAreaBusiness,
         address_line1: body.addressLine1,
+        address_line2: body.addressLine2,
         city: body.city,
         state: body.state,
         zip: body.zip,
+        country: body.country,
         service_area_summary: body.serviceAreaSummary,
+        service_radius_miles: body.serviceRadiusMiles,
         service_cities: body.serviceCities,
+        excluded_service_cities: body.excludedServiceCities,
         out_of_area_message: body.outOfAreaMessage,
 
                 // ===============================

@@ -91,6 +91,19 @@ function getServices(tenant: Tenant) {
 }
 
 function getFaqs(tenant: Tenant) {
+  const websiteFaqs = tenant.websiteSettings?.faqs || [];
+
+  const enabledWebsiteFaqs = websiteFaqs.filter(
+    (faq) => faq.enabled !== false && faq.question?.trim() && faq.answer?.trim()
+  );
+
+  if (enabledWebsiteFaqs.length > 0) {
+    return enabledWebsiteFaqs.map((faq) => ({
+      question: faq.question,
+      answer: faq.answer,
+    }));
+  }
+
   return [
     {
       question: "How do I get started?",
@@ -626,26 +639,37 @@ export function TenantWebsite({
         </section>
       ) : null}
 
-      {/* SERVICE AREA */}
+      {/* SERVICE AREAS */}
       {websiteSettings.showServiceAreas !== false ? (
-      <section className="bg-stone-50 py-16">
-        <div className="mx-auto max-w-6xl px-5 text-center sm:px-6">
+        <section className="bg-stone-50 py-16">
+          <div className="mx-auto max-w-6xl px-5 text-center sm:px-6">
           <p className="text-xs font-bold uppercase tracking-wide text-orange-700">
             {serviceAreasHeading}
           </p>
-          <h2 className="mt-3 text-3xl font-bold tracking-tight text-gray-950">
-            {serviceAreasTitle}
-          </h2>
 
-          <div className="mt-8 grid gap-4 text-left sm:grid-cols-2 lg:grid-cols-3">
-            {serviceAreas.map((area) => (
-              <TrustItem key={area} label={area} />
-            ))}
+            <h2 className="mx-auto mt-6 max-w-4xl text-3xl font-bold tracking-tight text-gray-950 sm:text-4xl">
+              {serviceAreasTitle}
+            </h2>
+
+            {tenant.serviceCities?.length ? (
+              <ul className="mx-auto mt-8 grid max-w-5xl gap-x-10 gap-y-5 text-left sm:grid-cols-2 lg:grid-cols-3">
+                {tenant.serviceCities.map((city) => (
+                  <li
+                    key={city}
+                    className="flex items-center gap-3 text-lg font-semibold text-gray-800"
+                  >
+                    <span className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-emerald-600 text-sm font-bold text-white">
+                      ✓
+                    </span>
+                    <span>{city}</span>
+                  </li>
+                ))}
+              </ul>
+            ) : null}
           </div>
-        </div>
-      </section>
+        </section>
       ) : null}
-
+      
       {/* ABOUT */}
       {websiteSettings.showAbout !== false ? (
       <section id="about" className="bg-white py-16">

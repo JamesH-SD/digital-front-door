@@ -1,6 +1,7 @@
 import { notFound } from "next/navigation";
 import { getTenantBySlug } from "@/lib/db/tenants";
 import TenantKnowledgeManager from "@/components/admin/settings/TenantKnowledgeManager";
+import AdminPageHeader from "@/components/admin/ui/AdminPageHeader";
 
 type PageProps = {
   params: Promise<{
@@ -18,16 +19,10 @@ export default async function KnowledgeBasePage({ params }: PageProps) {
 
   return (
     <div className="space-y-6">
-      <div>
-        <h1 className="text-2xl font-semibold text-gray-950">
-          Knowledge Base
-        </h1>
-        <p className="mt-1 text-sm text-gray-500">
-          Manage documents, FAQs, policies, and business knowledge the AI
-          receptionist can use when answering customer questions.
-        </p>
-      </div>
-
+      <AdminPageHeader
+        title="Knowledge Base"
+        description="Manage documents, FAQs, policies, and business knowledge the AI receptionist can use when answering customer questions."
+      />
       <TenantKnowledgeManager tenantSlug={tenant.slug} />
     </div>
   );

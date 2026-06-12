@@ -4,10 +4,25 @@ import { useState } from "react";
 import { ChevronDown } from "lucide-react";
 import type { TenantWebsiteSettings } from "@/lib/types/tenant";
 
-type Props = {
-  tenantSlug: string;
-  initialSettings?: TenantWebsiteSettings;
-};
+export type WebsitePanelSection =
+  | "brand"
+  | "hero"
+  | "whyUs"
+  | "services"
+  | "banner"
+  | "serviceAreas"
+  | "about"
+  | "reviews"
+  | "faqs"
+  | "socialLinks";
+
+  type Props = {
+    tenantSlug: string;
+    initialSettings?: TenantWebsiteSettings;
+    visibleSections?: WebsitePanelSection[];
+    title?: string;
+    description?: string;
+  };
 
 const defaultSettings: TenantWebsiteSettings = {
   template: "ai_trust_v1",
@@ -65,6 +80,7 @@ const defaultSettings: TenantWebsiteSettings = {
   faqsDescription:
     "Still have questions? Ask the AI receptionist and we’ll help get the conversation started.",
   faqsButtonLabel: "Ask a Question",
+  faqs: [],
 
   servicesSectionHeading: "Services",
   servicesSectionTitle: "Services customers can ask about",
@@ -92,10 +108,8 @@ function HelpTip({ text }: { text: string }) {
 function SectionCard({
   title,
   description,
-  helpText,
   enabled,
   onToggle,
-  defaultOpen = false,
   children,
 }: {
   title: string;
@@ -106,39 +120,18 @@ function SectionCard({
   defaultOpen?: boolean;
   children: React.ReactNode;
 }) {
-  const [isOpen, setIsOpen] = useState(defaultOpen);
-
   return (
     <section className="rounded-2xl border border-stone-200 bg-white p-4 shadow-sm">
-      <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
-        <button
-          type="button"
-          onClick={() => setIsOpen((prev) => !prev)}
-          className="flex min-w-0 flex-1 items-start gap-3 text-left"
-        >
-          <ChevronDown
-            className={`mt-0.5 h-5 w-5 shrink-0 text-gray-500 transition ${
-              isOpen ? "rotate-180" : ""
-            }`}
-          />
-
-          <div className="min-w-0">
-            <div className="flex items-center gap-2">
-              <h3 className="text-base font-semibold text-gray-950">
-                {title}
-              </h3>
-              <HelpTip text={helpText} />
-            </div>
-
-            <p className="mt-1 text-sm text-gray-500">{description}</p>
+      {typeof enabled === "boolean" && onToggle ? (
+        <div className="mb-4 flex flex-col gap-3 border-b border-stone-100 pb-4 sm:flex-row sm:items-start sm:justify-between">
+          <div>
+            <h3 className="text-sm font-semibold text-gray-950">{title}</h3>
+            <p className="mt-1 text-xs leading-5 text-gray-500">
+              {description}
+            </p>
           </div>
-        </button>
 
-        {typeof enabled === "boolean" && onToggle ? (
-          <label
-            onClick={(e) => e.stopPropagation()}
-            className="flex items-center gap-2 rounded-xl border border-stone-200 bg-stone-50 px-3 py-2 text-sm font-medium text-gray-700"
-          >
+          <label className="flex shrink-0 items-center gap-2 rounded-xl border border-stone-200 bg-stone-50 px-3 py-2 text-sm font-medium text-gray-700">
             <input
               type="checkbox"
               checked={enabled}
@@ -146,12 +139,10 @@ function SectionCard({
             />
             Show
           </label>
-        ) : null}
-      </div>
-
-      {isOpen ? (
-        <div className="mt-4 border-t border-stone-100 pt-4">{children}</div>
+        </div>
       ) : null}
+
+      <div>{children}</div>
     </section>
   );
 }
@@ -173,7 +164,7 @@ function ImageUploadCard({
     <div className="rounded-2xl border border-stone-200 bg-white p-4 shadow-sm">
       <p className="text-sm font-semibold text-gray-950">{label}</p>
       <p className="mt-1 text-xs text-gray-500">
-        Upload a JPG, PNG, or WebP image.
+          Upload a JPG, PNG, or WebP image. This logo appears on the public website and brand areas.
       </p>
 
       {imageUrl ? (
@@ -211,7 +202,7 @@ function ImageUploadCard({
         <button
           type="button"
           onClick={onUseDefault}
-          className="mt-3 w-full rounded-xl border border-stone-200 bg-white px-4 py-2 text-sm font-medium text-gray-700 shadow-sm transition hover:border-orange-200 hover:bg-orange-50 hover:text-orange-700"
+          className="saas-button-secondary mt-3 w-full px-4 py-2 text-sm font-medium"
         >
           Use Default
         </button>
@@ -275,9 +266,50 @@ function TextAreaField({
   );
 }
 
+function ColorField({
+  label,
+  value,
+  fallback,
+  onChange,
+}: {
+  label: string;
+  value?: string;
+  fallback: string;
+  onChange: (value: string) => void;
+}) {
+  const colorValue = value || fallback;
+
+  return (
+    <label className="block">
+      <span className="text-xs font-semibold uppercase tracking-wide text-gray-500">
+        {label}
+      </span>
+
+      <div className="mt-1 flex gap-2">
+        <input
+          type="color"
+          value={colorValue}
+          onChange={(e) => onChange(e.target.value)}
+          className="h-10 w-12 shrink-0 cursor-pointer rounded-lg border border-stone-200 bg-white"
+        />
+
+        <input
+          value={colorValue}
+          onChange={(e) => onChange(e.target.value)}
+          className="saas-input w-full px-3 py-2 text-sm"
+          placeholder={fallback}
+        />
+      </div>
+    </label>
+  );
+}
+
 export default function WebsiteSettingsPanel({
   tenantSlug,
   initialSettings,
+  visibleSections,
+  title = "Website Settings",
+  description = "Customize the public website by section. Each section controls the text, images, and visibility used on the tenant website.",
 }: Props) {
   const [settings, setSettings] = useState<TenantWebsiteSettings>({
     ...defaultSettings,
@@ -287,6 +319,10 @@ export default function WebsiteSettingsPanel({
   const [isSaving, setIsSaving] = useState(false);
   const [message, setMessage] = useState("");
 
+  function shouldShow(section: WebsitePanelSection) {
+    return !visibleSections || visibleSections.includes(section);
+  }
+
   function updateField<K extends keyof TenantWebsiteSettings>(
     key: K,
     value: TenantWebsiteSettings[K]
@@ -295,6 +331,67 @@ export default function WebsiteSettingsPanel({
       ...prev,
       [key]: value,
     }));
+  }
+
+  function resetBrandSettings() {
+    const confirmed = window.confirm(
+      "Reset logo, brand colors, and social links back to the default values?"
+    );
+  
+    if (!confirmed) return;
+  
+    setSettings((prev) => ({
+      ...prev,
+      logoUrl: "",
+      primaryColor: defaultSettings.primaryColor,
+      accentColor: defaultSettings.accentColor,
+      facebookUrl: "",
+      instagramUrl: "",
+      yelpUrl: "",
+      googleBusinessUrl: "",
+    }));
+  
+    setMessage("Brand settings reset. Click Save Website Changes to publish.");
+  }
+
+  function getWebsiteFaqs() {
+    return settings.faqs || [];
+  }
+  
+  function addFaq() {
+    const newFaq = {
+      id: `faq_${Date.now()}`,
+      question: "New FAQ",
+      answer: "",
+      enabled: true,
+    };
+  
+    updateField("faqs", [newFaq, ...getWebsiteFaqs()]);
+  }
+  
+  function updateFaq(
+    faqId: string,
+    updates: Partial<{
+      question: string;
+      answer: string;
+      enabled: boolean;
+    }>
+  ) {
+    const nextFaqs = getWebsiteFaqs().map((faq) =>
+      faq.id === faqId ? { ...faq, ...updates } : faq
+    );
+  
+    updateField("faqs", nextFaqs);
+  }
+  
+  function removeFaq(faqId: string) {
+    const confirmed = window.confirm("Remove this FAQ from the website?");
+    if (!confirmed) return;
+  
+    updateField(
+      "faqs",
+      getWebsiteFaqs().filter((faq) => faq.id !== faqId)
+    );
   }
 
   function getWebsiteServices() {
@@ -310,7 +407,7 @@ export default function WebsiteSettingsPanel({
       enabled: true,
     };
   
-    updateField("services", [...getWebsiteServices(), newService]);
+    updateField("services", [newService, ...getWebsiteServices()]);
   }
   
   function updateService(
@@ -336,6 +433,23 @@ export default function WebsiteSettingsPanel({
     const nextServices = getWebsiteServices().filter(
       (service) => service.id !== serviceId
     );
+  
+    updateField("services", nextServices);
+  }
+
+  function moveService(serviceId: string, direction: "up" | "down") {
+    const services = getWebsiteServices();
+    const currentIndex = services.findIndex((service) => service.id === serviceId);
+  
+    if (currentIndex === -1) return;
+  
+    const nextIndex = direction === "up" ? currentIndex - 1 : currentIndex + 1;
+  
+    if (nextIndex < 0 || nextIndex >= services.length) return;
+  
+    const nextServices = [...services];
+    const [movedService] = nextServices.splice(currentIndex, 1);
+    nextServices.splice(nextIndex, 0, movedService);
   
     updateField("services", nextServices);
   }
@@ -453,29 +567,8 @@ export default function WebsiteSettingsPanel({
 
   return (
     <section className="rounded-2xl border border-stone-200/50 bg-white/90 p-4 shadow-[0_8px_24px_rgba(17,24,39,0.045)]">
-      <div className="flex flex-col gap-3 border-b border-stone-100 pb-4 sm:flex-row sm:items-start sm:justify-between">
-        <div>
-          <h2 className="text-lg font-semibold text-gray-950">
-            Website Settings
-          </h2>
-          <p className="mt-1 text-sm text-gray-500">
-            Customize the public website by section. Each section controls the
-            text, images, and visibility used on the tenant website.
-          </p>
-
-          <p className="mt-2 rounded-xl border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-800">
-            Changes are not published until you click <strong>Save Website Changes</strong>.
-          </p>
-        </div>
-
-        <button
-          type="button"
-          onClick={saveSettings}
-          disabled={isSaving}
-          className="saas-button-accent rounded-xl px-4 py-2 text-sm font-semibold shadow-sm disabled:cursor-not-allowed disabled:opacity-60"
-        >
-          {isSaving ? "Saving..." : "Save Website Changes"}
-        </button>
+      <div className="rounded-xl border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-800">
+        Changes are not published until you click <strong>Save Website Changes</strong>.
       </div>
 
       {message ? (
@@ -484,78 +577,101 @@ export default function WebsiteSettingsPanel({
         </p>
       ) : null}
 
-      <div className="mt-5 space-y-5">
-      <SectionCard
-          title="Brand"
-          defaultOpen
-          description="Set the business logo and website colors."
-          helpText="Use this section to control the overall look of the website. Upload a logo and choose colors that match the business brand."
-        >
-          <div className="grid gap-5 lg:grid-cols-3">
-            <ImageUploadCard
-              label="Logo"
-              imageUrl={settings.logoUrl}
-              isSaving={isSaving}
-              onUpload={(file) => void uploadAsset("logo", file)}
-              onUseDefault={() => updateField("logoUrl", "")}
-            />
+<div className="mt-5 space-y-5">
+  {shouldShow("brand") ? (
+    <SectionCard
+      title="Brand"
+      defaultOpen
+      description="Set the business logo, website colors, and social links."
+      helpText="Use this section to control the overall look of the website. Upload a logo, choose brand colors, and add social profile links."
+    >
+      <div className="space-y-5">
+        <div className="grid gap-5 lg:grid-cols-2">
+          <ImageUploadCard
+            label="Logo"
+            imageUrl={settings.logoUrl}
+            isSaving={isSaving}
+            onUpload={(file) => void uploadAsset("logo", file)}
+            onUseDefault={() => updateField("logoUrl", "")}
+          />
 
-            <div className="rounded-2xl border border-stone-200 bg-white p-4 shadow-sm lg:col-span-2">
+          <div className="rounded-2xl border border-stone-200 bg-white p-4 shadow-sm">
+            <div className="flex flex-col gap-3 border-b border-stone-100 pb-4 sm:flex-row sm:items-start sm:justify-between">
+              <div>
+                <h4 className="text-sm font-semibold text-gray-950">
+                  Brand Colors
+                </h4>
+                <p className="mt-1 text-xs leading-5 text-gray-500">
+                  Choose colors that match the business brand. These colors control website accents, buttons, and key visual highlights.
+                </p>
+              </div>
+
+              <button
+                type="button"
+                onClick={resetBrandSettings}
+                className="saas-button-secondary px-3 py-2 text-xs font-semibold"
+              >
+                Default Colors
+              </button>
+            </div>
+
+            <div className="mt-4 grid gap-4 md:grid-cols-2">
+              <ColorField
+                label="Primary Color"
+                value={settings.primaryColor}
+                fallback={defaultSettings.primaryColor || "#1F3B4D"}
+                onChange={(value) => updateField("primaryColor", value)}
+              />
+
+              <ColorField
+                label="Accent Color"
+                value={settings.accentColor}
+                fallback={defaultSettings.accentColor || "#4E9271"}
+                onChange={(value) => updateField("accentColor", value)}
+              />
+            </div>
+          </div>
+        </div>
+
+            <div className="rounded-2xl border border-stone-200 bg-white p-4 shadow-sm">
               <h4 className="text-sm font-semibold text-gray-950">
-                Brand Colors
+                Social Links
               </h4>
 
               <div className="mt-4 grid gap-4 md:grid-cols-2">
-                <label className="block">
-                  <span className="text-xs font-semibold uppercase tracking-wide text-gray-500">
-                    Primary Color
-                  </span>
-                  <div className="mt-1 flex gap-2">
-                    <input
-                      type="color"
-                      value={settings.primaryColor || "#1F3B4D"}
-                      onChange={(e) =>
-                        updateField("primaryColor", e.target.value)
-                      }
-                      className="h-10 w-12 rounded-lg border border-stone-200 bg-white"
-                    />
-                    <input
-                      value={settings.primaryColor || ""}
-                      onChange={(e) =>
-                        updateField("primaryColor", e.target.value)
-                      }
-                      className="saas-input w-full px-3 py-2 text-sm"
-                    />
-                  </div>
-                </label>
+                {[
+                  ["facebookUrl", "Facebook URL"],
+                  ["instagramUrl", "Instagram URL"],
+                  ["yelpUrl", "Yelp URL"],
+                  ["googleBusinessUrl", "Google Business Profile URL"],
+                ].map(([key, label]) => (
+                  <label key={key} className="block">
+                    <span className="text-xs font-semibold uppercase tracking-wide text-gray-500">
+                      {label}
+                    </span>
 
-                <label className="block">
-                  <span className="text-xs font-semibold uppercase tracking-wide text-gray-500">
-                    Accent Color
-                  </span>
-                  <div className="mt-1 flex gap-2">
                     <input
-                      type="color"
-                      value={settings.accentColor || "#4E9271"}
-                      onChange={(e) =>
-                        updateField("accentColor", e.target.value)
+                      value={
+                        settings[key as keyof TenantWebsiteSettings]?.toString() ||
+                        ""
                       }
-                      className="h-10 w-12 rounded-lg border border-stone-200 bg-white"
-                    />
-                    <input
-                      value={settings.accentColor || ""}
                       onChange={(e) =>
-                        updateField("accentColor", e.target.value)
+                        updateField(
+                          key as keyof TenantWebsiteSettings,
+                          e.target.value as never
+                        )
                       }
-                      className="saas-input w-full px-3 py-2 text-sm"
+                      className="saas-input mt-1 w-full px-3 py-2 text-sm"
+                      placeholder="https://..."
                     />
-                  </div>
-                </label>
+                  </label>
+                ))}
               </div>
             </div>
           </div>
         </SectionCard>
-
+      ) : null}
+      {shouldShow("hero") ? (
         <SectionCard
           title="Hero Section"
           defaultOpen
@@ -605,7 +721,8 @@ export default function WebsiteSettingsPanel({
             />
           </div>
         </SectionCard>
-
+      ) : null}
+      {shouldShow("whyUs") ? (
         <SectionCard
           title="Why Us Section"
           description="Build trust by explaining why customers should choose this business."
@@ -683,7 +800,8 @@ export default function WebsiteSettingsPanel({
             />
           </div>
         </SectionCard>
-
+      ) : null}
+      {shouldShow("services") ? (
         <SectionCard
           title="Services Section"
           description="Show services as website cards with optional images and descriptions."
@@ -732,8 +850,8 @@ export default function WebsiteSettingsPanel({
                 Add Service
               </button>
             </div>
-
-            <div className="space-y-4">
+            
+            <div className="grid gap-4 lg:grid-cols-2">
               {getWebsiteServices().length === 0 ? (
                 <div className="rounded-2xl border border-dashed border-stone-300 bg-stone-50 p-5 text-sm text-gray-600">
                   No service cards yet. Add a service to start building the public
@@ -746,18 +864,18 @@ export default function WebsiteSettingsPanel({
                   key={service.id}
                   className="rounded-2xl border border-stone-200 bg-white p-4 shadow-sm"
                 >
-                  <div className="flex flex-col gap-4 lg:grid lg:grid-cols-[220px_1fr_auto]">
+                  <div className="space-y-4">
                     <div>
                       {service.imageUrl ? (
                         <div className="overflow-hidden rounded-2xl border border-stone-200 bg-stone-50">
                           <img
                             src={service.imageUrl}
                             alt={service.title}
-                            className="h-36 w-full object-cover object-center"
+                            className="h-44 w-full object-cover object-center"
                           />
                         </div>
                       ) : (
-                        <div className="flex h-36 items-center justify-center rounded-2xl border border-dashed border-stone-300 bg-stone-50 text-sm text-gray-500">
+                        <div className="flex h-44 items-center justify-center rounded-2xl border border-dashed border-stone-300 bg-stone-50 text-sm text-gray-500">
                           No image
                         </div>
                       )}
@@ -783,7 +901,7 @@ export default function WebsiteSettingsPanel({
                         <button
                           type="button"
                           onClick={() => updateService(service.id, { imageUrl: "" })}
-                          className="mt-3 w-full rounded-xl border border-stone-200 bg-white px-4 py-2 text-sm font-medium text-gray-700 shadow-sm transition hover:border-orange-200 hover:bg-orange-50 hover:text-orange-700"
+                          className="saas-button-secondary mt-3 w-full px-4 py-2 text-sm font-medium"
                         >
                           Use Default
                         </button>
@@ -808,36 +926,55 @@ export default function WebsiteSettingsPanel({
                         rows={4}
                       />
 
-                      <label className="flex items-center gap-2 rounded-xl border border-stone-200 bg-stone-50 px-3 py-2 text-sm font-medium text-gray-700">
-                        <input
-                          type="checkbox"
-                          checked={service.enabled !== false}
-                          onChange={(event) =>
-                            updateService(service.id, {
-                              enabled: event.target.checked,
-                            })
-                          }
-                        />
-                        Show this service
-                      </label>
-                    </div>
+              <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+                <label className="flex items-center gap-2 rounded-xl border border-stone-200 bg-stone-50 px-3 py-2 text-sm font-medium text-gray-700">
+                  <input
+                    type="checkbox"
+                    checked={service.enabled !== false}
+                    onChange={(event) =>
+                      updateService(service.id, {
+                        enabled: event.target.checked,
+                      })
+                    }
+                  />
+                  Show this service
+                </label>
 
-                    <div className="flex items-start">
-                      <button
-                        type="button"
-                        onClick={() => removeService(service.id)}
-                        className="rounded-xl border border-red-200 bg-white px-4 py-2 text-sm font-medium text-red-700 shadow-sm transition hover:border-red-300 hover:bg-red-50 hover:text-red-800"
-                      >
-                        Remove
-                      </button>
-                    </div>
-                  </div>
+                <div className="flex flex-wrap gap-2">
+                  <button
+                    type="button"
+                    onClick={() => moveService(service.id, "up")}
+                    className="saas-button-secondary px-3 py-2 text-sm font-semibold"
+                  >
+                    Move Up
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={() => moveService(service.id, "down")}
+                    className="saas-button-secondary px-3 py-2 text-sm font-semibold"
+                  >
+                    Move Down
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={() => removeService(service.id)}
+                    className="saas-button-danger px-3 py-2 text-sm font-semibold"
+                  >
+                    Remove
+                  </button>
                 </div>
-              ))}
-            </div>
-          </div>
-        </SectionCard>
-
+              </div>
+                    </div>
+                    </div>
+                    </div>
+                    ))}
+                    </div>
+                    </div>
+                    </SectionCard>
+                    ) : null}
+      {shouldShow("banner") ? (
         <SectionCard
           title="CTA Banner"
           description="Show a call-to-action banner that encourages visitors to start a conversation."
@@ -876,7 +1013,8 @@ export default function WebsiteSettingsPanel({
             />
           </div>
         </SectionCard>
-
+      ) : null}
+      {shouldShow("serviceAreas") ? (
         <SectionCard
           title="Service Areas Section"
           description="Show where the business provides service."
@@ -904,7 +1042,8 @@ export default function WebsiteSettingsPanel({
             </p>
           </div>
         </SectionCard>
-
+      ) : null}
+      {shouldShow("about") ? (    
         <SectionCard
           title="About Section"
           description="Tell customers who the business is and why they should trust it."
@@ -953,7 +1092,8 @@ export default function WebsiteSettingsPanel({
             />
           </div>
         </SectionCard>
-
+      ) : null}
+      {shouldShow("reviews") ? (
         <SectionCard
           title="Reviews Section"
           description="Show customer reviews or testimonials."
@@ -982,28 +1122,31 @@ export default function WebsiteSettingsPanel({
             </p>
           </div>
         </SectionCard>
-
+      ) : null}
+      {shouldShow("faqs") ? (
         <SectionCard
           title="FAQs Section"
-          description="Show common questions customers may have."
-          helpText="FAQs reduce repetitive questions and also help the AI receptionist answer customer questions more accurately."
+          description="Manage frequently asked questions shown on the public website."
+          helpText="These FAQs appear on the public website. Use Knowledge Base for AI-only information."
           enabled={settings.showFaqs !== false}
           onToggle={(checked) => updateField("showFaqs", checked)}
         >
-          <div className="space-y-4">
-            <TextField
-              label="Small Heading"
-              value={settings.faqsHeading}
-              onChange={(value) => updateField("faqsHeading", value)}
-              placeholder="FAQs"
-            />
+          <div className="space-y-5">
+            <div className="grid gap-4 md:grid-cols-2">
+              <TextField
+                label="Small Heading"
+                value={settings.faqsHeading}
+                onChange={(value) => updateField("faqsHeading", value)}
+                placeholder="FAQs"
+              />
 
-            <TextField
-              label="Title"
-              value={settings.faqsTitle}
-              onChange={(value) => updateField("faqsTitle", value)}
-              placeholder="Frequently asked questions"
-            />
+              <TextField
+                label="Title"
+                value={settings.faqsTitle}
+                onChange={(value) => updateField("faqsTitle", value)}
+                placeholder="Frequently asked questions"
+              />
+            </div>
 
             <TextAreaField
               label="Description"
@@ -1020,13 +1163,81 @@ export default function WebsiteSettingsPanel({
               placeholder="Ask a Question"
             />
 
-            <p className="rounded-xl border border-stone-200 bg-stone-50 px-3 py-2 text-sm text-gray-600">
-              Individual FAQ questions are still generated from business settings and
-              default questions for now.
-            </p>
+            <div className="flex items-center justify-between gap-3 border-t border-stone-100 pt-4">
+              <div>
+                <p className="text-sm font-semibold text-gray-950">FAQ Items</p>
+                <p className="mt-1 text-xs text-gray-500">
+                  These questions and answers display on the public website.
+                </p>
+              </div>
+
+              <button
+                type="button"
+                onClick={addFaq}
+                className="saas-button-accent px-4 py-2 text-sm font-semibold"
+              >
+                Add FAQ
+              </button>
+            </div>
+
+            <div className="space-y-4">
+              {getWebsiteFaqs().length === 0 ? (
+                <div className="rounded-2xl border border-dashed border-stone-300 bg-stone-50 p-5 text-sm text-gray-600">
+                  No FAQ items yet. Add a question to customize the public website FAQ section.
+                </div>
+              ) : null}
+
+              {getWebsiteFaqs().map((faq) => (
+                <div
+                  key={faq.id}
+                  className="rounded-2xl border border-stone-200 bg-white p-4 shadow-sm"
+                >
+                  <div className="space-y-4">
+                    <TextField
+                      label="Question"
+                      value={faq.question}
+                      onChange={(value) => updateFaq(faq.id, { question: value })}
+                      placeholder="Do you offer free estimates?"
+                    />
+
+                    <TextAreaField
+                      label="Answer"
+                      value={faq.answer}
+                      onChange={(value) => updateFaq(faq.id, { answer: value })}
+                      placeholder="Briefly answer the question."
+                      rows={4}
+                    />
+
+                    <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+                      <label className="flex items-center gap-2 rounded-xl border border-stone-200 bg-stone-50 px-3 py-2 text-sm font-medium text-gray-700">
+                        <input
+                          type="checkbox"
+                          checked={faq.enabled !== false}
+                          onChange={(event) =>
+                            updateFaq(faq.id, {
+                              enabled: event.target.checked,
+                            })
+                          }
+                        />
+                        Show this FAQ
+                      </label>
+
+                      <button
+                        type="button"
+                        onClick={() => removeFaq(faq.id)}
+                        className="saas-button-danger px-3 py-2 text-sm font-semibold"
+                      >
+                        Remove
+                      </button>
+                    </div>
+                  </div>
+                </div>
+              ))}
+            </div>
           </div>
         </SectionCard>
-
+      ) : null}
+      {shouldShow("socialLinks") && !shouldShow("brand") ? (      
         <SectionCard
           title="Social Links"
           description="Add links to social profiles and business listings."
@@ -1061,7 +1272,24 @@ export default function WebsiteSettingsPanel({
             ))}
           </div>
         </SectionCard>
+      ) : null}
       </div>
+      <div className="sticky bottom-4 z-20 mt-6 rounded-2xl border border-stone-200 bg-white/95 p-3 shadow-xl backdrop-blur">
+      <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+        <p className="text-xs font-medium text-gray-500">
+          Save changes before leaving this page.
+        </p>
+
+        <button
+          type="button"
+          onClick={saveSettings}
+          disabled={isSaving}
+          className="saas-button-accent px-5 py-2 text-sm font-semibold disabled:cursor-not-allowed disabled:opacity-60"
+        >
+          {isSaving ? "Saving..." : "Save Website Changes"}
+        </button>
+      </div>
+    </div>
     </section>
   );
 }

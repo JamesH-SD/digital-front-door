@@ -4,9 +4,14 @@ import { useEffect, useState } from "react";
 import type { Tenant } from "@/lib/types/tenant";
 import ToastMessage from "@/components/ui/ToastMessage";
 import QRCode from "qrcode";
+import ServicesSettingsSection from "./ServicesSettingsSection";
+import BusinessHoursSettingsSection from "./BusinessHoursSettingsSection";
+import ServiceAreaSettingsSection from "./ServiceAreaSettingsSection";
 
 type SettingsFormProps = {
   tenant: Tenant;
+  initialTab?: SettingsTab;
+  showTabs?: boolean;
 };
 
 type DayHours = {
@@ -29,9 +34,7 @@ type EditableSection =
   | "locationServiceArea"
   | "services"
   | "businessHours"
-  | "calendar"
-  | "chatSettings"
-  | "leadCapture";
+  | "calendar";
 
 type ToastState = {
   message: string;
@@ -179,6 +182,10 @@ function createInitialFormState(tenant: Tenant) {
     serviceAreaSummary: tenant.serviceAreaSummary || "",
     serviceCities: (tenant.serviceCities || []).join("\n"),
     outOfAreaMessage: tenant.outOfAreaMessage || "",
+    addressLine2: tenant.addressLine2 || "",
+    country: tenant.country || "United States",
+    serviceRadiusMiles: tenant.serviceRadiusMiles || 25,
+    excludedServiceCities: (tenant.excludedServiceCities || []).join("\n"),
 
     tagline: tenant.tagline || "",
     aboutUs: tenant.aboutUs || "",
@@ -199,12 +206,8 @@ function createInitialFormState(tenant: Tenant) {
 }
 
 function SectionHeader({
-  title,
-  description,
   isEditing,
   isSaving,
-  isOpen,
-  onToggle,
   onEdit,
   onCancel,
   onSave,
@@ -220,53 +223,35 @@ function SectionHeader({
   onSave: () => void;
 }) {
   return (
-    <div className="mb-4 flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
-      <button
-        type="button"
-        onClick={onToggle}
-        className="flex min-w-0 flex-1 items-start gap-3 text-left"
-      >
-        <span
-          className="mt-1 h-2 w-2 rounded-full bg-orange-700"
-          aria-hidden="true"
-        />
-
-        <div>
-          <h3 className="text-base font-semibold text-gray-900">{title}</h3>
-          <p className="mt-1 text-sm text-gray-600">{description}</p>
-        </div>
-      </button>
-
-      <div className="flex items-center gap-2">
-        {isEditing ? (
-          <>
-            <button
-              type="button"
-              onClick={onCancel}
-              className="rounded-xl border px-4 py-2 text-sm font-semibold text-gray-700 transition hover:bg-gray-50"
-            >
-              Cancel
-            </button>
-
-            <button
-              type="button"
-              onClick={onSave}
-              disabled={isSaving}
-              className="saas-button-accent px-4 py-2 text-sm font-semibold shadow-sm disabled:cursor-not-allowed disabled:opacity-60"
-            >
-              {isSaving ? "Saving..." : "Save"}
-            </button>
-          </>
-        ) : (
+    <div className="mb-3 flex justify-end">
+      {isEditing ? (
+        <div className="flex items-center gap-2">
           <button
             type="button"
-            onClick={onEdit}
-            className="saas-button-accent px-4 py-2 text-sm font-semibold shadow-sm"
+            onClick={onCancel}
+            className="saas-button-secondary px-4 py-2 text-sm font-semibold"
           >
-            Edit
+            Cancel
           </button>
-        )}
-      </div>
+
+          <button
+            type="button"
+            onClick={onSave}
+            disabled={isSaving}
+            className="saas-button-accent px-4 py-2 text-sm font-semibold shadow-sm disabled:cursor-not-allowed disabled:opacity-60"
+          >
+            {isSaving ? "Saving..." : "Save"}
+          </button>
+        </div>
+      ) : (
+        <button
+          type="button"
+          onClick={onEdit}
+          className="saas-button-accent px-4 py-2 text-sm font-semibold shadow-sm"
+        >
+          Edit
+        </button>
+      )}
     </div>
   );
 }
@@ -407,7 +392,11 @@ function CopyableLinkRow({
   );
 }
 
-export default function SettingsForm({ tenant }: SettingsFormProps) {
+export default function SettingsForm({
+  tenant,
+  initialTab = "businessIdentity",
+  showTabs = true,
+}: SettingsFormProps) {
   const [toast, setToast] = useState<ToastState>(null);
 
   const [calendarStatus, setCalendarStatus] =
@@ -485,8 +474,7 @@ export default function SettingsForm({ tenant }: SettingsFormProps) {
     chatSettings: false,
   });
 
-  const [activeTab, setActiveTab] =
-  useState<SettingsTab>("businessIdentity");
+  const [activeTab, setActiveTab] = useState<SettingsTab>(initialTab);
 
   const [form, setForm] = useState(createInitialFormState(tenant));
   const hostedPageUrl = buildHostedPageUrl(tenant.slug);
@@ -542,6 +530,8 @@ export default function SettingsForm({ tenant }: SettingsFormProps) {
           bookingType: form.bookingType,
           nextStepMessage: form.nextStepMessage,
           serviceCities: parseLinesToArray(form.serviceCities),
+          excludedServiceCities: parseLinesToArray(form.excludedServiceCities),
+          serviceRadiusMiles: Number(form.serviceRadiusMiles || 25),
           servicesOffered: parseLinesToArray(form.servicesOffered),
           hours: form.hours,
         }),
@@ -663,14 +653,6 @@ export default function SettingsForm({ tenant }: SettingsFormProps) {
     id: "calendar",
     label: "Calendar",
   },
-  {
-    id: "chatSettings",
-    label: "AI & Chat",
-  },
-  {
-    id: "leadCapture",
-    label: "Lead Capture",
-  },
 ];
 
   return (
@@ -683,8 +665,9 @@ export default function SettingsForm({ tenant }: SettingsFormProps) {
         />
       ) : null}
 
-      <div className="w-full min-w-0 max-w-full space-y-6 overflow-x-hidden">
+      <div className="w-full min-w-0 max-w-full space-y-4 overflow-x-hidden">
         {/* SETTINGS TABS */}
+        {showTabs ? (
         <div className="w-full min-w-0 max-w-full overflow-x-auto">
           <div className="inline-flex min-w-full gap-2 rounded-2xl border border-stone-200/50 bg-white/85 p-2 shadow-sm backdrop-blur">
             {settingsTabs.map((tab) => {
@@ -707,9 +690,10 @@ export default function SettingsForm({ tenant }: SettingsFormProps) {
             })}
           </div>
         </div>
+      ) : null}
         
         {activeTab === "businessIdentity" ? (
-        <section className="rounded-2xl border border-stone-200/50 bg-white/90 p-4 shadow-[0_8px_24px_rgba(17,24,39,0.045)]">
+        <section className="rounded-2xl border border-stone-200/50 bg-white/90 p-5 shadow-[0_8px_24px_rgba(17,24,39,0.045)]">
           <SectionHeader
             title="Business Identity"
             description="Core business details used by your website, chat flow, and future Google profile workflow."
@@ -929,385 +913,67 @@ export default function SettingsForm({ tenant }: SettingsFormProps) {
         ) : null}
       
       {activeTab === "locationServiceArea" ? (
-        <section className="rounded-2xl border border-stone-200/50 bg-white/90 p-4 shadow-[0_8px_24px_rgba(17,24,39,0.045)]">
-          <SectionHeader
-            title="Location & Service Area"
-            description="These fields support your public site, chat routing, and future Google Business Profile setup."
-            isEditing={editingSections.locationServiceArea}
-            isSaving={savingSections.locationServiceArea}
-            isOpen
-            onToggle={() => {}}
-            onEdit={() => beginEdit("locationServiceArea")}
-            onCancel={() => cancelEdit("locationServiceArea")}
-            onSave={() => void saveSection("locationServiceArea")}
-          />
+        <ServiceAreaSettingsSection
+          form={{
+            addressLine1: form.addressLine1,
+            addressLine2: form.addressLine2,
+            city: form.city,
+            state: form.state,
+            zip: form.zip,
+            country: form.country,
+            serviceAreaSummary: form.serviceAreaSummary,
+            serviceRadiusMiles: form.serviceRadiusMiles,
+            serviceCities: form.serviceCities,
+            excludedServiceCities: form.excludedServiceCities,
+            outOfAreaMessage: form.outOfAreaMessage,
+            shareBusinessAddressInChat: form.shareBusinessAddressInChat,
+          }}
+          isEditing={editingSections.locationServiceArea}
+          isSaving={savingSections.locationServiceArea}
+          onChange={(updates) =>
+            setForm((prev) => ({
+              ...prev,
+              ...updates,
+            }))
+          }
+          onEdit={() => beginEdit("locationServiceArea")}
+          onCancel={() => cancelEdit("locationServiceArea")}
+          onSave={() => void saveSection("locationServiceArea")}
+        />
+      ) : null}
 
-            
-            <div className="space-y-4">
-              {editingSections.locationServiceArea ? (
-                <label className="flex items-center gap-2 text-sm text-gray-700">
-                  <input
-                    type="checkbox"
-                    checked={form.isServiceAreaBusiness}
-                    onChange={(e) =>
-                      setForm((prev) => ({
-                        ...prev,
-                        isServiceAreaBusiness: e.target.checked,
-                      }))
-                    }
-                  />
-                  Service area business
-                </label>
-              ) : (
-                <div className="rounded-xl border border-stone-200 bg-white px-3 py-2 text-sm">
-                  <span className="font-medium text-gray-700">
-                    Service area business:
-                  </span>{" "}
-                  <span>{form.isServiceAreaBusiness ? "Yes" : "No"}</span>
-                </div>
-              )}
+      {activeTab === "services" ? (
+        <ServicesSettingsSection
+          value={form.servicesOffered}
+          isEditing={editingSections.services}
+          isSaving={savingSections.services}
+          onChange={(value) =>
+            setForm((prev) => ({
+              ...prev,
+              servicesOffered: value,
+            }))
+          }
+          onEdit={() => beginEdit("services")}
+          onCancel={() => cancelEdit("services")}
+          onSave={() => void saveSection("services")}
+        />
+      ) : null}
 
-              <div className="grid gap-4 md:grid-cols-2">
-                <div className="md:col-span-2">
-                  <div className="grid gap-4 md:grid-cols-3 md:items-end">
-                    <div className="md:col-span-2">
-                      <label className="text-sm font-medium text-gray-700">
-                        Address Line 1
-                      </label>
-                      {editingSections.locationServiceArea ? (
-                        <input
-                          value={form.addressLine1}
-                          onChange={(e) =>
-                            setForm((prev) => ({
-                              ...prev,
-                              addressLine1: e.target.value,
-                            }))
-                          }
-                          className="saas-input mt-1 w-full px-3 py-2 text-sm"
-                          placeholder="Street address"
-                        />
-                      ) : (
-                        <div className="mt-1 rounded-xl border border-stone-200 bg-white px-3 py-2 text-sm shadow-[inset_0_1px_1px_rgba(17,24,39,0.03)]">
-                          {displayValue(form.addressLine1)}
-                        </div>
-                      )}
-                    </div>
-
-                    <div>
-                      <label className="text-sm font-medium text-gray-700">
-                        Share Address in Chat
-                      </label>
-                      {editingSections.locationServiceArea ? (
-                        <label className="mt-1 flex min-h-[42px] items-center gap-2 rounded-xl border border-stone-200 bg-white px-3 py-2 text-sm text-gray-700">
-                          <input
-                            type="checkbox"
-                            checked={form.shareBusinessAddressInChat}
-                            onChange={(e) =>
-                              setForm((prev) => ({
-                                ...prev,
-                                shareBusinessAddressInChat: e.target.checked,
-                              }))
-                            }
-                          />
-                          Yes
-                        </label>
-                      ) : (
-                        <div className="mt-1 rounded-xl border border-stone-200 bg-white px-3 py-2 text-sm shadow-[inset_0_1px_1px_rgba(17,24,39,0.03)]">
-                          {form.shareBusinessAddressInChat ? "Yes" : "No"}
-                        </div>
-                      )}
-                    </div>
-                  </div>
-                </div>
-
-                <div>
-                  <label className="text-sm font-medium text-gray-700">
-                    City
-                  </label>
-                  {editingSections.locationServiceArea ? (
-                    <input
-                      value={form.city}
-                      onChange={(e) =>
-                        setForm((prev) => ({ ...prev, city: e.target.value }))
-                      }
-                      className="saas-input mt-1 w-full px-3 py-2 text-sm"
-                      placeholder="City"
-                    />
-                  ) : (
-                    <div className="mt-1 rounded-xl border border-stone-200 bg-white px-3 py-2 text-sm shadow-[inset_0_1px_1px_rgba(17,24,39,0.03)]">
-                      {displayValue(form.city)}
-                    </div>
-                  )}
-                </div>
-
-                <div>
-                  <label className="text-sm font-medium text-gray-700">
-                    State
-                  </label>
-                  {editingSections.locationServiceArea ? (
-                    <input
-                      value={form.state}
-                      onChange={(e) =>
-                        setForm((prev) => ({ ...prev, state: e.target.value }))
-                      }
-                      className="saas-input mt-1 w-full px-3 py-2 text-sm"
-                      placeholder="State"
-                    />
-                  ) : (
-                    <div className="mt-1 rounded-xl border border-stone-200 bg-white px-3 py-2 text-sm shadow-[inset_0_1px_1px_rgba(17,24,39,0.03)]">
-                      {displayValue(form.state)}
-                    </div>
-                  )}
-                </div>
-
-                <div>
-                  <label className="text-sm font-medium text-gray-700">
-                    ZIP
-                  </label>
-                  {editingSections.locationServiceArea ? (
-                    <input
-                      value={form.zip}
-                      onChange={(e) =>
-                        setForm((prev) => ({ ...prev, zip: e.target.value }))
-                      }
-                      className="saas-input mt-1 w-full px-3 py-2 text-sm"
-                      placeholder="ZIP code"
-                    />
-                  ) : (
-                    <div className="mt-1 rounded-xl border border-stone-200 bg-white px-3 py-2 text-sm shadow-[inset_0_1px_1px_rgba(17,24,39,0.03)]">
-                      {displayValue(form.zip)}
-                    </div>
-                  )}
-                </div>
-
-                <div>
-                  <label className="text-sm font-medium text-gray-700">
-                    Service Area Summary
-                  </label>
-                  {editingSections.locationServiceArea ? (
-                    <input
-                      value={form.serviceAreaSummary}
-                      onChange={(e) =>
-                        setForm((prev) => ({
-                          ...prev,
-                          serviceAreaSummary: e.target.value,
-                        }))
-                      }
-                      className="saas-input mt-1 w-full px-3 py-2 text-sm"
-                      placeholder="Serving San Diego County"
-                    />
-                  ) : (
-                    <div className="mt-1 rounded-xl border border-stone-200 bg-white px-3 py-2 text-sm shadow-[inset_0_1px_1px_rgba(17,24,39,0.03)]">
-                      {displayValue(form.serviceAreaSummary)}
-                    </div>
-                  )}
-                </div>
-
-                <div className="md:col-span-2">
-                  <label className="text-sm font-medium text-gray-700">
-                    Service Cities
-                  </label>
-                  {editingSections.locationServiceArea ? (
-                    <textarea
-                      value={form.serviceCities}
-                      onChange={(e) =>
-                        setForm((prev) => ({
-                          ...prev,
-                          serviceCities: e.target.value,
-                        }))
-                      }
-                      rows={5}
-                      className="saas-input mt-1 w-full px-3 py-2 text-sm"
-                      placeholder="One city per line"
-                    />
-                  ) : (
-                    <div className="mt-1 rounded-xl border border-stone-200 bg-white px-3 py-2 text-sm whitespace-pre-wrap">
-                      {displayValue(form.serviceCities)}
-                    </div>
-                  )}
-                </div>
-
-                <div className="md:col-span-2">
-                  <label className="text-sm font-medium text-gray-700">
-                    Out of Area Message
-                  </label>
-                  {editingSections.locationServiceArea ? (
-                    <textarea
-                      value={form.outOfAreaMessage}
-                      onChange={(e) =>
-                        setForm((prev) => ({
-                          ...prev,
-                          outOfAreaMessage: e.target.value,
-                        }))
-                      }
-                      rows={3}
-                      className="saas-input mt-1 w-full px-3 py-2 text-sm"
-                      placeholder="Message to use when a request is outside the normal service area"
-                    />
-                  ) : (
-                    <div className="mt-1 rounded-xl border border-stone-200 bg-white px-3 py-2 text-sm whitespace-pre-wrap">
-                      {displayValue(form.outOfAreaMessage)}
-                    </div>
-                  )}
-                </div>
-              </div>
-            </div>
-        </section>
-        ) : null}
-
-        {activeTab === "services" ? (
-        <section className="rounded-2xl border border-stone-200/50 bg-white/90 p-4 shadow-[0_8px_24px_rgba(17,24,39,0.045)]">
-          <SectionHeader
-            title="Services"
-            description="List the services your business offers. Use one service per line."
-            isEditing={editingSections.services}
-            isSaving={savingSections.services}
-            isOpen
-            onToggle={() => {}}
-            onEdit={() => beginEdit("services")}
-            onCancel={() => cancelEdit("services")}
-            onSave={() => void saveSection("services")}
-          />
-            <div>
-              <label className="text-sm font-medium text-gray-700">
-                Services Offered
-              </label>
-              {editingSections.services ? (
-                <textarea
-                  value={form.servicesOffered}
-                  onChange={(e) =>
-                    setForm((prev) => ({
-                      ...prev,
-                      servicesOffered: e.target.value,
-                    }))
-                  }
-                  rows={6}
-                  className="saas-input mt-1 w-full px-3 py-2 text-sm"
-                  placeholder="One service per line"
-                />
-              ) : (
-                <div className="mt-1 rounded-xl border border-stone-200 bg-white px-3 py-2 text-sm whitespace-pre-wrap">
-                  {displayValue(form.servicesOffered)}
-                </div>
-              )}
-            </div>
-        </section>
-        ) : null}
-
-        {activeTab === "businessHours" ? (
-        <section className="rounded-2xl border border-stone-200/50 bg-white/90 p-4 shadow-[0_8px_24px_rgba(17,24,39,0.045)]">
-          <SectionHeader
-            title="Business Hours"
-            description="These hours support your future Google Business Profile setup and can also be used by the chatbot to answer availability questions."
-            isEditing={editingSections.businessHours}
-            isSaving={savingSections.businessHours}
-            isOpen
-            onToggle={() => {}}
-            onEdit={() => beginEdit("businessHours")}
-            onCancel={() => cancelEdit("businessHours")}
-            onSave={() => void saveSection("businessHours")}
-          />
-            <div className="space-y-3">
-              {DAYS.map((day) => {
-                const dayHours = form.hours[day];
-
-                return (
-                  <div
-                    key={day}
-                    className="grid gap-3 rounded-xl border border-stone-200 bg-white p-3 md:grid-cols-[140px_1fr_1fr_120px]"
-                  >
-                    <div className="flex items-center">
-                      <p className="text-sm font-medium text-gray-800">
-                        {formatDayLabel(day)}
-                      </p>
-                    </div>
-
-                    {editingSections.businessHours ? (
-                      <>
-                        <div>
-                          <label className="text-xs font-medium uppercase tracking-wide text-gray-500">
-                            Open
-                          </label>
-                          <input
-                            type="time"
-                            value={dayHours.open}
-                            onChange={(e) =>
-                              updateHoursDay(day, { open: e.target.value })
-                            }
-                            disabled={dayHours.closed}
-                            className="mt-1 w-full rounded-xl border border-stone-200 bg-white px-3 py-2 text-sm disabled:bg-gray-100"
-                          />
-                        </div>
-
-                        <div>
-                          <label className="text-xs font-medium uppercase tracking-wide text-gray-500">
-                            Close
-                          </label>
-                          <input
-                            type="time"
-                            value={dayHours.close}
-                            onChange={(e) =>
-                              updateHoursDay(day, { close: e.target.value })
-                            }
-                            disabled={dayHours.closed}
-                            className="mt-1 w-full rounded-xl border border-stone-200 bg-white px-3 py-2 text-sm disabled:bg-gray-100"
-                          />
-                        </div>
-
-                        <label className="flex items-center gap-2 text-sm text-gray-700">
-                          <input
-                            type="checkbox"
-                            checked={dayHours.closed}
-                            onChange={(e) =>
-                              updateHoursDay(day, {
-                                closed: e.target.checked,
-                                open: e.target.checked
-                                  ? ""
-                                  : dayHours.open || "08:00",
-                                close: e.target.checked
-                                  ? ""
-                                  : dayHours.close || "17:00",
-                              })
-                            }
-                          />
-                          Closed
-                        </label>
-                      </>
-                    ) : (
-                      <div className="md:col-span-3 flex items-center rounded-xl border border-stone-200 bg-gray-50 px-3 py-2 text-sm text-gray-900">
-                        {formatHoursForDisplay(form.hours, day)}
-                      </div>
-                    )}
-                  </div>
-                );
-              })}
-            </div>
-        </section>
-        ) : null}
+      {activeTab === "businessHours" ? (
+        <BusinessHoursSettingsSection
+          hours={form.hours}
+          isEditing={editingSections.businessHours}
+          isSaving={savingSections.businessHours}
+          onChangeDay={updateHoursDay}
+          onEdit={() => beginEdit("businessHours")}
+          onCancel={() => cancelEdit("businessHours")}
+          onSave={() => void saveSection("businessHours")}
+        />
+      ) : null}
 
       {activeTab === "calendar" ? (
-        <section className="rounded-2xl border border-stone-200/50 bg-white/90 p-4 shadow-[0_8px_24px_rgba(17,24,39,0.045)]">
-          <div className="mb-4 flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
-            <button
-              type="button"
-              onClick={() => {}}
-              className="flex min-w-0 flex-1 items-start gap-3 text-left"
-            >
-              <span
-                className="mt-1 h-2 w-2 rounded-full bg-orange-700"
-                aria-hidden="true"
-              />
-
-              <div>
-                <h3 className="text-base font-semibold text-gray-900">
-                  Calendar
-                </h3>
-                <p className="mt-1 text-sm text-gray-600">
-                  Manage the calendar used for scheduling calls, site visits, and customer follow-up.
-                </p>
-              </div>
-            </button>
-
+        <section className="rounded-2xl border border-stone-200/50 bg-white/90 p-5 shadow-[0_8px_24px_rgba(17,24,39,0.045)]">
+          <div className="mb-4 flex justify-end">
             <div className="flex flex-wrap gap-2">
               <button
                 type="button"
@@ -1322,7 +988,7 @@ export default function SettingsForm({ tenant }: SettingsFormProps) {
                   type="button"
                   onClick={() => void handleDisconnectCalendar()}
                   disabled={isDisconnectingCalendar}
-                  className="rounded-xl border border-red-200 bg-white px-4 py-2 text-sm font-semibold text-red-700 shadow-sm transition hover:border-red-300 hover:bg-red-50 hover:text-red-800"
+                  className="saas-button-danger px-4 py-2 text-sm font-semibold"
                 >
                   {isDisconnectingCalendar ? "Disconnecting..." : "Disconnect"}
                 </button>
@@ -1397,248 +1063,6 @@ export default function SettingsForm({ tenant }: SettingsFormProps) {
                   </p>
                 </div>
               )}
-            </div>
-        </section>
-      ) : null}
-
-      {activeTab === "chatSettings" ? (
-        <section className="rounded-2xl border border-stone-200/50 bg-white/90 p-4 shadow-[0_8px_24px_rgba(17,24,39,0.045)]">
-          <SectionHeader
-            title="Chat Settings"
-            description="Control how the intake chat behaves for this business."
-            isEditing={editingSections.chatSettings}
-            isSaving={savingSections.chatSettings}
-            isOpen
-            onToggle={() => {}}
-            onEdit={() => beginEdit("chatSettings")}
-            onCancel={() => cancelEdit("chatSettings")}
-            onSave={() => void saveSection("chatSettings")}
-          />
-            <div className="space-y-4">
-              <div>
-                <label className="text-sm font-medium text-gray-700">
-                  Greeting Message
-                </label>
-                <div className="grid gap-4 md:grid-cols-2">
-                  <label className="space-y-1">
-                    <span className="text-sm font-medium text-gray-700">
-                      Booking Flow
-                    </span>
-
-                    <select
-                      value={form.bookingType}
-                      onChange={(e) =>
-                        setForm((prev) => ({
-                          ...prev,
-                          bookingType: e.target.value,
-                        }))
-                      }
-                      className="w-full rounded-xl border border-stone-200 px-3 py-2 text-sm"
-                    >
-                      <option value="consultation">Consultation / estimate</option>
-                      <option value="reservation">Reservation / rental</option>
-                      <option value="direct_booking">Direct service booking</option>
-                      <option value="phone_call">Phone call follow-up</option>
-                      <option value="estimate">Quote / estimate request</option>
-                    </select>
-                  </label>
-                </div>
-
-                <label className="mt-4 block space-y-1">
-                  <span className="text-sm font-medium text-gray-700">
-                    AI Next Step Message
-                  </span>
-
-                  <textarea
-                    value={form.nextStepMessage}
-                    onChange={(e) =>
-                      setForm((prev) => ({
-                        ...prev,
-                        nextStepMessage: e.target.value,
-                      }))
-                    }
-                    rows={3}
-                    placeholder="Example: The next step is usually confirming trailer type, rental dates, delivery or pickup details, and deposit information."
-                    className="w-full rounded-xl border border-stone-200 px-3 py-2 text-sm"
-                  />
-
-                  <span className="block text-xs text-gray-500">
-                    This tells the AI how to explain the next step after a lead is captured.
-                  </span>
-                </label>
-                {editingSections.chatSettings ? (
-                  <textarea
-                    value={form.greetingMessage}
-                    onChange={(e) =>
-                      setForm((prev) => ({
-                        ...prev,
-                        greetingMessage: e.target.value,
-                      }))
-                    }
-                    rows={3}
-                    className="saas-input mt-1 w-full px-3 py-2 text-sm"
-                    placeholder="Greeting shown at the start of chat"
-                  />
-                ) : (
-                  <div className="mt-1 rounded-xl border border-stone-200 bg-white px-3 py-2 text-sm whitespace-pre-wrap">
-                    {displayValue(form.greetingMessage)}
-                  </div>
-                )}
-              </div>
-
-              <div className="grid gap-3 md:grid-cols-2">
-                {[
-                  {
-                    key: "askForTimeline",
-                    label: "Ask for timeline",
-                  },
-                  {
-                    key: "askForEmailAfterPhone",
-                    label: "Ask for email after phone",
-                  },
-                  {
-                    key: "askForImagesAfterCapture",
-                    label: "Ask for images after capture",
-                  },
-                  {
-                    key: "requirePhoneForLead",
-                    label: "Require phone for lead",
-                  },
-                ].map((item) => (
-                  <div
-                    key={item.key}
-                    className="rounded-xl border border-stone-200 bg-white px-3 py-2 text-sm"
-                  >
-                    {editingSections.chatSettings ? (
-                      <label className="flex items-center gap-2 text-gray-700">
-                        <input
-                          type="checkbox"
-                          checked={Boolean(form[item.key as keyof typeof form])}
-                          onChange={(e) =>
-                            setForm((prev) => ({
-                              ...prev,
-                              [item.key]: e.target.checked,
-                            }))
-                          }
-                        />
-                        {item.label}
-                      </label>
-                    ) : (
-                      <>
-                        <span className="font-medium text-gray-700">
-                          {item.label}:
-                        </span>{" "}
-                        <span>
-                          {Boolean(form[item.key as keyof typeof form])
-                            ? "Yes"
-                            : "No"}
-                        </span>
-                      </>
-                    )}
-                  </div>
-                ))}
-              </div>
-            </div>
-        </section>
-      ) : null}
-
-      {activeTab === "leadCapture" ? (
-        <section className="w-full min-w-0 max-w-full rounded-2xl border border-stone-200/50 bg-white/90 p-4 shadow-[0_8px_24px_rgba(17,24,39,0.045)]">
-          <div className="mb-4 flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
-            <button
-              type="button"
-              onClick={() => {}}
-              className="flex min-w-0 flex-1 items-start gap-3 text-left"
-            >
-              <span
-                className="mt-1 h-2 w-2 rounded-full bg-orange-700"
-                aria-hidden="true"
-              />
-
-              <div>
-                <h3 className="text-base font-semibold text-gray-900">
-                  Lead Capture
-                </h3>
-                <p className="mt-1 text-sm text-gray-600">
-                  Copy customer entry links for QR codes, hosted pages, and existing websites.
-                </p>
-              </div>
-            </button>
-          </div>
-            <div className="grid w-full min-w-0 max-w-full grid-cols-1 gap-4 lg:grid-cols-3">
-              <CopyableLinkRow
-                label="Hosted Contactor Page"
-                description="Use this link for a simple AI-first landing page."
-                value={hostedPageUrl}
-                fileName={`${tenant.slug}-page-qr.png`}
-              />
-
-              <CopyableLinkRow
-                label="QR Auto-Open Link"
-                description="Use this for truck decals, flyers, yard signs, business cards, and other QR codes."
-                value={qrAutoOpenUrl}
-                fileName={`${tenant.slug}-qr-chat.png`}
-              />
-
-              {tenantHasWebsite ? (
-                <CopyableLinkRow
-                  label="Existing Website QR Link"
-                  description="Use this if the business already has a website and wants QR scans to open that site with the chat widget."
-                  value={existingWebsiteQrUrl}
-                  fileName={`${tenant.slug}-site-chat.png`}
-                />
-              ) : (
-                <div className="rounded-2xl border border-dashed border-stone-200 bg-white p-4 shadow-sm">
-                  <p className="text-sm font-semibold text-gray-900">
-                    Existing Website QR
-                  </p>
-
-                  <p className="mt-1 text-xs text-gray-500">
-                    Add a Website URL under Business Identity to generate a QR code that opens
-                    the tenant’s existing site with Contactor chat.
-                  </p>
-
-                  <div className="mt-4 rounded-xl border border-stone-200 bg-gray-50 px-3 py-2">
-                    <p className="truncate text-xs text-gray-400">
-                      No existing website URL added yet.
-                    </p>
-                  </div>
-                </div>
-              )}
-
-              <div className="rounded-xl border border-stone-200 border-dashed bg-white p-4 lg:col-span-3">
-                <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
-                  <div>
-                    <p className="text-sm font-semibold text-gray-900">
-                      Embed Snippet
-                    </p>
-
-                    <p className="mt-1 text-xs text-gray-500">
-                      Add this snippet to an existing website once the Contactor widget script is active.
-                    </p>
-                  </div>
-
-                  <button
-                    type="button"
-                    onClick={() => {
-                      const snippet = `<script src="https://app.contactor.ai/widget.js" data-tenant="${tenant.slug}"></script>`;
-
-                      void navigator.clipboard.writeText(snippet);
-                    }}
-                    className="rounded-xl saas-button-accent px-4 py-2 text-xs font-semibold text-white transition hover:saas-button-accent"
-                  >
-                    Copy Snippet
-                  </button>
-                </div>
-
-                <pre className="mt-3 overflow-x-auto rounded-lg bg-gray-950 p-3 text-xs text-gray-100">
-              {`<script src="http://localhost:3000/widget.js" data-tenant="hughes-general"></script>`}
-                </pre>
-
-                <p className="mt-2 text-xs text-amber-700">
-                  Widget script is not active yet. This is the planned embed format.
-                </p>
-              </div>
             </div>
         </section>
       ) : null}
