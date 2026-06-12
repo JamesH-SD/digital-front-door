@@ -10,6 +10,9 @@ export default function SignupForm() {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
 
+  const [fullName, setFullName] = useState("");
+  const [businessName, setBusinessName] = useState("");
+
   const [message, setMessage] = useState("");
   const [isSuccess, setIsSuccess] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -20,8 +23,8 @@ export default function SignupForm() {
       setMessage("");
       setIsSuccess(false);
 
-      if (!email.trim() || !password) {
-        setMessage("Email and password are required.");
+      if (!fullName.trim() || !businessName.trim() || !email.trim() || !password) {
+        setMessage("Full name, business name, email, and password are required.");
         return;
       }
 
@@ -30,12 +33,14 @@ export default function SignupForm() {
         password,
         options: {
           emailRedirectTo: `${window.location.origin}/login`,
+          data: {
+            full_name: fullName.trim(),
+            business_name: businessName.trim(),
+          },
         },
       });
 
-      if (error) {
-        throw error;
-      }
+      if (error) throw error;
 
       setIsSuccess(true);
       setMessage(
@@ -49,24 +54,47 @@ export default function SignupForm() {
   }
 
   return (
-    <main className="flex min-h-screen items-center justify-center bg-gray-50 px-4">
-      <div className="w-full max-w-md rounded-3xl border bg-white p-6 shadow-sm">
-        <h1 className="text-xl font-semibold text-gray-900">
-          Create account
-        </h1>
+    <main className="flex min-h-screen items-center justify-center bg-stone-50 px-4">
+      <div className="w-full max-w-md rounded-2xl border border-stone-200/60 bg-white/90 p-6 shadow-[0_8px_24px_rgba(17,24,39,0.045)]">
+        <h1 className="text-2xl font-bold text-gray-900">Create account</h1>
 
-        <p className="mt-2 text-sm text-gray-600">
-          Create your Digital Front Door account. After confirming your email,
-          you’ll sign in and set up your business.
+        <p className="mt-2 text-sm leading-6 text-gray-600">
+          Create your Contactor account. Once your email is confirmed, you'll be
+          guided through setting up your business and AI receptionist.
         </p>
 
-        <div className="mt-6 space-y-4">
+        <div className="mt-5">
+          <p className="text-sm font-semibold text-gray-900">
+            Start growing your business.
+          </p>
+
+          <p className="mt-1 text-sm text-gray-500">
+            AI receptionist • Website • Scheduling • Lead capture
+          </p>
+        </div>
+
+        <div className="mt-7 space-y-4">
+          <input
+            value={fullName}
+            onChange={(e) => setFullName(e.target.value)}
+            type="text"
+            placeholder="Full name"
+            className="saas-input w-full px-3 py-2 text-sm"
+          />
+
+          <input
+            value={businessName}
+            onChange={(e) => setBusinessName(e.target.value)}
+            type="text"
+            placeholder="Business name"
+            className="saas-input w-full px-3 py-2 text-sm"
+          />
           <input
             value={email}
             onChange={(e) => setEmail(e.target.value)}
             type="email"
-            placeholder="Email"
-            className="w-full rounded-xl border px-3 py-2 text-sm"
+            placeholder="Email address"
+            className="saas-input w-full px-3 py-2 text-sm"
           />
 
           <input
@@ -74,14 +102,20 @@ export default function SignupForm() {
             onChange={(e) => setPassword(e.target.value)}
             type="password"
             placeholder="Password"
-            className="w-full rounded-xl border px-3 py-2 text-sm"
+            className="saas-input w-full px-3 py-2 text-sm"
           />
 
           <button
             type="button"
             onClick={() => void handleSignup()}
-            disabled={isSubmitting || !email.trim() || !password}
-            className="w-full rounded-xl bg-gray-900 px-4 py-2 text-sm font-semibold text-white disabled:opacity-60"
+            disabled={
+              isSubmitting ||
+              !fullName.trim() ||
+              !businessName.trim() ||
+              !email.trim() ||
+              !password
+            }
+            className="saas-button-accent w-full px-4 py-3 text-sm font-semibold disabled:cursor-not-allowed disabled:opacity-60"
           >
             {isSubmitting ? "Creating..." : "Create account"}
           </button>
@@ -97,23 +131,14 @@ export default function SignupForm() {
               {message}
             </p>
           ) : null}
-
-          {isSuccess ? (
-            <Link
-              href="/login"
-              className="block text-center text-sm font-semibold text-gray-900 underline"
-            >
-              Go to sign in
-            </Link>
-          ) : (
-            <p className="text-center text-sm text-gray-600">
-              Already have an account?{" "}
-              <Link href="/login" className="font-semibold text-gray-900 underline">
-                Sign in
-              </Link>
-            </p>
-          )}
         </div>
+
+        <p className="mt-5 text-center text-sm text-gray-600">
+          Already using Contactor?{" "}
+          <Link href="/login" className="font-semibold text-orange-700 hover:text-orange-800">
+            Sign in
+          </Link>
+        </p>
       </div>
     </main>
   );

@@ -7,7 +7,7 @@ type RouteContext = {
   }>;
 };
 
-const ALLOWED_ASSET_TYPES = ["logo", "hero", "whyUs", "about", "service"] as const;
+const ALLOWED_ASSET_TYPES = ["logo", "hero", "whyUs", "about", "service", "gallery"] as const;
 
 type AssetType = (typeof ALLOWED_ASSET_TYPES)[number];
 
@@ -16,19 +16,24 @@ function isAllowedAssetType(value: string): value is AssetType {
 }
 
 function getWebsiteSettingsKey(assetType: AssetType) {
-    switch (assetType) {
-      case "logo":
-        return "logoUrl";
-      case "hero":
-        return "heroImageUrl";
-      case "whyUs":
-        return "whyUsImageUrl";
-      case "about":
-        return "aboutImageUrl";
-      case "service":
-        return null;
-    }
+  switch (assetType) {
+    case "logo":
+      return "logoUrl";
+
+    case "hero":
+      return "heroImageUrl";
+
+    case "whyUs":
+      return "whyUsImageUrl";
+
+    case "about":
+      return "aboutImageUrl";
+
+    case "service":
+    case "gallery":
+      return null;
   }
+}
 
 export async function POST(request: Request, context: RouteContext) {
   try {

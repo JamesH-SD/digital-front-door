@@ -40,6 +40,11 @@ const sectionMap: Record<
     title: "Services Section",
     description: "Manage service cards, images, descriptions, and visibility.",
   },
+  "project-gallery": {
+    panelSections: ["projectGallery"],
+    title: "Project Gallery",
+    description: "Manage project photos shown below Services on the public website.",
+  },
   banner: {
     panelSections: ["banner"],
     title: "CTA Banner",

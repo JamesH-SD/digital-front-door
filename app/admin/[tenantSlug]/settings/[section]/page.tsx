@@ -17,17 +17,11 @@ const sectionMap = {
     description:
       "Manage the business address, service area summary, service cities, and out-of-area messaging.",
   },
-  services: {
-    tab: "services",
-    title: "Services",
-    description:
-      "Manage the services this business offers and how they support the AI receptionist.",
-  },
   hours: {
     tab: "businessHours",
     title: "Business Hours",
     description:
-      "Manage operating hours used by the website, AI receptionist, and scheduling workflow.",
+      "Set the days and times customers can expect your business to be available.",
   },
   calendar: {
     tab: "calendar",

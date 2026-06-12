@@ -90,6 +90,14 @@ function getServices(tenant: Tenant) {
   ];
 }
 
+function getProjectGallery(tenant: Tenant) {
+  const gallery = tenant.websiteSettings?.projectGallery || [];
+
+  return gallery.filter(
+    (item) => item.enabled !== false && item.imageUrl?.trim() && item.title?.trim()
+  );
+}
+
 function getFaqs(tenant: Tenant) {
   const websiteFaqs = tenant.websiteSettings?.faqs || [];
 
@@ -157,6 +165,7 @@ export function TenantWebsite({
 
   const phoneHref = formatPhoneHref(tenant.primaryPhone);
   const services = getServices(tenant);
+  const projectGallery = getProjectGallery(tenant);
   const serviceAreas = getServiceAreas(tenant);
   const faqs = getFaqs(tenant);
   const currentReview = sampleReviews[activeReview];
@@ -226,6 +235,16 @@ export function TenantWebsite({
     websiteSettings.serviceAreasTitle ||
     tenant.serviceAreaSummary ||
     "Serving our local community";
+
+    const projectGalleryHeading =
+    websiteSettings.projectGalleryHeading || "Project Gallery";
+  
+  const projectGalleryTitle =
+    websiteSettings.projectGalleryTitle || "Recent work";
+  
+  const projectGalleryDescription =
+    websiteSettings.projectGalleryDescription ||
+    "Browse a few examples of completed projects and ask our AI receptionist about similar work.";
   
   const reviewsHeading = websiteSettings.reviewsHeading || "Reviews";
   
@@ -601,6 +620,61 @@ export function TenantWebsite({
                       className="mt-5 w-full rounded-xl border border-stone-200 bg-white px-4 py-2 text-sm font-semibold text-gray-800 shadow-sm transition hover:border-orange-200 hover:bg-orange-50 hover:text-orange-700"
                     >
                       Ask About This Service
+                    </button>
+                  </div>
+                </article>
+              ))}
+            </div>
+          </div>
+        </section>
+      ) : null}
+
+      {websiteSettings.showProjectGallery !== false && projectGallery.length > 0 ? (
+        <section id="project-gallery" className="bg-stone-50 py-16">
+          <div className="mx-auto max-w-6xl px-5 sm:px-6">
+            <div className="mx-auto max-w-2xl text-center">
+              <p className="text-xs font-bold uppercase tracking-wide text-orange-700">
+                {projectGalleryHeading}
+              </p>
+
+              <h2 className="mt-3 text-3xl font-bold tracking-tight text-gray-950">
+                {projectGalleryTitle}
+              </h2>
+
+              <p className="mt-4 text-sm leading-7 text-gray-600">
+                {projectGalleryDescription}
+              </p>
+            </div>
+
+            <div className="mt-10 flex gap-5 overflow-x-auto pb-3">
+              {projectGallery.map((item) => (
+                <article
+                  key={item.id}
+                  className="w-[280px] shrink-0 overflow-hidden rounded-3xl border border-stone-200 bg-white shadow-sm sm:w-[340px]"
+                >
+                  <img
+                    src={item.imageUrl}
+                    alt={item.title}
+                    className="h-52 w-full object-cover object-center"
+                  />
+
+                  <div className="p-5">
+                    <h3 className="text-lg font-bold text-gray-950">
+                      {item.title}
+                    </h3>
+
+                    {item.description ? (
+                      <p className="mt-3 text-sm leading-6 text-gray-600">
+                        {item.description}
+                      </p>
+                    ) : null}
+
+                    <button
+                      type="button"
+                      onClick={openChat}
+                      className="mt-5 w-full rounded-xl border border-stone-200 bg-white px-4 py-2 text-sm font-semibold text-gray-800 shadow-sm transition hover:border-orange-200 hover:bg-orange-50 hover:text-orange-700"
+                    >
+                      Ask About Similar Work
                     </button>
                   </div>
                 </article>

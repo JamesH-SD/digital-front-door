@@ -9,6 +9,7 @@ export type WebsitePanelSection =
   | "hero"
   | "whyUs"
   | "services"
+  | "projectGallery"
   | "banner"
   | "serviceAreas"
   | "about"
@@ -87,9 +88,16 @@ const defaultSettings: TenantWebsiteSettings = {
   servicesSectionDescription:
     "Explore common services and ask our AI receptionist about the one that fits your needs.",
   services: [],
+
+  showProjectGallery: true,
+  projectGalleryHeading: "Project Gallery",
+  projectGalleryTitle: "Recent work",
+  projectGalleryDescription:
+    "Browse a few examples of completed projects and ask our AI receptionist about similar work.",
+  projectGallery: [],
 };
 
-type AssetType = "logo" | "hero" | "whyUs" | "about";
+type AssetType = "logo" | "hero" | "whyUs" | "about" | "gallery";
 
 function HelpTip({ text }: { text: string }) {
   return (
@@ -452,6 +460,85 @@ export default function WebsiteSettingsPanel({
     nextServices.splice(nextIndex, 0, movedService);
   
     updateField("services", nextServices);
+  }
+
+  function getProjectGallery() {
+    return settings.projectGallery || [];
+  }
+  
+  function addProjectGalleryItem() {
+    const newItem = {
+      id: `gallery_${Date.now()}`,
+      title: "New Project",
+      description: "",
+      imageUrl: "",
+      enabled: true,
+    };
+  
+    updateField("projectGallery", [newItem, ...getProjectGallery()]);
+  }
+  
+  function updateProjectGalleryItem(
+    itemId: string,
+    updates: Partial<{
+      title: string;
+      description: string;
+      imageUrl: string;
+      enabled: boolean;
+    }>
+  ) {
+    const nextItems = getProjectGallery().map((item) =>
+      item.id === itemId ? { ...item, ...updates } : item
+    );
+  
+    updateField("projectGallery", nextItems);
+  }
+  
+  function removeProjectGalleryItem(itemId: string) {
+    const confirmed = window.confirm("Remove this project from the gallery?");
+    if (!confirmed) return;
+  
+    updateField(
+      "projectGallery",
+      getProjectGallery().filter((item) => item.id !== itemId)
+    );
+  }
+  
+  async function uploadProjectGalleryImage(itemId: string, file: File) {
+    try {
+      setIsSaving(true);
+      setMessage("");
+  
+      const formData = new FormData();
+      formData.append("file", file);
+      formData.append("assetType", "gallery");
+  
+      const response = await fetch(
+        `/api/admin/tenants/${tenantSlug}/website-assets`,
+        {
+          method: "POST",
+          body: formData,
+        }
+      );
+  
+      const result = await response.json();
+  
+      if (!response.ok) {
+        throw new Error(result.error || "Failed to upload project image.");
+      }
+  
+      updateProjectGalleryItem(itemId, {
+        imageUrl: result.imageUrl,
+      });
+  
+      setMessage("Project image uploaded. Click Save Website Changes to publish.");
+    } catch (error) {
+      setMessage(
+        error instanceof Error ? error.message : "Failed to upload project image."
+      );
+    } finally {
+      setIsSaving(false);
+    }
   }
   
   async function uploadServiceImage(serviceId: string, file: File) {
@@ -974,6 +1061,145 @@ export default function WebsiteSettingsPanel({
                     </div>
                     </SectionCard>
                     ) : null}
+      {shouldShow("projectGallery") ? (
+        <SectionCard
+          title="Project Gallery"
+          description="Show completed project images in a carousel below Services."
+          helpText="Use this section to build trust with real project photos. Keep titles short and descriptions simple."
+          enabled={settings.showProjectGallery !== false}
+          onToggle={(checked) => updateField("showProjectGallery", checked)}
+        >
+          <div className="space-y-5">
+            <div className="grid gap-4 md:grid-cols-2">
+              <TextField
+                label="Small Heading"
+                value={settings.projectGalleryHeading}
+                onChange={(value) => updateField("projectGalleryHeading", value)}
+                placeholder="Project Gallery"
+              />
+
+              <TextField
+                label="Title"
+                value={settings.projectGalleryTitle}
+                onChange={(value) => updateField("projectGalleryTitle", value)}
+                placeholder="Recent work"
+              />
+            </div>
+
+            <TextAreaField
+              label="Description"
+              value={settings.projectGalleryDescription}
+              onChange={(value) => updateField("projectGalleryDescription", value)}
+              placeholder="Browse a few examples of completed projects."
+              rows={3}
+            />
+
+            <div className="flex items-center justify-between gap-3 border-t border-stone-100 pt-4">
+              <div>
+                <p className="text-sm font-semibold text-gray-950">Gallery Cards</p>
+                <p className="mt-1 text-xs text-gray-500">
+                  Add project photos customers can browse on the website.
+                </p>
+              </div>
+
+              <button
+                type="button"
+                onClick={addProjectGalleryItem}
+                className="saas-button-accent px-4 py-2 text-sm font-semibold"
+              >
+                Add Project
+              </button>
+            </div>
+
+            <div className="grid gap-4 lg:grid-cols-2">
+              {getProjectGallery().length === 0 ? (
+                <div className="rounded-2xl border border-dashed border-stone-300 bg-stone-50 p-5 text-sm text-gray-600">
+                  No project photos yet. Add a project to build the gallery section.
+                </div>
+              ) : null}
+
+              {getProjectGallery().map((item) => (
+                <div
+                  key={item.id}
+                  className="rounded-2xl border border-stone-200 bg-white p-4 shadow-sm"
+                >
+                  <div className="space-y-4">
+                    {item.imageUrl ? (
+                      <div className="overflow-hidden rounded-2xl border border-stone-200 bg-stone-50">
+                        <img
+                          src={item.imageUrl}
+                          alt={item.title}
+                          className="h-44 w-full object-cover object-center"
+                        />
+                      </div>
+                    ) : (
+                      <div className="flex h-44 items-center justify-center rounded-2xl border border-dashed border-stone-300 bg-stone-50 text-sm text-gray-500">
+                        No image
+                      </div>
+                    )}
+
+                    <input
+                      type="file"
+                      accept="image/*"
+                      disabled={isSaving}
+                      onChange={(event) => {
+                        const file = event.target.files?.[0];
+                        if (!file) return;
+
+                        void uploadProjectGalleryImage(item.id, file);
+                        event.target.value = "";
+                      }}
+                      className="block w-full text-sm text-gray-600 file:mr-4 file:rounded-xl file:border-0 file:bg-orange-700 file:px-4 file:py-2 file:text-sm file:font-semibold file:text-white hover:file:bg-orange-800 disabled:cursor-not-allowed disabled:opacity-60"
+                    />
+
+                    <TextField
+                      label="Project Title"
+                      value={item.title}
+                      onChange={(value) =>
+                        updateProjectGalleryItem(item.id, { title: value })
+                      }
+                      placeholder="Kitchen Remodel"
+                    />
+
+                    <TextAreaField
+                      label="Project Description"
+                      value={item.description || ""}
+                      onChange={(value) =>
+                        updateProjectGalleryItem(item.id, { description: value })
+                      }
+                      placeholder="Briefly describe this project."
+                      rows={3}
+                    />
+
+                    <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+                      <label className="flex items-center gap-2 rounded-xl border border-stone-200 bg-stone-50 px-3 py-2 text-sm font-medium text-gray-700">
+                        <input
+                          type="checkbox"
+                          checked={item.enabled !== false}
+                          onChange={(event) =>
+                            updateProjectGalleryItem(item.id, {
+                              enabled: event.target.checked,
+                            })
+                          }
+                        />
+                        Show this project
+                      </label>
+
+                      <button
+                        type="button"
+                        onClick={() => removeProjectGalleryItem(item.id)}
+                        className="saas-button-danger px-3 py-2 text-sm font-semibold"
+                      >
+                        Remove
+                      </button>
+                    </div>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+        </SectionCard>
+      ) : null}
       {shouldShow("banner") ? (
         <SectionCard
           title="CTA Banner"

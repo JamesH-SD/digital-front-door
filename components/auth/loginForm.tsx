@@ -1,5 +1,6 @@
 "use client";
 
+import Link from "next/link";
 import { useState } from "react";
 import { createClient } from "@/lib/supabase/client";
 
@@ -44,21 +45,21 @@ export default function LoginForm() {
   }
 
   return (
-    <main className="flex min-h-screen items-center justify-center bg-gray-50 px-4">
-      <div className="w-full max-w-md rounded-3xl border bg-white p-6 shadow-sm">
-        <h1 className="text-xl font-semibold text-gray-900">
-          Sign in
-        </h1>
+    <main className="flex min-h-screen items-center justify-center bg-stone-50 px-4">
+      <div className="w-full max-w-md rounded-2xl border border-stone-200/60 bg-white/90 p-6 shadow-[0_8px_24px_rgba(17,24,39,0.045)]">
+        <h1 className="text-2xl font-bold text-gray-900">Welcome back</h1>
 
-        <p className="mt-2 text-sm text-gray-600">
-          Access your Digital Front Door admin area.
+        <p className="mt-2 text-sm leading-6 text-gray-600">
+          Sign in to manage your AI receptionist, website, and customer
+          conversations.
         </p>
 
-        <p className="text-center text-sm text-gray-600">
-          Need an account?{" "}
-          <a href="/signup" className="font-semibold text-gray-900 underline">
-            Create one
-          </a>
+        <p className="mt-4 text-sm font-semibold text-gray-900">
+          Never miss another customer.
+        </p>
+
+        <p className="mt-1 text-sm text-gray-500">
+          AI receptionist • Website • Scheduling • Lead capture
         </p>
 
         <div className="mt-6 space-y-4">
@@ -66,8 +67,8 @@ export default function LoginForm() {
             value={email}
             onChange={(e) => setEmail(e.target.value)}
             type="email"
-            placeholder="Email"
-            className="w-full rounded-xl border px-3 py-2 text-sm"
+            placeholder="Email address"
+            className="saas-input w-full px-3 py-2 text-sm"
           />
 
           <input
@@ -75,22 +76,31 @@ export default function LoginForm() {
             onChange={(e) => setPassword(e.target.value)}
             type="password"
             placeholder="Password"
-            className="w-full rounded-xl border px-3 py-2 text-sm"
+            className="saas-input w-full px-3 py-2 text-sm"
           />
 
           <button
             type="button"
             onClick={() => void handleLogin()}
             disabled={isSubmitting || !email || !password}
-            className="w-full rounded-xl bg-gray-900 px-4 py-2 text-sm font-semibold text-white disabled:opacity-60"
+            className="saas-button-accent w-full px-4 py-3 text-sm font-semibold disabled:cursor-not-allowed disabled:opacity-60"
           >
             {isSubmitting ? "Signing in..." : "Sign in"}
           </button>
 
           {message ? (
-            <p className="text-sm text-red-600">{message}</p>
+            <p className="rounded-xl border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700">
+              {message}
+            </p>
           ) : null}
         </div>
+
+        <p className="mt-6 text-center text-sm text-gray-600">
+          New to Contactor?{" "}
+          <Link href="/signup" className="font-semibold text-orange-700 hover:text-orange-800">
+            Create account
+          </Link>
+        </p>
       </div>
     </main>
   );

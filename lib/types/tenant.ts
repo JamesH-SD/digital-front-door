@@ -6,6 +6,14 @@ export type TenantWebsiteService = {
   enabled?: boolean;
 };
 
+export type TenantProjectGalleryItem = {
+  id: string;
+  title: string;
+  description?: string;
+  imageUrl?: string;
+  enabled?: boolean;
+};
+
 export type TenantWebsiteSettings = {
   template?: "ai_trust_v1";
   primaryColor?: string;
@@ -23,6 +31,12 @@ export type TenantWebsiteSettings = {
   showAbout?: boolean;
   showReviews?: boolean;
   showFaqs?: boolean;
+
+  showProjectGallery?: boolean;
+  projectGalleryHeading?: string;
+  projectGalleryTitle?: string;
+  projectGalleryDescription?: string;
+  projectGallery?: TenantProjectGalleryItem[];
 
   facebookUrl?: string;
   instagramUrl?: string;

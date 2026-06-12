@@ -183,7 +183,7 @@ export default function ServiceAreaSettingsSection({
         </div>
 
         <div className="space-y-5">
-          <div className="rounded-2xl border border-stone-200 bg-stone-50 p-4">
+          <div className="rounded-2xl border border-stone-200 bg-white p-4 shadow-sm">
             <h3 className="text-sm font-semibold text-gray-950">
               Service Area Summary
             </h3>

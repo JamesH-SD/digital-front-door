@@ -92,10 +92,6 @@ export default function AdminSidebar({ tenant }: AdminSidebarProps) {
           href: `/admin/${tenant.slug}/settings/service-area`,
         },
         {
-          label: "Services",
-          href: `/admin/${tenant.slug}/settings/services`,
-        },
-        {
           label: "Hours",
           href: `/admin/${tenant.slug}/settings/hours`,
         },
@@ -135,6 +131,10 @@ export default function AdminSidebar({ tenant }: AdminSidebarProps) {
           href: `/admin/${tenant.slug}/website/services`,
         },
         {
+          label: "Project Gallery",
+          href: `/admin/${tenant.slug}/website/project-gallery`,
+        },
+        {
           label: "Banner",
           href: `/admin/${tenant.slug}/website/banner`,
         },
@@ -164,9 +164,9 @@ export default function AdminSidebar({ tenant }: AdminSidebarProps) {
       isEnabled: true,
     },
     {
-      label: "AI & Chat",
+      label: "AI Receptionist",
       href: `/admin/${tenant.slug}/ai-chat`,
-      description: "AI and chat configuration",
+      description: "Customer conversations and behavior",
       icon: BotIcon,
       isEnabled: true,
     },
@@ -314,7 +314,7 @@ export default function AdminSidebar({ tenant }: AdminSidebarProps) {
           {!isCollapsed ? (
             <div className="min-w-0">
               <p className="text-xs font-semibold uppercase tracking-wide text-gray-500">
-                Logo Area
+                Workspace
               </p>
               <p className="mt-1 truncate text-sm font-semibold text-gray-900">
                 {tenant.businessName}
@@ -337,7 +337,7 @@ export default function AdminSidebar({ tenant }: AdminSidebarProps) {
 
           {!isCollapsed ? (
             <div className="min-w-0 text-left">
-              <div className="text-sm font-semibold">Theme</div>
+              <div className="text-sm font-semibold">Appearance</div>
             </div>
           ) : null}
         </button>
