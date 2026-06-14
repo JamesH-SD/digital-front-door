@@ -24,6 +24,7 @@ import { decideNextAction } from "@/lib/workflow/decideNextAction";
 import { retrieveTenantKnowledge } from "@/lib/knowledge/retrieveTenantKnowledge";
 import type { SchedulingIntentResult } from "@/lib/chat/detectSchedulingIntent";
 import { getBookingFlowConfig } from "@/lib/config/getBookingFlowConfig";
+import { getTenantConfig } from "@/lib/config/getTenantConfig";
 
 function generateId(prefix: string) {
   return `${prefix}_${Math.random().toString(36).slice(2, 10)}`;
@@ -146,6 +147,51 @@ function getPromptForStep(step: IntakeStep, businessName: string): string {
     default:
       return "How can we help you today?";
   }
+}
+
+function buildSignupReply() {
+  return "You’re almost there. Click Get Started to create your account. After that, we’ll walk you through adding your business details, services, FAQs, photos, and website preferences so Contactor can build your digital front door. It’s $49.99/month, month-to-month, with no hidden fees.";
+}
+
+function isSignupQuestion(message: string) {
+  const normalized = message.toLowerCase().trim();
+
+  const isSoftClose =
+    normalized.includes("sign up soon") ||
+    normalized.includes("i'll sign up") ||
+    normalized.includes("ill sign up") ||
+    normalized.includes("i will sign up") ||
+    normalized.includes("we'll sign up") ||
+    normalized.includes("we will sign up") ||
+    normalized.includes("thanks for the info") ||
+    normalized.includes("thanks for all") ||
+    normalized.includes("thank you for") ||
+    normalized.includes("got what i need");
+
+  if (isSoftClose) {
+    return false;
+  }
+
+  return (
+    normalized.includes("how do i sign up") ||
+    normalized.includes("where do i sign up") ||
+    normalized.includes("how can i sign up") ||
+    normalized.includes("where can i sign up") ||
+    normalized.includes("how do i get started") ||
+    normalized.includes("where do i get started") ||
+    normalized.includes("create account") ||
+    normalized.includes("create an account")
+  );
+}
+
+function buildConversationCloseReply(tenant: Tenant) {
+  const bookingFlow = getBookingFlowConfig(tenant);
+
+  if (bookingFlow.showSignupLink) {
+    return "Sounds great. Whenever you’re ready, just hit Get Started and we’ll walk you through everything. If you have questions along the way, I’m here to help.";
+  }
+
+  return "You’re welcome, we’ll follow up from here.";
 }
 
 function mapSession(row: any): ChatSession {
@@ -661,26 +707,35 @@ async function createLeadAndNotifyOnce(session: ChatSession) {
 
 function getMissingRequiredFields(session: ChatSession, tenant: Tenant) {
   const intake = session.intakeData || {};
+  const tenantConfig = getTenantConfig(tenant);
   const missing: IntakeStep[] = [];
 
-  if (!intake.projectType?.trim()) {
-    missing.push("project_type");
-  }
+  for (const field of tenantConfig.requiredFields) {
+    if (!field.required || field.phase !== "pre_lead") continue;
 
-  if (!intake.location?.trim()) {
-    missing.push("location");
-  }
+    if (field.id === "preferred_service" && !intake.projectType?.trim()) {
+      missing.push("project_type");
+    }
 
-  if (tenant.askForTimeline !== false && !intake.timeline?.trim()) {
-    missing.push("timeline");
-  }
+    if (field.id === "project_type" && !intake.projectType?.trim()) {
+      missing.push("project_type");
+    }
 
-  if (!intake.name?.trim()) {
-    missing.push("name");
-  }
+    if (field.id === "location" && !intake.location?.trim()) {
+      missing.push("location");
+    }
 
-  if (tenant.requirePhoneForLead !== false && !intake.contact?.trim()) {
-    missing.push("contact");
+    if (field.id === "timeline" && !intake.timeline?.trim()) {
+      missing.push("timeline");
+    }
+
+    if (field.id === "name" && !intake.name?.trim()) {
+      missing.push("name");
+    }
+
+    if (field.id === "phone" && !intake.contact?.trim()) {
+      missing.push("contact");
+    }
   }
 
   return missing;
@@ -856,10 +911,12 @@ function finalizeSessionStep(session: ChatSession, tenant: Tenant): ChatSession 
   const missing = getMissingRequiredFields(session, tenant);
 
   if (missing.length === 0) {
+    const bookingFlow = getBookingFlowConfig(tenant);
+  
     return {
       ...session,
       currentStep: "complete",
-      leadCaptured: true,
+      leadCaptured: bookingFlow.shouldCreateLeadAutomatically,
       status: "active",
     };
   }
@@ -1107,6 +1164,24 @@ export async function addUserMessage(sessionId: string, content: string) {
   const userMessage = createMessageObject(sessionId, "user", trimmedContent);
   await insertMessage(userMessage);
 
+  const currentBookingFlow = getBookingFlowConfig(tenant);
+
+  if (currentBookingFlow.showSignupLink && isSignupQuestion(trimmedContent)) {
+    const assistantReply = createMessageObject(
+      sessionId,
+      "assistant",
+      buildSignupReply()
+    );
+
+    await insertMessage(assistantReply);
+
+    return {
+      sessionId,
+      messages: await getMessagesForSession(sessionId),
+      session,
+    };
+  }
+
   if (
     session.currentStep === "contact" &&
     tenant.requirePhoneForLead !== false
@@ -1332,7 +1407,7 @@ if (
 
   console.log("⏱️ interpretMessageIntent ms:", Date.now() - intentStart);
 
-  workflowDecision = decideNextAction(messageIntent);
+  workflowDecision = decideNextAction(messageIntent, trimmedContent);
 
   /**
  * Fast-path simple conversation closings.
@@ -1354,7 +1429,7 @@ if (
   const assistantMessage = createMessageObject(
     sessionId,
     "assistant",
-    "You’re welcome — we’ll follow up from here."
+    buildConversationCloseReply(tenant)
   );
 
   await insertMessage(assistantMessage);
@@ -1380,6 +1455,25 @@ if (
     confidence: messageIntent.confidence,
     reason: messageIntent.reason,
   });
+
+  if (
+    messageIntent.confidence === "high" &&
+    workflowDecision.action === "start_signup"
+  ) {
+    const assistantMessage = createMessageObject(
+      sessionId,
+      "assistant",
+      buildSignupReply()
+    );
+  
+    await insertMessage(assistantMessage);
+  
+    return {
+      sessionId,
+      messages: await getMessagesForSession(sessionId),
+      session,
+    };
+  }
 
   if (
     messageIntent.confidence === "high" &&
@@ -1511,13 +1605,12 @@ if (
   if (
     session.currentStep === "complete" &&
     session.leadId &&
-    session.intakeData?.schedulingState?.step === "confirm" &&
     isPostBookingClosingMessage(trimmedContent)
   ) {
     const assistantMessage = createMessageObject(
       sessionId,
       "assistant",
-      "You’re all set. We’ll see you then."
+      "Sounds good, we’ll see you then."
     );
   
     await insertMessage(assistantMessage);
@@ -1551,12 +1644,16 @@ if (
     });
   }
 
-  const schedulingResult = await runSchedulingWorkflow({
-    session,
-    sessionId,
-    trimmedContent,
-    schedulingIntent,
-  });
+  const bookingFlowForScheduling = getBookingFlowConfig(tenant);
+
+  const schedulingResult = bookingFlowForScheduling.requiresAppointment
+    ? await runSchedulingWorkflow({
+        session,
+        sessionId,
+        trimmedContent,
+        schedulingIntent,
+      })
+    : { handled: false };
   
   console.log("📅 Scheduling workflow result:", {
     handled: schedulingResult.handled,
@@ -1572,7 +1669,10 @@ if (
    * remember that intent so we can resume scheduling immediately
    * after required intake is complete and the lead is created.
    */
+  const bookingFlowForPendingScheduling = getBookingFlowConfig(tenant);
+
   if (
+    bookingFlowForPendingScheduling.requiresAppointment &&
     schedulingIntent.hasSchedulingIntent &&
     schedulingIntent.type === "schedule" &&
     !session.leadCaptured
@@ -1599,7 +1699,7 @@ if (
     const assistantMessage = createMessageObject(
       sessionId,
       "assistant",
-      "You’re welcome — we’ll follow up from here."
+      buildConversationCloseReply(tenant)
     );
 
     await insertMessage(assistantMessage);
@@ -2137,7 +2237,8 @@ updatedSession = applyFallbackStepCapture({
   if (
     updatedSession.currentStep === "complete" &&
     updatedSession.leadCaptured &&
-    !updatedSession.leadId
+    !updatedSession.leadId &&
+    getBookingFlowConfig(tenant).shouldCreateLeadAutomatically
   ) {
     const leadCreateStart = Date.now();
 
@@ -2146,66 +2247,60 @@ updatedSession = applyFallbackStepCapture({
     console.log("⏱️ createLeadAndNotifyOnce ms:", Date.now() - leadCreateStart);
   
   /**
- * If the customer previously asked to schedule before the lead existed,
- * decide whether to resume scheduling or first ask for the next-step type.
- *
- * Important:
- * - Reservation/direct-booking tenants default to a confirmation call.
- * - Consultation/estimate tenants should NOT auto-resume into site visit
- *   unless the customer clearly chose call/site visit.
- */
-if (updatedSession.intakeData?.pendingSchedulingRequest) {
-  const bookingFlow = getBookingFlowConfig(tenant);
-
-  /**
-   * If this tenant allows the customer to choose call vs site visit,
-   * and we do not have a clear pending appointment type yet,
-   * do NOT start calendar scheduling automatically.
+   * If the customer previously asked to schedule before the lead existed,
+   * decide whether to resume scheduling or first ask for the next-step type.
    *
-   * This preserves the preferred flow:
-   * lead created → next-step message → call OR site visit choice
-   */
+   * Important:
+   * - Reservation/direct-booking tenants default to a confirmation call.
+   * - Consultation/estimate tenants should NOT auto-resume into site visit
+   *   unless the customer clearly chose call/site visit.
+ */
+  const bookingFlowAfterLeadCreated = getBookingFlowConfig(tenant);
+
   if (
-    bookingFlow.allowCustomerToChooseAppointmentType &&
-    !updatedSession.intakeData.pendingSchedulingAppointmentType
+    bookingFlowAfterLeadCreated.requiresAppointment &&
+    updatedSession.intakeData?.pendingSchedulingRequest
   ) {
-    updatedSession.intakeData = {
-      ...updatedSession.intakeData,
-      pendingSchedulingRequest: false,
-      pendingSchedulingPreference: undefined,
-      pendingSchedulingAppointmentType: undefined,
-      awaitingSchedulingConfirmation: true,
-    };
+    const bookingFlow = bookingFlowAfterLeadCreated;
 
-    await updateSession(updatedSession);
+    if (bookingFlow.allowCustomerToChooseAppointmentType) {
+      updatedSession.intakeData = {
+        ...updatedSession.intakeData,
+        pendingSchedulingRequest: false,
+        pendingSchedulingPreference: undefined,
+        pendingSchedulingAppointmentType: undefined,
+        awaitingSchedulingConfirmation: true,
+      };
 
-    const assistantReply = createMessageObject(
-      sessionId,
-      "assistant",
-      buildLeadCreatedNextStepReply(tenant)
-    );
+      await updateSession(updatedSession);
 
-    await insertMessage(assistantReply);
+      const assistantReply = createMessageObject(
+        sessionId,
+        "assistant",
+        buildLeadCreatedNextStepReply(tenant)
+      );
 
-    return {
-      sessionId,
-      messages: await getMessagesForSession(sessionId),
-      session: updatedSession,
-    };
-  }
+      await insertMessage(assistantReply);
 
-  /**
-   * Reservation/direct-booking tenants should not auto-resume into a fake
-   * reservation or site visit. They should schedule a confirmation call.
-   */
-  if (isReservationLikeTenant(tenant)) {
-    updatedSession.intakeData = {
-      ...updatedSession.intakeData,
-      pendingSchedulingRequest: false,
-      pendingSchedulingPreference: undefined,
-      pendingSchedulingAppointmentType: undefined,
-      awaitingSchedulingConfirmation: true,
-    };
+      return {
+        sessionId,
+        messages: await getMessagesForSession(sessionId),
+        session: updatedSession,
+      };
+    }
+
+    /**
+     * Reservation/direct-booking tenants should not auto-resume into a fake
+     * reservation or site visit. They should schedule a confirmation call.
+     */
+    if (isReservationLikeTenant(tenant)) {
+      updatedSession.intakeData = {
+        ...updatedSession.intakeData,
+        pendingSchedulingRequest: false,
+        pendingSchedulingPreference: undefined,
+        pendingSchedulingAppointmentType: undefined,
+        awaitingSchedulingConfirmation: true,
+      };
 
     await updateSession(updatedSession);
 

@@ -8,14 +8,18 @@ export type TenantBusinessType =
   | "auto_service"
   | "other";
 
-export type TenantConversionGoal =
+  export type TenantConversionGoal =
   | "book_appointment"
   | "request_quote"
   | "collect_lead"
   | "schedule_call"
-  | "manual_follow_up";
+  | "manual_follow_up"
+  | "product_signup";
 
-export type TenantSuccessfulOutcome = "lead_captured" | "appointment_booked";
+  export type TenantSuccessfulOutcome =
+  | "lead_captured"
+  | "appointment_booked"
+  | "account_signup";
 
 export type TenantRequiredField = {
   id:

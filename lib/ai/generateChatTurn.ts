@@ -3,6 +3,8 @@ import type { ChatMessage, ChatSession } from "@/lib/types/chat";
 import type { Tenant } from "@/lib/types/tenant";
 import { formatTenantKnowledgeForPrompt } from "@/lib/knowledge/formatTenantKnowledgeForPrompt";
 import type { TenantKnowledgeItem } from "@/lib/types/tenant-knowledge";
+import { getTenantConfig } from "@/lib/config/getTenantConfig";
+import { getBookingFlowConfig } from "@/lib/config/getBookingFlowConfig";
 
 type ChatFieldUpdates = {
   projectType?: string;
@@ -29,13 +31,20 @@ export type GenerateChatTurnResult =
 function buildKnownContext(session: ChatSession, tenant: Tenant) {
   const intake = session.intakeData || {};
 
-  const requiredFields = [
-    "project type",
-    "location",
-    tenant.askForTimeline === false ? null : "timeline",
-    "name",
-    tenant.requirePhoneForLead === false ? null : "phone",
-  ].filter(Boolean);
+  const tenantConfig = getTenantConfig(tenant);
+  const bookingFlow = getBookingFlowConfig(tenant);
+
+  const requiredFields = tenantConfig.requiredFields
+    .filter((field) => field.required && field.phase === "pre_lead")
+    .map((field) => field.label);
+
+  // const requiredFields = [
+  //   "project type",
+  //   "location",
+  //   tenant.askForTimeline === false ? null : "timeline",
+  //   "name",
+  //   tenant.requirePhoneForLead === false ? null : "phone",
+  // ].filter(Boolean);
 
   const businessAddress = tenant.addressLine1
     ? `${tenant.addressLine1}, ${tenant.city || ""}, ${tenant.state || ""} ${tenant.zip || ""}`
@@ -74,6 +83,11 @@ function buildKnownContext(session: ChatSession, tenant: Tenant) {
         : "unknown"
     }`,
     `Booking Type: ${tenant.bookingType || "consultation"}`,
+    `Conversion Goal: ${tenantConfig.conversionGoal}`,
+    `Scheduling Enabled: ${tenantConfig.scheduling.enabled ? "yes" : "no"}`,
+    `Requires Appointment: ${bookingFlow.requiresAppointment ? "yes" : "no"}`,
+    `Show Signup Link: ${bookingFlow.showSignupLink ? "yes" : "no"}`,
+    `Should Create Lead Automatically: ${bookingFlow.shouldCreateLeadAutomatically ? "yes" : "no"}`,
     `Preferred Next Step Message: ${tenant.nextStepMessage || "Not provided"}`,
     `Known Project Type: ${intake.projectType || "Not provided"}`,
     `Known Location: ${intake.location || "Not provided"}`,
@@ -162,7 +176,7 @@ export async function generateChatTurn(input: {
 
     const nextStepMessage =
       tenant.nextStepMessage?.trim() ||
-      "The next step is usually a quick call to confirm details and coordinate scheduling.";
+      "I have enough information for now.";
 
     const prompt = `
 You are the AI receptionist for this business.
@@ -171,7 +185,7 @@ Your job:
 1. make the customer feel welcomed and comfortable
 2. sound like a real front desk person, not an intake form
 3. quietly capture structured lead details when they are clearly provided
-4. ask only one helpful next question at a time
+4. ask only one helpful next question at a time; for product signup workflows, usually ask no follow-up question unless the customer clearly needs guidance
 5. avoid sounding rushed, transactional, or overly formal
 6. keep the conversation moving naturally toward a lead
 7. answer direct business questions using known tenant facts when available
@@ -191,6 +205,27 @@ Return STRICT JSON only in this shape:
 }
 
 Core behavior rules:
+- If Show Signup Link is "yes", this is a product signup / sales conversation, not a contractor intake.
+- If Show Signup Link is "yes", do not say "request", "project request", "we have your details", or "someone will follow up".
+- If Show Signup Link is "yes", answer product questions first and keep the conversation consultative.
+- If Show Signup Link is "yes" and the customer asks how to sign up, explain that they can click Get Started and create an account.
+- If Show Signup Link is "yes", do not ask for phone number unless the customer explicitly asks for personal help or follow-up.
+- If Requires Appointment is "no", do not mention scheduling, appointments, calls, visits, or calendar booking as the next step.
+- If Show Signup Link is "yes", do not run an intake flow.
+- If Show Signup Link is "yes", do not ask for business name, email, phone, city, timeline, services, website preferences, or setup details.
+- If Show Signup Link is "yes", do not ask repeated follow-up questions after every answer.
+- If Show Signup Link is "yes", answer the question in 1-3 short sentences, then stop.
+- If Show Signup Link is "yes" and a follow-up is helpful, use one brief optional question only.
+- If Show Signup Link is "yes" and the customer says "yes", "sure", or "please walk me through it", explain the signup steps briefly and tell them to click Get Started. Do not collect the setup information inside chat.
+- If Show Signup Link is "yes" and the customer provides their business type, city, services, name, email, or phone, acknowledge briefly but do not continue asking for more setup details.
+- If Show Signup Link is "yes" and the customer asks if they get a website and AI after signing up, answer yes directly, then briefly explain they will enter their business details after creating the account.
+- If Show Signup Link is "yes" and the customer is ending the conversation, respond politely in one short sentence. Do not invite more questions unless they ask.
+- If Show Signup Link is "yes" and the customer criticizes the chat or says it is talking too much, apologize briefly and reduce the reply to one sentence.
+- If Show Signup Link is "yes", do not ask a follow-up question after every answer.
+- If Show Signup Link is "yes", it is acceptable to answer the customer’s question and stop.
+- If Show Signup Link is "yes", only ask a question when additional information is truly necessary.
+- If Show Signup Link is "yes", avoid ending every response with "Would you like..." or "Does that sound right?"
+- If Show Signup Link is "yes", keep responses helpful, warm, and concise.
 - Sound warm, calm, and natural.
 - Do not sound like a script, intake form, or checklist.
 - The customer should feel like they are talking to a helpful front desk person.
@@ -238,8 +273,9 @@ Conversation flow rules:
 - After lead capture, stay customer-facing.
 - When the required lead details are complete, do NOT imply the actual project/work is getting started.
 - Say the request/intake has enough information to get started, not that the remodel/job itself is starting.
-- A good lead-captured response should feel like:
+- For appointment/request workflows, a good lead-captured response should feel like:
   - "Great, I have enough information to get your request started. ${nextStepMessage}"
+- For product signup workflows, do not use lead-captured/request language. Keep answering questions and guide the visitor to Get Started when appropriate.
 - Use the Preferred Next Step Message when explaining what happens after intake.
 - Do not mention on-site visits, estimates, consultations, or phone calls unless they fit the tenant's Booking Type or Preferred Next Step Message.
 - You may lightly rephrase that message, but do not say:
@@ -334,9 +370,9 @@ Scheduling / quote rules:
 - Do not repeat long numbered date or time lists when the customer can visually select dates or times in the interface.
 - If the customer asks for additional availability beyond the currently shown dates, explain that more availability can be loaded and continue helping them schedule.
 - If the customer asks to see the dates again, do not claim the dates are unavailable if scheduling data still exists in session context.
+- Contactor can support appointment booking when scheduling is enabled and a calendar is connected. The AI conversation gathers information, and the scheduling system checks availability and confirms the appointment.
 
 If the customer asks "When can I expect to hear from someone?" or similar:
-
 - Answer the contact timing directly.
 - Do NOT talk about quotes unless the customer specifically asked about quotes.
 - Do NOT default to quote timing.
@@ -387,6 +423,11 @@ ${buildConversation(messages)}
     const response = await client.responses.create({
       model: "gpt-4.1-mini",
       input: prompt,
+      text: {
+        format: {
+          type: "json_object",
+        },
+      },
     });
 
     const rawText = response.output_text?.trim();

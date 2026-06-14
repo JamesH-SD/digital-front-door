@@ -41,16 +41,16 @@ export async function GET() {
 
   var button = document.createElement("button");
   button.type = "button";
-  button.innerText = "Chat";
+  button.innerHTML = "✨ AI Receptionist";
   button.style.border = "0";
   button.style.borderRadius = "999px";
   button.style.background = "#111827";
   button.style.color = "#ffffff";
-  button.style.padding = "14px 18px";
+  button.style.padding = "14px 22px";
   button.style.fontSize = "14px";
   button.style.fontWeight = "700";
   button.style.boxShadow = "0 12px 30px rgba(0,0,0,0.22)";
-  button.style.cursor = "pointer";
+  button.style.animation = "contactorPulse 3s infinite";
 
   var panel = document.createElement("div");
   panel.style.display = "none";
@@ -124,6 +124,12 @@ export async function GET() {
 
   var style = document.createElement("style");
   style.innerHTML =
+    "@keyframes contactorPulse {" +
+    "0% { transform: scale(1); }" +
+    "50% { transform: scale(1.04); }" +
+    "100% { transform: scale(1); }" +
+    "}" +
+
     "@media (max-width: 640px) {" +
     "#contactor-widget-root { right: 12px !important; bottom: 12px !important; left: 12px !important; }" +
     "#contactor-widget-root > div { width: 100% !important; height: calc(100vh - 24px) !important; max-width: none !important; max-height: none !important; border-radius: 20px !important; }"

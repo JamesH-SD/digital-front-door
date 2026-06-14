@@ -2,6 +2,84 @@ import type { Tenant } from "@/lib/types/tenant";
 import type { TenantConfig } from "@/lib/types/tenant-config";
 
 export function getTenantConfig(tenant: Tenant): TenantConfig {
+  const isContactorTenant = tenant.slug === "contactor";
+
+  if (isContactorTenant) {
+    return {
+      tenantSlug: tenant.slug,
+      businessType: "other",
+      conversionGoal: "product_signup",
+      successfulOutcomes: ["lead_captured", "account_signup"],
+
+      requiredFields: [
+        {
+          id: "preferred_service",
+          label: "Business need",
+          required: true,
+          phase: "pre_lead",
+          promptHint:
+            "Ask what they want help with, such as a website, AI receptionist, lead capture, or getting started.",
+        },
+        {
+          id: "location",
+          label: "Business location",
+          required: false,
+          phase: "pre_lead",
+          promptHint: "Ask where the business is located only if useful.",
+        },
+        {
+          id: "name",
+          label: "Customer name",
+          required: false,
+          phase: "pre_lead",
+          promptHint: "Ask for their name only if they want help or follow-up.",
+        },
+        {
+          id: "email",
+          label: "Email",
+          required: false,
+          phase: "pre_lead",
+          promptHint: "Ask for email only if they want help getting started.",
+        },
+        {
+          id: "phone",
+          label: "Phone number",
+          required: false,
+          phase: "optional",
+          promptHint: "Do not require phone. Ask only if they request follow-up.",
+        },
+      ],
+
+      interactionTypes: [
+        {
+          id: "manual_follow_up",
+          label: "Follow-up",
+          customerFacingLabel: "getting help getting started",
+          description: "A lightweight follow-up request without calendar booking.",
+          enabled: true,
+          requiresAddress: false,
+          intentHints: ["help me get started", "follow up", "contact me"],
+        },
+      ],
+
+      scheduling: {
+        enabled: false,
+        provider: "none",
+        defaultTimezone: "America/Los_Angeles",
+        slotMinutes: 60,
+        lookaheadDays: 14,
+        maxDaysToReturn: 7,
+      },
+
+      knowledgeSources: {
+        docsEnabled: true,
+        photosEnabled: true,
+        faqEnabled: true,
+        retrievalMode: "tenant_scoped",
+      },
+    };
+  }
+
   return {
     tenantSlug: tenant.slug,
 

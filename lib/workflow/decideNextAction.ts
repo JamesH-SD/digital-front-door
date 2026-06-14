@@ -1,7 +1,47 @@
 import type { MessageIntentResult } from "@/lib/types/message-intent";
 import type { WorkflowDecision } from "@/lib/types/workflow";
 
-export function decideNextAction(intent: MessageIntentResult): WorkflowDecision {
+function normalize(value?: string | null) {
+  return value?.toLowerCase().trim() || "";
+}
+
+function isSignupOrGetStartedIntent(message: string) {
+  const text = normalize(message);
+
+  const isSoftClose =
+    /\b(i'?ll|i will|we'?ll|we will)\s+sign up soon\b/.test(text) ||
+    /\bsign up soon\b/.test(text) ||
+    /\bthanks?\b/.test(text) ||
+    /\bthank you\b/.test(text);
+
+  if (isSoftClose) {
+    return false;
+  }
+
+  return (
+    /\bhow\s+do\s+i\s+sign\s+up\b/.test(text) ||
+    /\bhow\s+can\s+i\s+sign\s+up\b/.test(text) ||
+    /\bwhere\s+do\s+i\s+sign\s+up\b/.test(text) ||
+    /\bwhere\s+can\s+i\s+sign\s+up\b/.test(text) ||
+    /\bhow\s+do\s+i\s+get\s+started\b/.test(text) ||
+    /\bwhere\s+do\s+i\s+get\s+started\b/.test(text) ||
+    /\bcreate\s+(an\s+)?account\b/.test(text) ||
+    /\bstart\s+my\s+account\b/.test(text)
+  );
+}
+
+export function decideNextAction(
+  intent: MessageIntentResult,
+  latestUserMessage = ""
+): WorkflowDecision {
+  if (isSignupOrGetStartedIntent(latestUserMessage)) {
+    return {
+      action: "start_signup",
+      reason: "Customer is asking how to sign up or create an account.",
+      intent,
+    };
+  }
+
   switch (intent.intent) {
     case "business_question":
       return {

@@ -5,7 +5,10 @@ export type BookingFlowType =
   | "reservation"
   | "direct_booking"
   | "phone_call"
-  | "estimate";
+  | "estimate"
+  | "lead_capture"
+  | "manual_followup"
+  | "product_signup";
 
 export type BookingFlowAppointmentType = "call" | "site_visit";
 
@@ -15,27 +18,82 @@ export type BookingFlowConfig = {
   defaultAppointmentType: BookingFlowAppointmentType | null;
   allowCustomerToChooseAppointmentType: boolean;
   requiresAddressBeforeScheduling: boolean;
+  requiresCalendar: boolean;
+  requiresAppointment: boolean;
+  allowConversationAfterLead: boolean;
+  showSignupLink: boolean;
   leadCreatedReply: string;
+  shouldCreateLeadAutomatically: boolean;
+  followUpLanguageAllowed: boolean;
 };
 
-/**
- * Central source of truth for how each tenant booking flow behaves.
- *
- * Product rule:
- * We are not trying to truly reserve inventory/assets yet.
- * We are filling the tenant calendar with qualified potential business.
- *
- * Therefore every flow ultimately becomes either:
- * - phone call
- * - site visit
- */
+function joinReply(parts: Array<string | null | undefined>) {
+  return parts
+    .map((part) => part?.trim())
+    .filter(Boolean)
+    .join(" ");
+}
+
 export function getBookingFlowConfig(tenant: Tenant): BookingFlowConfig {
   const bookingType = normalizeBookingType(tenant.bookingType);
-  const nextStepMessage =
-    tenant.nextStepMessage?.trim() ||
-    "The next step is usually confirming the details and coordinating a time that works best for you.";
+  const nextStepMessage = tenant.nextStepMessage?.trim();
 
   switch (bookingType) {
+    case "product_signup":
+      return {
+        bookingType,
+        shouldOfferSchedulingAfterLeadCreated: false,
+        defaultAppointmentType: null,
+        allowCustomerToChooseAppointmentType: false,
+        requiresAddressBeforeScheduling: false,
+        requiresCalendar: false,
+        requiresAppointment: false,
+        allowConversationAfterLead: true,
+        showSignupLink: true,
+        shouldCreateLeadAutomatically: false,
+        followUpLanguageAllowed: false,
+        leadCreatedReply:
+          "You can create your account by clicking Get Started or visiting /signup. I’m here if you have questions before getting started.",
+      };
+
+    case "lead_capture":
+      return {
+        bookingType,
+        shouldOfferSchedulingAfterLeadCreated: false,
+        defaultAppointmentType: null,
+        allowCustomerToChooseAppointmentType: false,
+        requiresAddressBeforeScheduling: false,
+        requiresCalendar: false,
+        requiresAppointment: false,
+        allowConversationAfterLead: true,
+        shouldCreateLeadAutomatically: true,
+        followUpLanguageAllowed: true,
+        showSignupLink: false,
+        leadCreatedReply: joinReply([
+          "Great, I have enough information for now.",
+          nextStepMessage,
+        ]),
+      };
+
+    case "manual_followup":
+      return {
+        bookingType,
+        shouldOfferSchedulingAfterLeadCreated: false,
+        defaultAppointmentType: null,
+        allowCustomerToChooseAppointmentType: false,
+        requiresAddressBeforeScheduling: false,
+        requiresCalendar: false,
+        requiresAppointment: false,
+        allowConversationAfterLead: true,
+        shouldCreateLeadAutomatically: true,
+        followUpLanguageAllowed: true,
+        showSignupLink: false,
+        leadCreatedReply: joinReply([
+          "Great, I have enough information for now.",
+          nextStepMessage,
+        ]),
+      };
+
     case "reservation":
       return {
         bookingType,
@@ -43,7 +101,17 @@ export function getBookingFlowConfig(tenant: Tenant): BookingFlowConfig {
         defaultAppointmentType: "call",
         allowCustomerToChooseAppointmentType: false,
         requiresAddressBeforeScheduling: false,
-        leadCreatedReply: `Great, I have enough information to get your rental request started. ${nextStepMessage} Would you like to schedule a quick confirmation call?`,
+        requiresCalendar: true,
+        requiresAppointment: true,
+        allowConversationAfterLead: true,
+        shouldCreateLeadAutomatically: true,
+        followUpLanguageAllowed: true,
+        showSignupLink: false,
+        leadCreatedReply: joinReply([
+          "Great, I have enough information to get your request started.",
+          nextStepMessage,
+          "Would you like to schedule a quick confirmation call?",
+        ]),
       };
 
     case "direct_booking":
@@ -53,7 +121,17 @@ export function getBookingFlowConfig(tenant: Tenant): BookingFlowConfig {
         defaultAppointmentType: "call",
         allowCustomerToChooseAppointmentType: false,
         requiresAddressBeforeScheduling: false,
-        leadCreatedReply: `Great, I have enough information to get your request started. ${nextStepMessage} Would you like to schedule a quick confirmation call?`,
+        requiresCalendar: true,
+        requiresAppointment: true,
+        allowConversationAfterLead: true,
+        shouldCreateLeadAutomatically: true,
+        followUpLanguageAllowed: true,
+        showSignupLink: false,
+        leadCreatedReply: joinReply([
+          "Great, I have enough information to get your request started.",
+          nextStepMessage,
+          "Would you like to schedule a quick confirmation call?",
+        ]),
       };
 
     case "phone_call":
@@ -63,7 +141,17 @@ export function getBookingFlowConfig(tenant: Tenant): BookingFlowConfig {
         defaultAppointmentType: "call",
         allowCustomerToChooseAppointmentType: false,
         requiresAddressBeforeScheduling: false,
-        leadCreatedReply: `Great, I have enough information to get your request started. ${nextStepMessage} Would you like to schedule a quick call now?`,
+        requiresCalendar: true,
+        requiresAppointment: true,
+        allowConversationAfterLead: true,
+        shouldCreateLeadAutomatically: true,
+        followUpLanguageAllowed: true,
+        showSignupLink: false,
+        leadCreatedReply: joinReply([
+          "Great, I have enough information to get your request started.",
+          nextStepMessage,
+          "Would you like to schedule a quick call now?",
+        ]),
       };
 
     case "estimate":
@@ -73,7 +161,17 @@ export function getBookingFlowConfig(tenant: Tenant): BookingFlowConfig {
         defaultAppointmentType: null,
         allowCustomerToChooseAppointmentType: true,
         requiresAddressBeforeScheduling: false,
-        leadCreatedReply: `Great, I have enough information to get your estimate request started. ${nextStepMessage} Would you like to schedule a quick call or an on-site visit?`,
+        requiresCalendar: true,
+        requiresAppointment: true,
+        allowConversationAfterLead: true,
+        shouldCreateLeadAutomatically: true,
+        followUpLanguageAllowed: true,
+        showSignupLink: false,
+        leadCreatedReply: joinReply([
+          "Great, I have enough information to get your estimate request started.",
+          nextStepMessage,
+          "Would you like to schedule a quick call or an on-site visit?",
+        ]),
       };
 
     case "consultation":
@@ -84,7 +182,17 @@ export function getBookingFlowConfig(tenant: Tenant): BookingFlowConfig {
         defaultAppointmentType: null,
         allowCustomerToChooseAppointmentType: true,
         requiresAddressBeforeScheduling: false,
-        leadCreatedReply: `Great, I have enough information to get your request started. ${nextStepMessage} Would you prefer a quick call, or would you like us to come out for an on-site visit?`,
+        requiresCalendar: true,
+        requiresAppointment: true,
+        allowConversationAfterLead: true,
+        shouldCreateLeadAutomatically: true,
+        followUpLanguageAllowed: true,
+        showSignupLink: false,
+        leadCreatedReply: joinReply([
+          "Great, I have enough information to get your request started.",
+          nextStepMessage,
+          "Would you prefer a quick call, or would you like us to come out for an on-site visit?",
+        ]),
       };
   }
 }
@@ -95,7 +203,10 @@ function normalizeBookingType(value?: string | null): BookingFlowType {
     value === "direct_booking" ||
     value === "phone_call" ||
     value === "estimate" ||
-    value === "consultation"
+    value === "consultation" ||
+    value === "lead_capture" ||
+    value === "manual_followup" ||
+    value === "product_signup"
   ) {
     return value;
   }

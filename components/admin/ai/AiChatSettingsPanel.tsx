@@ -308,6 +308,10 @@ export default function AiChatSettingsPanel({ tenant }: Props) {
                   <option value="direct_booking">Direct service booking</option>
                   <option value="phone_call">Phone call follow-up</option>
                   <option value="estimate">Quote / estimate request</option>
+
+                  <option value="lead_capture">Lead capture only</option>
+                  <option value="manual_followup">Manual follow-up</option>
+                  <option value="product_signup">Product signup</option>
                 </select>
               </label>
 
@@ -344,12 +348,12 @@ export default function AiChatSettingsPanel({ tenant }: Props) {
                   }))
                 }
                 rows={3}
-                placeholder="Example: The next step is usually a quick call or on-site visit so we can better understand your project."
+                placeholder="Example: Thanks! I have enough information for now. If you have additional questions, I'm here to help."
                 className="w-full rounded-xl border border-stone-200 px-3 py-2 text-sm"
               />
 
               <span className="block text-xs text-gray-500">
-                This tells the AI how to explain the next step after a lead is captured.
+                This tells the AI what happens after a lead is captured. Examples include scheduling, manual follow-up, or account signup.
               </span>
             </label>
 
