@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { useState } from "react";
 import { createClient } from "@/lib/supabase/client";
+import AuthExperienceShell from "@/components/auth/AuthExperienceShell";
 
 export default function LoginForm() {
   const supabase = createClient();
@@ -36,7 +37,23 @@ export default function LoginForm() {
         return;
       }
 
-      window.location.href = "/create-business";
+      const createTenantResponse = await fetch("/api/auth/create-tenant", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({}),
+      });
+
+      const createTenantResult = await createTenantResponse.json();
+
+      if (!createTenantResponse.ok) {
+        throw new Error(
+          createTenantResult.error || "Failed to create your business workspace."
+        );
+      }
+
+      window.location.href = `/onboarding/${createTenantResult.tenantSlug}`;
     } catch (error) {
       setMessage(error instanceof Error ? error.message : "Login failed.");
     } finally {
@@ -45,8 +62,8 @@ export default function LoginForm() {
   }
 
   return (
-    <main className="flex min-h-screen items-center justify-center bg-stone-50 px-4">
-      <div className="w-full max-w-md rounded-2xl border border-stone-200/60 bg-white/90 p-6 shadow-[0_8px_24px_rgba(17,24,39,0.045)]">
+    <AuthExperienceShell maxWidth="max-w-md">
+      <div>
         <h1 className="text-2xl font-bold text-gray-900">Welcome back</h1>
 
         <p className="mt-2 text-sm leading-6 text-gray-600">
@@ -62,7 +79,16 @@ export default function LoginForm() {
           AI receptionist • Website • Scheduling • Lead capture
         </p>
 
-        <div className="mt-6 space-y-4">
+        <form
+          className="mt-6 space-y-4"
+          onSubmit={(e) => {
+            e.preventDefault();
+
+            if (!isSubmitting && email && password) {
+              void handleLogin();
+            }
+          }}
+        >
           <input
             value={email}
             onChange={(e) => setEmail(e.target.value)}
@@ -80,7 +106,7 @@ export default function LoginForm() {
           />
 
           <button
-            type="button"
+            type="submit"
             onClick={() => void handleLogin()}
             disabled={isSubmitting || !email || !password}
             className="saas-button-accent w-full px-4 py-3 text-sm font-semibold disabled:cursor-not-allowed disabled:opacity-60"
@@ -88,20 +114,37 @@ export default function LoginForm() {
             {isSubmitting ? "Signing in..." : "Sign in"}
           </button>
 
+          <div className="pt-2 text-center">
+            <Link
+              href="/forgot-password"
+              className="text-sm font-semibold text-orange-700 hover:text-orange-800"
+            >
+              Forgot password?
+            </Link>
+          </div>
+
           {message ? (
             <p className="rounded-xl border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700">
               {message}
             </p>
           ) : null}
-        </div>
+        </form>
 
-        <p className="mt-6 text-center text-sm text-gray-600">
+        <div className="text-right">
+        
+        
+      </div>
+
+        <p className="mt-4 text-center text-sm text-gray-600">
           New to Contactor?{" "}
-          <Link href="/signup" className="font-semibold text-orange-700 hover:text-orange-800">
+          <Link
+            href="/signup"
+            className="font-semibold text-orange-700 hover:text-orange-800"
+          >
             Create account
           </Link>
         </p>
       </div>
-    </main>
+    </AuthExperienceShell>
   );
 }

@@ -3,6 +3,7 @@
 import { useState } from "react";
 import Link from "next/link";
 import { createClient } from "@/lib/supabase/client";
+import AuthExperienceShell from "@/components/auth/AuthExperienceShell";
 
 export default function SignupForm() {
   const supabase = createClient();
@@ -44,7 +45,7 @@ export default function SignupForm() {
 
       setIsSuccess(true);
       setMessage(
-        "Account created. Please check your email to confirm your account, then sign in."
+        "Account created. Please check your email to confirm your account. If you do not see it, you can resend the confirmation email."
       );
     } catch (error) {
       setMessage(error instanceof Error ? error.message : "Signup failed.");
@@ -54,8 +55,8 @@ export default function SignupForm() {
   }
 
   return (
-    <main className="flex min-h-screen items-center justify-center bg-stone-50 px-4">
-      <div className="w-full max-w-md rounded-2xl border border-stone-200/60 bg-white/90 p-6 shadow-[0_8px_24px_rgba(17,24,39,0.045)]">
+    <AuthExperienceShell maxWidth="max-w-md">
+      <div>
         <h1 className="text-2xl font-bold text-gray-900">Create account</h1>
 
         <p className="mt-2 text-sm leading-6 text-gray-600">
@@ -131,6 +132,17 @@ export default function SignupForm() {
               {message}
             </p>
           ) : null}
+          {isSuccess ? (
+          <p className="text-center text-sm text-gray-600">
+            Didn’t get the email?{" "}
+            <Link
+              href="/resend-confirmation"
+              className="font-semibold text-orange-700 hover:text-orange-800"
+            >
+              Resend confirmation
+            </Link>
+          </p>
+        ) : null}
         </div>
 
         <p className="mt-5 text-center text-sm text-gray-600">
@@ -139,7 +151,7 @@ export default function SignupForm() {
             Sign in
           </Link>
         </p>
-      </div>
-    </main>
-  );
+        </div>
+      </AuthExperienceShell>
+    );
 }

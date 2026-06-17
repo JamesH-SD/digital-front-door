@@ -3,6 +3,7 @@ import { getCurrentUser } from "@/lib/auth/getCurrentUser";
 import { getUserTenantMembership } from "@/lib/auth/tenantAccess";
 import { getTenantBySlug } from "@/lib/db/tenants";
 import OnboardingWizard from "@/components/onboarding/OnboardingWizard";
+import AuthExperienceShell from "@/components/auth/AuthExperienceShell";
 
 type PageProps = {
   params: Promise<{
@@ -34,5 +35,9 @@ export default async function OnboardingPage({ params }: PageProps) {
     redirect("/unauthorized");
   }
 
-  return <OnboardingWizard tenant={tenant} />;
+  return (
+    <AuthExperienceShell maxWidth="max-w-6xl">
+      <OnboardingWizard tenant={tenant} />
+    </AuthExperienceShell>
+  );
 }

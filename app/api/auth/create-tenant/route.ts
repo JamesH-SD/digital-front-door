@@ -20,11 +20,32 @@ function generateTenantCode(businessName: string) {
     .join("")
     .slice(0, 4);
 
-  const fallback = "DFD";
-  const prefix = letters || fallback;
+  const prefix = letters || "DFD";
   const random = Math.floor(1000 + Math.random() * 9000);
 
   return `${prefix}-${random}`;
+}
+
+async function makeUniqueSlug(baseSlug: string) {
+  const supabase = createAdminClient();
+
+  let candidate = baseSlug;
+  let counter = 2;
+
+  while (true) {
+    const { data } = await supabase
+      .from("tenants")
+      .select("slug")
+      .eq("slug", candidate)
+      .maybeSingle();
+
+    if (!data) {
+      return candidate;
+    }
+
+    candidate = `${baseSlug}-${counter}`;
+    counter += 1;
+  }
 }
 
 export async function POST(request: NextRequest) {
@@ -37,37 +58,51 @@ export async function POST(request: NextRequest) {
     );
   }
 
-  const body = await request.json();
+  const body = await request.json().catch(() => ({}));
+
+  const metadataBusinessName =
+    typeof user.user_metadata?.business_name === "string"
+      ? user.user_metadata.business_name.trim()
+      : "";
+
+  const metadataEmail =
+    typeof user.email === "string" ? user.email.trim() : "";
 
   const businessName =
-    typeof body.businessName === "string" ? body.businessName.trim() : "";
+    typeof body.businessName === "string" && body.businessName.trim()
+      ? body.businessName.trim()
+      : metadataBusinessName;
 
-  const tenantSlug = slugify(
-    typeof body.tenantSlug === "string" ? body.tenantSlug : businessName
+  const baseSlug = slugify(
+    typeof body.tenantSlug === "string" && body.tenantSlug.trim()
+      ? body.tenantSlug
+      : businessName
   );
 
-  if (!businessName || !tenantSlug) {
+  if (!businessName || !baseSlug) {
     return NextResponse.json(
-      { error: "Business name and tenant slug are required." },
+      { error: "Business name is required." },
       { status: 400 }
     );
   }
 
   const supabase = createAdminClient();
 
-  const { data: existingTenant } = await supabase
-    .from("tenants")
-    .select("slug")
-    .eq("slug", tenantSlug)
+  const { data: existingMembership } = await supabase
+    .from("tenant_memberships")
+    .select("tenant_slug, role")
+    .eq("user_id", user.id)
+    .limit(1)
     .maybeSingle();
 
-  if (existingTenant) {
-    return NextResponse.json(
-      { error: "That business slug is already taken." },
-      { status: 409 }
-    );
+  if (existingMembership?.tenant_slug) {
+    return NextResponse.json({
+      tenantSlug: existingMembership.tenant_slug,
+      alreadyExists: true,
+    });
   }
 
+  const tenantSlug = await makeUniqueSlug(baseSlug);
   const tenantCode = generateTenantCode(businessName);
 
   const { error: tenantError } = await supabase.from("tenants").insert({
@@ -75,6 +110,7 @@ export async function POST(request: NextRequest) {
     tenant_code: tenantCode,
     name: businessName,
     business_name: businessName,
+    email: metadataEmail || null,
     greeting_message: `Hi! Welcome to ${businessName}. How can we help you today?`,
     ask_for_timeline: true,
     ask_for_email_after_phone: false,
@@ -89,10 +125,7 @@ export async function POST(request: NextRequest) {
   if (tenantError) {
     console.error("Create tenant error:", tenantError.message);
 
-    return NextResponse.json(
-      { error: tenantError.message },
-      { status: 500 }
-    );
+    return NextResponse.json({ error: tenantError.message }, { status: 500 });
   }
 
   const { error: membershipError } = await supabase
@@ -114,5 +147,6 @@ export async function POST(request: NextRequest) {
 
   return NextResponse.json({
     tenantSlug,
+    alreadyExists: false,
   });
 }

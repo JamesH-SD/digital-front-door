@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import AuthExperienceShell from "@/components/auth/AuthExperienceShell";
 
 function slugify(value: string) {
   return value
@@ -47,9 +48,7 @@ export default function CreateBusinessForm() {
       window.location.href = `/onboarding/${result.tenantSlug}`;
     } catch (error) {
       setMessage(
-        error instanceof Error
-          ? error.message
-          : "Failed to create business."
+        error instanceof Error ? error.message : "Failed to create business."
       );
     } finally {
       setIsSubmitting(false);
@@ -57,14 +56,19 @@ export default function CreateBusinessForm() {
   }
 
   return (
-    <main className="flex min-h-screen items-center justify-center bg-gray-50 px-4">
-      <div className="w-full max-w-lg rounded-3xl border bg-white p-6 shadow-sm">
-        <h1 className="text-xl font-semibold text-gray-900">
+    <AuthExperienceShell maxWidth="max-w-lg">
+      <div>
+        <p className="text-xs font-bold uppercase tracking-wide text-orange-700">
+          Workspace setup
+        </p>
+
+        <h1 className="mt-2 text-2xl font-bold text-gray-950">
           Create your business
         </h1>
 
-        <p className="mt-2 text-sm text-gray-600">
-          Set up your Digital Front Door workspace.
+        <p className="mt-2 text-sm leading-6 text-gray-600">
+          Set up your Digital Front Door workspace. You’ll be guided through the
+          rest of the setup next.
         </p>
 
         <div className="mt-6 space-y-4">
@@ -72,23 +76,25 @@ export default function CreateBusinessForm() {
             value={businessName}
             onChange={(e) => setBusinessName(e.target.value)}
             placeholder="Business name"
-            className="w-full rounded-xl border px-3 py-2 text-sm"
+            className="saas-input w-full px-3 py-2 text-sm"
           />
 
           <button
             type="button"
             onClick={() => void handleCreateBusiness()}
             disabled={isSubmitting || !businessName.trim()}
-            className="w-full rounded-xl bg-gray-900 px-4 py-2 text-sm font-semibold text-white disabled:opacity-60"
+            className="saas-button-accent w-full px-4 py-3 text-sm font-semibold disabled:cursor-not-allowed disabled:opacity-60"
           >
             {isSubmitting ? "Creating..." : "Create business"}
           </button>
 
           {message ? (
-            <p className="text-sm text-red-600">{message}</p>
+            <p className="rounded-xl border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700">
+              {message}
+            </p>
           ) : null}
         </div>
       </div>
-    </main>
-  );
+  </AuthExperienceShell>
+);
 }

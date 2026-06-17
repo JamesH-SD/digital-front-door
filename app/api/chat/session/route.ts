@@ -3,7 +3,7 @@ import { createChatSessionForTenantSlug } from "@/lib/db/chat";
 
 export async function POST(request: NextRequest) {
   try {
-    const body = await request.json();
+    const body = await request.json().catch(() => ({}));
 
     const tenantSlug = body?.tenantSlug;
     const leadSource =

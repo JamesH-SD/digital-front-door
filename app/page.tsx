@@ -47,8 +47,8 @@ const faqs = [
 
 export default function HomePage() {
   return (
-    <main className="min-h-screen overflow-x-hidden bg-white text-gray-950">
-      <header className="sticky top-0 z-50 border-b border-stone-200 bg-white/90 backdrop-blur-xl">
+    <main className="min-h-screen overflow-x-hidden bg-white pt-10 text-gray-950">
+      <header className="fixed inset-x-0 top-0 z-50 border-b border-stone-200 bg-white/80 shadow-sm backdrop-blur-xl">
         <div className="mx-auto flex h-16 max-w-6xl items-center justify-between px-5 sm:px-6">
           <Link href="/" className="flex items-center gap-3">
             <div className="flex h-10 w-10 items-center justify-center rounded-2xl bg-orange-700 text-sm font-bold text-white">
@@ -83,7 +83,7 @@ export default function HomePage() {
         </div>
       </header>
 
-      <section className="saas-shell">
+      <section className="saas-shell pt-6">
         <div className="mx-auto grid max-w-6xl gap-8 px-5 py-10 sm:px-6 lg:grid-cols-[1fr_0.75fr] lg:items-center lg:py-14">
           <div>
             <p className="inline-flex rounded-full border border-orange-200 bg-orange-50 px-3 py-1 text-xs font-bold uppercase tracking-wide text-orange-700">
@@ -381,8 +381,10 @@ export default function HomePage() {
       </section>
 
       <footer className="border-t border-white/10 bg-gray-950 text-white">
-        <div className="mx-auto grid max-w-6xl gap-8 px-5 py-10 sm:px-6 md:grid-cols-4">
-          <div className="md:col-span-2">
+        <div className="mx-auto grid max-w-5xl grid-cols-[2.5fr_1fr_1fr_1fr] gap-10 px-5 py-8">
+
+          {/* Contactor */}
+          <div>
             <div className="flex items-center gap-3">
               <div className="flex h-10 w-10 items-center justify-center rounded-2xl bg-orange-700 text-sm font-bold text-white">
                 C
@@ -391,8 +393,9 @@ export default function HomePage() {
               <p className="text-lg font-bold">Contactor</p>
             </div>
 
-            <p className="mt-4 max-w-md text-sm leading-6 text-white/60">
-              AI receptionist, lead capture, scheduling, and website tools for service businesses.
+            <p className="mt-4 max-w-sm text-sm leading-7 text-white/60">
+              AI receptionist, lead capture, scheduling, and website tools for
+              service businesses.
             </p>
 
             <p className="mt-4 text-xs font-semibold uppercase tracking-wide text-orange-400">
@@ -400,23 +403,67 @@ export default function HomePage() {
             </p>
           </div>
 
+          {/* Product */}
           <div>
             <p className="text-sm font-bold">Product</p>
+
             <div className="mt-4 space-y-3 text-sm text-white/60">
-              <a href="#features" className="block hover:text-white">Features</a>
-              <a href="#pricing" className="block hover:text-white">Pricing</a>
-              <a href="#faq" className="block hover:text-white">FAQ</a>
-              <Link href="/signup" className="block hover:text-white">Get Started</Link>
+              <a href="#features" className="block hover:text-white">
+                Features
+              </a>
+
+              <a href="#pricing" className="block hover:text-white">
+                Pricing
+              </a>
+
+              <a href="#faq" className="block hover:text-white">
+                FAQ
+              </a>
+
+              <Link href="/signup" className="block hover:text-white">
+                Get Started
+              </Link>
             </div>
           </div>
 
+          {/* Account */}
           <div>
             <p className="text-sm font-bold">Account</p>
+
             <div className="mt-4 space-y-3 text-sm text-white/60">
-              <Link href="/login" className="block hover:text-white">Login</Link>
-              <Link href="/signup" className="block hover:text-white">Create Account</Link>
+              <Link href="/login" className="block hover:text-white">
+                Login
+              </Link>
+
+              <Link href="/signup" className="block hover:text-white">
+                Create Account
+              </Link>
+
+              <Link href="/forgot-password" className="block hover:text-white">
+                Forgot Password
+              </Link>
             </div>
           </div>
+
+          {/* Legal */}
+          <div>
+            <p className="text-sm font-bold">Legal</p>
+
+            <div className="mt-4 space-y-3 text-sm text-white/60">
+              <Link href="/terms" className="block hover:text-white">
+                Terms
+              </Link>
+
+              <Link href="/privacy" className="block hover:text-white">
+                Privacy
+              </Link>
+
+              <Link href="/ai-policy" className="block hover:text-white">
+                AI Policy
+              </Link>
+            </div>
+          </div>
+
         </div>
 
         <div className="border-t border-white/10 px-5 py-5 text-center text-xs text-white/40">
