@@ -159,4 +159,6 @@ export type Tenant = {
   // Web Settings
   //===============================
   websiteSettings?: TenantWebsiteSettings;
+  websiteStatus?: "draft" | "published";
+  websitePublishedAt?: string | null;
 };

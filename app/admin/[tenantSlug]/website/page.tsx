@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { getTenantBySlug } from "@/lib/db/tenants";
+import WebsitePublishControls from "@/components/admin/website/WebsitePublishControls";
 
 type PageProps = {
   params: Promise<{
@@ -37,6 +38,12 @@ export default async function WebsitePage({ params }: PageProps) {
           Manage the public website one section at a time.
         </p>
       </div>
+
+      <WebsitePublishControls
+        tenantSlug={tenant.slug}
+        initialStatus={tenant.websiteStatus || "draft"}
+        initialPublishedAt={tenant.websitePublishedAt}
+      />
 
       <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
         {websiteSections.map(([slug, title, description]) => (

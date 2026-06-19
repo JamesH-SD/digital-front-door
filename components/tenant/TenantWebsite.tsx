@@ -18,6 +18,7 @@ type Props = {
   tenant: Tenant;
   leadSource: string;
   autoOpenChat?: boolean;
+  isPreview?: boolean;
 };
 
 function formatPhoneHref(phone?: string) {
@@ -157,6 +158,7 @@ export function TenantWebsite({
   tenant,
   leadSource,
   autoOpenChat = false,
+  isPreview = false,
 }: Props) {
   const [chatOpen, setChatOpen] = useState(autoOpenChat);
   const [mobileNavOpen, setMobileNavOpen] = useState(false);
@@ -313,19 +315,16 @@ export function TenantWebsite({
   return (
     <main className="min-h-screen overflow-x-hidden bg-white text-gray-950">
       {/* NAV */}
+      {isPreview && (
+        <div className="fixed left-0 right-0 top-0 z-[60] border-b border-amber-200 bg-amber-50 px-4 py-3 text-center text-sm font-semibold text-amber-900">
+          Preview Mode — This website is not published yet.
+        </div>
+      )}
       <header
-        className="
-            fixed
-            top-0
-            left-0
-            right-0
-            z-50
-            bg-white/90
-            backdrop-blur-md
-            border-b
-            border-stone-200
-        "
-        >
+        className={`fixed left-0 right-0 z-50 border-b border-stone-200 bg-white/90 backdrop-blur-md ${
+          isPreview ? "top-12" : "top-0"
+        }`}
+      >
         <div className="mx-auto flex h-16 max-w-6xl items-center justify-between px-5 sm:px-6">
         <a href="#" className="flex min-w-0 items-center gap-3">
           {websiteSettings.logoUrl ? (

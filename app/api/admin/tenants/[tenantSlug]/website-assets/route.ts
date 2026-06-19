@@ -1,151 +1,132 @@
-import { NextResponse } from "next/server";
-import { createClient } from "@/lib/supabase/server";
+import { NextRequest, NextResponse } from "next/server";
+import { createAdminClient } from "@/lib/supabase/admin";
 
-type RouteContext = {
+type RouteParams = {
   params: Promise<{
     tenantSlug: string;
   }>;
 };
 
-const ALLOWED_ASSET_TYPES = ["logo", "hero", "whyUs", "about", "service", "gallery"] as const;
+type AssetType = "logo" | "hero" | "whyUs" | "about" | "gallery" | "service";
 
-type AssetType = (typeof ALLOWED_ASSET_TYPES)[number];
-
-function isAllowedAssetType(value: string): value is AssetType {
-  return ALLOWED_ASSET_TYPES.includes(value as AssetType);
-}
-
-function getWebsiteSettingsKey(assetType: AssetType) {
+function getSettingsKey(assetType: AssetType) {
   switch (assetType) {
     case "logo":
       return "logoUrl";
-
     case "hero":
       return "heroImageUrl";
-
     case "whyUs":
       return "whyUsImageUrl";
-
     case "about":
       return "aboutImageUrl";
-
-    case "service":
-    case "gallery":
+    default:
       return null;
   }
 }
 
-export async function POST(request: Request, context: RouteContext) {
+export async function POST(request: NextRequest, { params }: RouteParams) {
   try {
-    const { tenantSlug } = await context.params;
+    const { tenantSlug } = await params;
     const formData = await request.formData();
 
     const file = formData.get("file");
-    const assetTypeValue = String(formData.get("assetType") || "");
+    const assetType = (formData.get("assetType") || "logo") as AssetType;
 
     if (!(file instanceof File)) {
       return NextResponse.json({ error: "File is required." }, { status: 400 });
     }
 
-    if (!isAllowedAssetType(assetTypeValue)) {
+    const allowedTypes = [
+      "image/png",
+      "image/jpeg",
+      "image/webp",
+      "image/svg+xml",
+    ];
+
+    if (!allowedTypes.includes(file.type)) {
       return NextResponse.json(
-        { error: "Invalid asset type." },
+        { error: "Image must be PNG, JPG, WEBP, or SVG." },
         { status: 400 }
       );
     }
 
-    if (!file.type.startsWith("image/")) {
+    if (file.size > 1024 * 1024 * 2) {
       return NextResponse.json(
-        { error: "Only image uploads are supported." },
+        { error: "Image must be under 2MB." },
         { status: 400 }
       );
     }
 
-    if (file.size > 10 * 1024 * 1024) {
-      return NextResponse.json(
-        { error: "Image is too large. Max size is 10MB." },
-        { status: 400 }
-      );
-    }
+    const supabase = createAdminClient();
 
-    const supabase = await createClient();
-
-    const extension = file.name.split(".").pop() || "jpg";
-    const safeFileName = `${Date.now()}-${crypto.randomUUID()}.${extension}`;
-    const path = `${tenantSlug}/${assetTypeValue}/${safeFileName}`;
+    const extension = file.name.split(".").pop() || "png";
+    const safeAssetType = assetType || "logo";
+    const path = `${tenantSlug}/${safeAssetType}-${Date.now()}.${extension}`;
 
     const { error: uploadError } = await supabase.storage
-      .from("tenant-assets")
+      .from("website-assets")
       .upload(path, file, {
+        cacheControl: "3600",
+        upsert: true,
         contentType: file.type,
-        upsert: false,
       });
 
     if (uploadError) {
-      console.error("Website asset upload failed:", uploadError);
-      return NextResponse.json(
-        { error: "Failed to upload image." },
-        { status: 500 }
-      );
+      return NextResponse.json({ error: uploadError.message }, { status: 500 });
     }
 
     const { data: publicUrlData } = supabase.storage
-      .from("tenant-assets")
+      .from("website-assets")
       .getPublicUrl(path);
 
     const imageUrl = publicUrlData.publicUrl;
-    const settingsKey = getWebsiteSettingsKey(assetTypeValue);
 
-    if (!settingsKey) {
-    return NextResponse.json({
-        imageUrl,
-    });
-    }
-
-    const { data: tenant, error: fetchError } = await supabase
+    const { data: tenant, error: tenantError } = await supabase
       .from("tenants")
       .select("website_settings")
       .eq("slug", tenantSlug)
       .single();
 
-    if (fetchError) {
-      console.error("Failed loading tenant website settings:", fetchError);
-      return NextResponse.json(
-        { error: "Image uploaded, but settings could not be loaded." },
-        { status: 500 }
-      );
+    if (tenantError) {
+      return NextResponse.json({ error: tenantError.message }, { status: 500 });
     }
 
-    const nextWebsiteSettings = {
-      ...(tenant?.website_settings || {}),
-      [settingsKey]: imageUrl,
-    };
+    const currentSettings = tenant?.website_settings || {};
+    const settingsKey = getSettingsKey(safeAssetType);
 
-    const { data, error: updateError } = await supabase
-      .from("tenants")
-      .update({
-        website_settings: nextWebsiteSettings,
-      })
-      .eq("slug", tenantSlug)
-      .select("website_settings")
-      .single();
+    const nextWebsiteSettings = settingsKey
+      ? {
+          ...currentSettings,
+          [settingsKey]: imageUrl,
+        }
+      : currentSettings;
 
-    if (updateError) {
-      console.error("Failed saving uploaded website asset:", updateError);
-      return NextResponse.json(
-        { error: "Image uploaded, but settings could not be saved." },
-        { status: 500 }
-      );
+    if (settingsKey) {
+      const { error: updateError } = await supabase
+        .from("tenants")
+        .update({
+          website_settings: nextWebsiteSettings,
+        })
+        .eq("slug", tenantSlug);
+
+      if (updateError) {
+        return NextResponse.json(
+          { error: updateError.message },
+          { status: 500 }
+        );
+      }
     }
 
     return NextResponse.json({
       imageUrl,
-      websiteSettings: data.website_settings,
+      logoUrl: safeAssetType === "logo" ? imageUrl : undefined,
+      websiteSettings: nextWebsiteSettings,
     });
   } catch (error) {
-    console.error("Website asset route error:", error);
+    console.error("Website asset upload error:", error);
+
     return NextResponse.json(
-      { error: "Unexpected error uploading website asset." },
+      { error: "Unexpected error uploading image." },
       { status: 500 }
     );
   }

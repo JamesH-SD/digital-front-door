@@ -102,10 +102,6 @@ export default async function WebsiteSectionPage({ params }: PageProps) {
         tenantSlug={tenant.slug}
         initialSettings={{
           ...(tenant.websiteSettings || {}),
-          logoUrl:
-            tenant.websiteSettings?.logoUrl ||
-            (tenant as any).logoUrl ||
-            "",
         }}
         visibleSections={sectionConfig.panelSections}
         title={sectionConfig.title}

@@ -12,6 +12,7 @@ type PageProps = {
     source?: string;
     openChat?: string;
     embed?: string;
+    preview?: string;
   }>;
 };
 
@@ -47,10 +48,30 @@ export default async function TenantPage({ params, searchParams }: PageProps) {
   const query = searchParams ? await searchParams : {};
   const leadSource = query.source || "website";
   const isEmbed = query.embed === "1";
+  const isPreview = query.preview === "true" && tenant.websiteStatus !== "published";
 
   // QR/ad links can pass ?openChat=1 to open the AI immediately.
   // Normal website visitors see the trust page first with a visible AI launcher.
   const autoOpenChat = query.openChat === "1";
+
+  if (
+    tenant.websiteStatus !== "published" &&
+    !isPreview
+  ) {
+    return (
+      <main className="flex min-h-screen items-center justify-center bg-stone-50 px-6">
+        <div className="max-w-lg rounded-3xl border border-stone-200 bg-white p-8 text-center shadow-sm">
+          <h1 className="text-2xl font-bold text-gray-950">
+            Website Coming Soon
+          </h1>
+  
+          <p className="mt-3 text-sm leading-7 text-gray-600">
+            This business website has not been published yet.
+          </p>
+        </div>
+      </main>
+    );
+  }
 
   if (isEmbed) {
     return (
@@ -66,10 +87,11 @@ export default async function TenantPage({ params, searchParams }: PageProps) {
   }
 
   return (
-    <TenantWebsite
-      tenant={tenant}
-      leadSource={leadSource}
-      autoOpenChat={autoOpenChat}
-    />
+      <TenantWebsite
+        tenant={tenant}
+        leadSource={leadSource}
+        autoOpenChat={autoOpenChat}
+        isPreview={isPreview}
+      />
   );
 }
