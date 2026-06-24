@@ -3,18 +3,28 @@ import AdminShell from "@/components/admin/AdminShell";
 import { getTenantBySlug } from "@/lib/db/tenants";
 import { getCurrentUser } from "@/lib/auth/getCurrentUser";
 import { getUserTenantMembership } from "@/lib/auth/tenantAccess";
+import { getPlatformAdminRole } from "@/lib/auth/platformAccess";
 
 type LayoutProps = {
   children: React.ReactNode;
   params: Promise<{
     tenantSlug: string;
   }>;
+  searchParams?: Promise<{
+    supportMode?: string;
+  }>;
 };
 
 export default async function AdminTenantLayout({
   children,
   params,
+  searchParams,
 }: LayoutProps) {
+
+  const query = searchParams ? await searchParams : {};
+
+  const supportMode = query.supportMode === "1";
+
   const { tenantSlug } = await params;
 
   const tenant = await getTenantBySlug(tenantSlug);
@@ -33,18 +43,22 @@ export default async function AdminTenantLayout({
     userId: user.id,
     tenantSlug,
   });
+
+  const platformRole = await getPlatformAdminRole(user.id);
   
-  if (!membership) {
+  if (!membership && !platformRole) {
     redirect("/unauthorized");
   }
 
   return (
     <AdminShell
       tenant={tenant}
+      supportMode={supportMode}
       user={{
         id: user.id,
         email: user.email || "User",
-        role: membership.role,
+        role: membership?.role || "admin",
+        platformRole,
       }}
     >
       {children}

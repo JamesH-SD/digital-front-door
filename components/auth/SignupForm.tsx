@@ -55,7 +55,7 @@ export default function SignupForm() {
   }
 
   return (
-    <AuthExperienceShell maxWidth="max-w-md">
+    <AuthExperienceShell maxWidth="max-w-sm">
       <div>
         <h1 className="text-2xl font-bold text-gray-900">Create account</h1>
 
@@ -67,10 +67,6 @@ export default function SignupForm() {
         <div className="mt-5">
           <p className="text-sm font-semibold text-gray-900">
             Start growing your business.
-          </p>
-
-          <p className="mt-1 text-sm text-gray-500">
-            AI receptionist • Website • Scheduling • Lead capture
           </p>
         </div>
 

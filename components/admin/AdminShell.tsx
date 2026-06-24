@@ -11,17 +11,20 @@ import {
 } from "@/components/admin/AdminBreadcrumbsContext";
 import CalendarConnectionStatus from "@/components/admin/CalendarConnectionStatus";
 import AdminUserMenu from "@/components/auth/AdminUserMenu";
+import SupportModeBanner from "@/components/admin/SupportModeBanner";
 
 type AdminUser = {
   id: string;
   email: string;
   role: "owner" | "admin" | "member";
+  platformRole?: "owner" | "support" | null;
 };
 
 type AdminShellProps = {
   tenant: Tenant;
-  children: React.ReactNode
+  children: React.ReactNode;
   user: AdminUser;
+  supportMode?: boolean;
 };
 
 function formatSegmentLabel(segment: string) {
@@ -94,6 +97,7 @@ function AdminShellContent({
   tenant,
   children,
   user,
+  supportMode = false,
 }: AdminShellProps) {
   const pathname = usePathname();
   const { breadcrumbs: overrideBreadcrumbs } = useAdminBreadcrumbs();
@@ -139,6 +143,7 @@ function AdminShellContent({
                 email={user.email}
                 role={user.role}
                 tenantSlug={tenant.slug}
+                platformRole={user.platformRole}
               />
             </div>
             </div>
@@ -146,7 +151,7 @@ function AdminShellContent({
 
           <main className="flex-1">
             <div className="w-full px-5 py-4 sm:px-6 lg:px-8">
-              {/* <nav className="mb-3 flex flex-wrap items-center gap-2 text-xs">
+              <nav className="mb-3 flex flex-wrap items-center gap-2 text-xs">
                 {breadcrumbs.map((item, index) => (
                   <span
                     key={`${item.label}-${index}`}
@@ -170,7 +175,9 @@ function AdminShellContent({
                     ) : null}
                   </span>
                 ))}
-              </nav> */}
+              </nav>
+
+              <SupportModeBanner />
 
               {children}
             </div>
@@ -185,11 +192,38 @@ export default function AdminShell({
   tenant,
   children,
   user,
+  supportMode = false,
 }: AdminShellProps) {
   return (
     <AdminBreadcrumbsProvider>
-      <AdminShellContent tenant={tenant} user={user}>
-        {children}
+      <AdminShellContent
+        tenant={tenant}
+        user={user}
+        supportMode={supportMode}
+      >
+        <>
+          {supportMode && (
+            <div className="mb-5 rounded-2xl border border-amber-200 bg-amber-50 px-5 py-4">
+              <div className="flex items-center justify-between gap-4">
+                <div>
+                  <p className="text-sm font-bold text-amber-900">
+                    Support View
+                  </p>
+
+                  <p className="mt-1 text-sm text-amber-800">
+                    You are viewing this tenant workspace as a Contactor platform administrator.
+                  </p>
+                </div>
+
+                <span className="rounded-full bg-amber-100 px-3 py-1 text-xs font-semibold text-amber-900">
+                  Read Only
+                </span>
+              </div>
+            </div>
+          )}
+
+          {children}
+        </>
       </AdminShellContent>
     </AdminBreadcrumbsProvider>
   );

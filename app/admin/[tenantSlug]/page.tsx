@@ -2,6 +2,7 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import { getTenantBySlug } from "@/lib/db/tenants";
 import { getLeadsByTenantSlug } from "@/lib/db/leads";
+import AdminBreadcrumbsSetter from "@/components/admin/AdminBreadcrumbsSetter";
 
 type PageProps = {
   params: Promise<{
@@ -32,6 +33,7 @@ export default async function AdminDashboardPage({ params }: PageProps) {
 
   return (
     <div className="space-y-5">
+      <AdminBreadcrumbsSetter items={[{ label: "Dashboard" }]} />
       <section className="rounded-3xl border border-stone-200/60 bg-white/90 p-6 shadow-[0_10px_30px_rgba(17,24,39,0.05)]">
         <p className="text-xs font-bold uppercase tracking-wide text-orange-700">
           Dashboard

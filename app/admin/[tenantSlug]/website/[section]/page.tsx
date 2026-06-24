@@ -4,6 +4,7 @@ import WebsiteSettingsPanel, {
   type WebsitePanelSection,
 } from "@/components/admin/settings/WebsiteSettingsPanel";
 import AdminPageHeader from "@/components/admin/ui/AdminPageHeader";
+import AdminBreadcrumbsSetter from "@/components/admin/AdminBreadcrumbsSetter";
 
 type PageProps = {
   params: Promise<{
@@ -93,6 +94,17 @@ export default async function WebsiteSectionPage({ params }: PageProps) {
 
   return (
     <div className="space-y-6">
+      <AdminBreadcrumbsSetter
+        items={[
+          {
+            label: "Website",
+            href: `/admin/${tenant.slug}/website`,
+          },
+          {
+            label: sectionConfig.title,
+          },
+        ]}
+      />
       <AdminPageHeader
         title={sectionConfig.title}
         description={sectionConfig.description}

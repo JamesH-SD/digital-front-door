@@ -62,21 +62,13 @@ export default function LoginForm() {
   }
 
   return (
-    <AuthExperienceShell maxWidth="max-w-md">
+    <AuthExperienceShell maxWidth="max-w-sm">
       <div>
         <h1 className="text-2xl font-bold text-gray-900">Welcome back</h1>
 
         <p className="mt-2 text-sm leading-6 text-gray-600">
           Sign in to manage your AI receptionist, website, and customer
           conversations.
-        </p>
-
-        <p className="mt-4 text-sm font-semibold text-gray-900">
-          Never miss another customer.
-        </p>
-
-        <p className="mt-1 text-sm text-gray-500">
-          AI receptionist • Website • Scheduling • Lead capture
         </p>
 
         <form

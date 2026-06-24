@@ -8,9 +8,15 @@ type Props = {
   email: string;
   role: "owner" | "admin" | "member";
   tenantSlug: string;
+  platformRole?: "owner" | "support" | null;
 };
 
-export default function AdminUserMenu({ email, role, tenantSlug }: Props) {
+export default function AdminUserMenu({
+  email,
+  role,
+  tenantSlug,
+  platformRole,
+}: Props) {
   const [isOpen, setIsOpen] = useState(false);
   const menuRef = useRef<HTMLDivElement | null>(null);
 
@@ -54,22 +60,50 @@ export default function AdminUserMenu({ email, role, tenantSlug }: Props) {
           </div>
 
           <div className="space-y-1 py-2">
-            <Link
-              href={`/admin/${tenantSlug}/account`}
-              className="block rounded-lg px-3 py-2 text-sm text-gray-700 transition hover:bg-stone-50"
-              onClick={() => setIsOpen(false)}
-            >
-              Account
-            </Link>
+          <Link
+            href={`/admin/${tenantSlug}/account`}
+            className="block rounded-lg px-3 py-2 text-sm text-gray-700 transition hover:bg-stone-50"
+            onClick={() => setIsOpen(false)}
+          >
+            My Account
+          </Link>
 
-            <Link
-              href={`/admin/${tenantSlug}/settings`}
-              className="block rounded-lg px-3 py-2 text-sm text-gray-700 transition hover:bg-stone-50"
+          <Link
+            href={`/admin/${tenantSlug}/account#billing`}
+            className="block rounded-lg px-3 py-2 text-sm text-gray-700 transition hover:bg-stone-50"
+            onClick={() => setIsOpen(false)}
+          >
+            Billing
+          </Link>
+
+          <Link
+            href={`/admin/${tenantSlug}/account#users`}
+            className="block rounded-lg px-3 py-2 text-sm text-gray-700 transition hover:bg-stone-50"
+            onClick={() => setIsOpen(false)}
+          >
+            Users
+          </Link>
+
+          <Link
+            href={`/admin/${tenantSlug}/account#notifications`}
+            className="block rounded-lg px-3 py-2 text-sm text-gray-700 transition hover:bg-stone-50"
+            onClick={() => setIsOpen(false)}
+          >
+            Notifications
+          </Link>
+          </div>
+
+          {platformRole ? (
+           <Link
+              href="/platform/customers"
+              target="_blank"
+              rel="noopener noreferrer"
+              className="block rounded-lg px-3 py-2 text-sm font-semibold text-orange-700 transition hover:bg-orange-50"
               onClick={() => setIsOpen(false)}
             >
-              Settings
+              Platform Admin ↗
             </Link>
-          </div>
+          ) : null}
 
           <form action={logout} className="border-t border-stone-100 pt-2">
             <button

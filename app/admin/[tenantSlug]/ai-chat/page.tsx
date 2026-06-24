@@ -20,7 +20,7 @@ export default async function AiChatPage({ params }: PageProps) {
   return (
     <div className="space-y-6">
       <AdminPageHeader
-        title="AI & Chat"
+        title="AI Receptionist"
         description="Manage the AI receptionist, lead capture flow, QR links, chat settings, and customer conversation experience."
       />
       <AiChatSettingsPanel tenant={tenant} />

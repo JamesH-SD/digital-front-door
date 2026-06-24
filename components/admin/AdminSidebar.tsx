@@ -9,6 +9,7 @@ import {
   ChevronDown,
   ChevronLeft,
   ChevronRight,
+  CreditCard,
   FileText,
   Globe,
   Home,
@@ -71,12 +72,13 @@ export default function AdminSidebar({ tenant }: AdminSidebarProps) {
   }
 
   const navItems: NavItem[] = [
-    // {
-    //   label: "Analytics",
-    //   description: "Performance and conversion data",
-    //   icon: BarChart3,
-    //   isEnabled: false,
-    // },
+    {
+      label: "Dashboard",
+      href: `/admin/${tenant.slug}`,
+      description: "Workspace overview",
+      icon: Home,
+      isEnabled: true,
+    },
     {
       label: "Business Identity",
       description: "Business profile and operating details",
@@ -103,58 +105,17 @@ export default function AdminSidebar({ tenant }: AdminSidebarProps) {
     },
     {
       label: "Leads",
-      href: `/admin/${tenant.slug}`,
+      href: `/admin/${tenant.slug}/leads`,
       description: "Captured leads",
       icon: Users,
       isEnabled: true,
     },
     {
       label: "Website",
-      description: "Website configuration",
+      href: `/admin/${tenant.slug}/website`,
+      description: "Website builder and publishing",
       icon: Globe,
       isEnabled: true,
-      children: [
-        {
-          label: "Brand",
-          href: `/admin/${tenant.slug}/website/brand`,
-        },
-        {
-          label: "Hero",
-          href: `/admin/${tenant.slug}/website/hero`,
-        },
-        {
-          label: "Why Us",
-          href: `/admin/${tenant.slug}/website/why-us`,
-        },
-        {
-          label: "Services",
-          href: `/admin/${tenant.slug}/website/services`,
-        },
-        {
-          label: "Project Gallery",
-          href: `/admin/${tenant.slug}/website/project-gallery`,
-        },
-        {
-          label: "Banner",
-          href: `/admin/${tenant.slug}/website/banner`,
-        },
-        {
-          label: "Service Areas",
-          href: `/admin/${tenant.slug}/website/service-areas`,
-        },
-        {
-          label: "About",
-          href: `/admin/${tenant.slug}/website/about`,
-        },
-        {
-          label: "Reviews",
-          href: `/admin/${tenant.slug}/website/reviews`,
-        },
-        {
-          label: "FAQs",
-          href: `/admin/${tenant.slug}/website/faqs`,
-        },
-      ],
     },
     {
       label: "Knowledge Base",
@@ -170,30 +131,6 @@ export default function AdminSidebar({ tenant }: AdminSidebarProps) {
       icon: BotIcon,
       isEnabled: true,
     },
-    // { label: "Automations",
-    //   href: `/admin/${tenant.slug}/automations`,
-    //   description: "Rules and follow-up flows",
-    //   icon: Plug,
-    //   isEnabled: false,
-    // },
-    // {
-    //   label: "Appointments",
-    //   description: "Scheduled calls and visits",
-    //   icon: CalendarDays,
-    //   isEnabled: false,
-    // },
-    {
-      label: "Lead Capture",
-      description: "QR codes and website embed",
-      icon: Sparkles,
-      isEnabled: false,
-    },
-    // {
-    //   label: "Billing",
-    //   description: "Plan and payment settings",
-    //   icon: WalletCards,
-    //   isEnabled: false,
-    // },
   ];
 
   function renderNavItem(item: NavItem) {
@@ -329,18 +266,19 @@ export default function AdminSidebar({ tenant }: AdminSidebarProps) {
       </nav>
 
       <div className="space-y-2 border-t border-stone-200/70 px-3 py-4">
-        <button
-          type="button"
-          className={getLinkClasses(false, isCollapsed)}
-        >
-          <Home className="h-5 w-5 shrink-0" />
+      <Link
+        href={`/admin/${tenant.slug}/account`}
+        onClick={() => setIsMobileOpen(false)}
+        className={getLinkClasses(pathname === `/admin/${tenant.slug}/account`, isCollapsed)}
+      >
+        <Home className="h-5 w-5 shrink-0" />
 
-          {!isCollapsed ? (
-            <div className="min-w-0 text-left">
-              <div className="text-sm font-semibold">Appearance</div>
-            </div>
-          ) : null}
-        </button>
+        {!isCollapsed ? (
+          <div className="min-w-0 text-left">
+            <div className="text-sm font-semibold">Account</div>
+          </div>
+        ) : null}
+      </Link>
 
         <button
           type="button"
