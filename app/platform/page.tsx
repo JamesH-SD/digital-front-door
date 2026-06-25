@@ -1,5 +1,6 @@
 import Link from "next/link";
 
+
 export default function ContactorAdminHomePage() {
   return (
     <div className="space-y-6">

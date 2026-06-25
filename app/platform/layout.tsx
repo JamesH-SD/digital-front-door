@@ -25,12 +25,14 @@ export default async function ContactorAdminLayout({
           </Link>
 
           <nav className="flex items-center gap-5 text-sm font-semibold text-gray-600">
-            <Link href="/platform/customers" className="hover:text-orange-700">
-              Customers
-            </Link>
-            <Link href="/" className="hover:text-orange-700">
-              Marketing Site
-            </Link>
+          <Link
+            href="/"
+            target="_blank"
+            rel="noopener noreferrer"
+            className="hover:text-orange-700"
+          >
+            Marketing Site ↗
+          </Link>
           </nav>
         </div>
       </header>
