@@ -51,12 +51,16 @@ function getRequiredEnv(name: string): string {
  * - prompt=consent helps ensure refresh token issuance during dev
  * - access_type=offline is required when we want refresh tokens
  */
-export function buildGoogleOAuthUrl(input: { tenantSlug: string }) {
+export function buildGoogleOAuthUrl(input: {
+  tenantSlug: string;
+  returnTo?: string;
+}) {
   const clientId = getRequiredEnv("GOOGLE_CLIENT_ID");
   const redirectUri = getRequiredEnv("GOOGLE_OAUTH_REDIRECT_URI");
 
   const statePayload = {
     tenantSlug: input.tenantSlug,
+    returnTo: input.returnTo || `/admin/${input.tenantSlug}/settings`,
   };
 
   const state = Buffer.from(JSON.stringify(statePayload)).toString("base64url");
@@ -81,7 +85,10 @@ export function buildGoogleOAuthUrl(input: { tenantSlug: string }) {
  * - tenantSlug is all we need in v1
  * - later we can add stronger CSRF/session protections if needed
  */
-export function decodeGoogleOAuthState(state: string): { tenantSlug: string } {
+export function decodeGoogleOAuthState(state: string): {
+    tenantSlug: string;
+    returnTo?: string;
+  } {
   try {
     const raw = Buffer.from(state, "base64url").toString("utf8");
     const parsed = JSON.parse(raw);
@@ -92,6 +99,8 @@ export function decodeGoogleOAuthState(state: string): { tenantSlug: string } {
 
     return {
       tenantSlug: parsed.tenantSlug,
+      returnTo:
+        typeof parsed.returnTo === "string" ? parsed.returnTo : undefined,
     };
   } catch (error) {
     console.error("Failed to decode Google OAuth state:", error);

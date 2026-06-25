@@ -17,11 +17,16 @@ type RouteContext = {
  * - avoids hardcoding Hughes General into the OAuth logic itself
  */
 export async function GET(
-  _request: NextRequest,
+  request: NextRequest,
   context: RouteContext
 ) {
   try {
     const { tenantSlug } = await context.params;
+    const requestUrl = new URL(request.url);
+
+    const returnTo =
+      requestUrl.searchParams.get("returnTo") ??
+      `/admin/${tenantSlug}/settings`;
 
     const tenant = await getTenantBySlug(tenantSlug);
 
@@ -34,6 +39,7 @@ export async function GET(
 
     const url = buildGoogleOAuthUrl({
       tenantSlug,
+      returnTo,
     });
 
     return NextResponse.redirect(url);

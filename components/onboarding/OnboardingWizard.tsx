@@ -50,6 +50,81 @@ const STEPS: { key: StepKey; label: string; required: boolean }[] = [
   { key: "finish", label: "Review", required: false },
 ];
 
+const STEP_HELP: Record<
+  StepKey,
+  {
+    eyebrow: string;
+    title: string;
+    description: string;
+    examples?: string[];
+  }
+> = {
+  business: {
+    eyebrow: "Business Profile",
+    title: "Tell us who customers are contacting.",
+    description:
+      "This information appears on your website and helps the AI receptionist answer basic questions correctly.",
+    examples: [
+      "Business name: Hughes General Contractors",
+      "Category: General contractor, plumber, mobile detailer",
+      "Tagline: Veteran-owned remodeling specialists",
+    ],
+  },
+  serviceArea: {
+    eyebrow: "Service Area",
+    title: "Where do you work?",
+    description:
+      "This helps the AI answer questions like “Do you service Vista?” or “Can you come to Temecula?”",
+    examples: [
+      "Serving San Diego County",
+      "North County, Vista, Oceanside, San Marcos",
+      "Within 25 miles of Temecula",
+    ],
+  },
+  services: {
+    eyebrow: "Services & Next Step",
+    title: "What can customers ask about?",
+    description:
+      "List the services you want the AI receptionist to understand. Keep it simple — you can improve this later.",
+    examples: [
+      "Kitchen remodels",
+      "Bathroom remodels",
+      "Flooring installation",
+      "The next step is usually a quick call or site visit.",
+    ],
+  },
+  hours: {
+    eyebrow: "Business Hours",
+    title: "When should customers expect a response?",
+    description:
+      "These hours help set expectations. You can still receive leads outside of business hours.",
+  },
+  calendar: {
+    eyebrow: "Scheduling",
+    title: "Connect your calendar.",
+    description:
+      "This lets Contactor check availability and help guide customers toward appointments.",
+  },
+  knowledge: {
+    eyebrow: "Knowledge Base",
+    title: "Help the AI answer better.",
+    description:
+      "Upload FAQs, service details, pricing guidance, or business documents so the AI can answer more accurately.",
+    examples: [
+      "FAQ document",
+      "About us document",
+      "Service descriptions",
+      "Quote or appointment policies",
+    ],
+  },
+  finish: {
+    eyebrow: "Review",
+    title: "Review your setup.",
+    description:
+      "Make sure the basics are correct before entering your admin dashboard.",
+  },
+};
+
 const DEFAULT_HOURS: HoursState = {
   monday: { open: "08:00", close: "17:00", closed: false },
   tuesday: { open: "08:00", close: "17:00", closed: false },
@@ -444,12 +519,31 @@ export default function OnboardingWizard({ tenant }: { tenant: Tenant }) {
           <section className="mt-5 rounded-3xl border border-stone-200 bg-white p-5">
             <div className="mb-5 flex flex-col gap-2 border-b border-stone-100 pb-5 sm:flex-row sm:items-start sm:justify-between">
               <div>
-                <h2 className="text-xl font-bold text-gray-950">
-                  {currentStep.label}
-                </h2>
-                <p className="mt-1 text-sm text-gray-500">
-                  {currentStep.required ? "Required setup step" : "Optional setup step"}
-                </p>
+              <p className="text-xs font-bold uppercase tracking-wide text-orange-700">
+                {STEP_HELP[currentStep.key].eyebrow}
+              </p>
+
+              <h2 className="mt-1 text-xl font-bold text-gray-950">
+                {STEP_HELP[currentStep.key].title}
+              </h2>
+
+              <p className="mt-2 max-w-3xl text-sm leading-6 text-gray-600">
+                {STEP_HELP[currentStep.key].description}
+              </p>
+
+              {STEP_HELP[currentStep.key].examples ? (
+                <div className="mt-4 rounded-2xl border border-orange-100 bg-orange-50/60 px-4 py-3">
+                  <p className="text-xs font-bold uppercase tracking-wide text-orange-800">
+                    Examples
+                  </p>
+
+                  <ul className="mt-2 space-y-1 text-sm text-orange-900">
+                    {STEP_HELP[currentStep.key].examples?.map((example) => (
+                      <li key={example}>• {example}</li>
+                    ))}
+                  </ul>
+                </div>
+              ) : null}
               </div>
             </div>
 
@@ -796,7 +890,9 @@ export default function OnboardingWizard({ tenant }: { tenant: Tenant }) {
                 <button
                   type="button"
                   onClick={() => {
-                    window.location.href = `/api/admin/tenants/${tenant.slug}/calendar-connections/google/start`;
+                    window.location.href =
+                      `/api/admin/tenants/${tenant.slug}/calendar-connections/google/start` +
+                      `?returnTo=${encodeURIComponent(`/onboarding/${tenant.slug}`)}`;
                   }}
                   className="saas-button-accent mt-4 px-4 py-2 text-sm font-semibold"
                 >

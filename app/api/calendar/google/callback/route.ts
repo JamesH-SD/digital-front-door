@@ -38,7 +38,9 @@ export async function GET(request: NextRequest) {
     }
 
     const decodedState = decodeGoogleOAuthState(state);
+    
     const tenantSlug = decodedState.tenantSlug;
+    const returnTo = decodedState.returnTo || `/admin/${tenantSlug}/settings`;
 
     const tenant = await getTenantBySlug(tenantSlug);
 
@@ -72,9 +74,10 @@ export async function GET(request: NextRequest) {
       tokenExpiresAt: buildGoogleTokenExpiryIso(tokenResult.expires_in),
     });
 
-    return NextResponse.redirect(
-      new URL(`/admin/${tenantSlug}/settings?calendar=connected`, request.url)
-    );
+    const redirectUrl = new URL(returnTo, request.url);
+    redirectUrl.searchParams.set("calendar", "connected");
+
+    return NextResponse.redirect(redirectUrl);
   } catch (error) {
     console.error("Google OAuth static callback error:", error);
 
