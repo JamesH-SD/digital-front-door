@@ -92,14 +92,51 @@ export async function GET() {
   iframe.src = iframeSrc;
   iframe.title = "Contactor AI Chat";
   iframe.style.width = "100%";
-  iframe.style.height = "calc(100% - 44px)";
+  iframe.style.height = "calc(100% - 76px)";
   iframe.style.border = "0";
   iframe.setAttribute("allow", "clipboard-write");
+
+  var poweredBy = document.createElement("a");
+  poweredBy.href = "https://getcontactor.com";
+  poweredBy.target = "_blank";
+  poweredBy.rel = "noopener noreferrer";
+  poweredBy.style.height = "32px";
+  poweredBy.style.display = "flex";
+  poweredBy.style.alignItems = "center";
+  poweredBy.style.justifyContent = "center";
+  poweredBy.style.gap = "6px";
+  poweredBy.style.borderTop = "1px solid rgba(17,24,39,0.08)";
+  poweredBy.style.background = "#ffffff";
+  poweredBy.style.color = "#6b7280";
+  poweredBy.style.fontSize = "12px";
+  poweredBy.style.fontWeight = "700";
+  poweredBy.style.textDecoration = "none";
+
+  var poweredByText = document.createElement("span");
+  poweredByText.innerText = "Powered by";
+
+  var poweredByLogo = document.createElement("img");
+  poweredByLogo.src = appOrigin + "/branding/contactor-logo.png";
+  poweredByLogo.alt = "Contactor";
+  poweredByLogo.style.height = "18px";
+  poweredByLogo.style.width = "auto";
+  poweredByLogo.style.display = "block";
+
+  poweredBy.appendChild(poweredByText);
+  poweredBy.appendChild(poweredByLogo);
+
+  poweredBy.onmouseenter = function () {
+    poweredBy.style.color = "#c2410c";
+  };
+  poweredBy.onmouseleave = function () {
+    poweredBy.style.color = "#6b7280";
+  };
 
   header.appendChild(title);
   header.appendChild(close);
   panel.appendChild(header);
   panel.appendChild(iframe);
+  panel.appendChild(poweredBy);
 
   function openWidget() {
     button.style.display = "none";
@@ -132,7 +169,7 @@ export async function GET() {
 
     "@media (max-width: 640px) {" +
     "#contactor-widget-root { right: 12px !important; bottom: 12px !important; left: 12px !important; }" +
-    "#contactor-widget-root > div { width: 100% !important; height: calc(100vh - 24px) !important; max-width: none !important; max-height: none !important; border-radius: 20px !important; }"
+    "#contactor-widget-root > div { width: 100% !important; height: calc(100vh - 24px) !important; max-width: none !important; max-height: none !important; border-radius: 20px !important; }" +
     "}";
   document.head.appendChild(style);
 })();

@@ -7,7 +7,7 @@ import {
   Bot,
   CalendarCheck,
   CheckCircle2,
-  Image,
+  Image as ImageIcon,
   LogIn,
   MessageCircle,
   QrCode,
@@ -16,13 +16,14 @@ import {
   Users,
 } from "lucide-react";
 import { ChevronDown, ChevronUp } from "lucide-react";
+import Image from "next/image";
 
 const features = [
   ["AI Receptionist", "Answers questions and guides customers to the next step.", Bot],
   ["Lead Capture", "Collects names, phones, emails, details, and photos.", Users],
   ["Scheduling", "Connect Google Calendar and book appointments.", CalendarCheck],
   ["Website", "A clean website for service pros who need one.", Sparkles],
-  ["Project Gallery", "Show finished work and build trust.", Image],
+  ["Project Gallery", "Show finished work and build trust.", ImageIcon],
   ["QR Codes", "Turn signs, trucks, and cards into lead sources.", QrCode],
 ] as const;
 
@@ -51,10 +52,14 @@ export default function HomePage() {
       <header className="fixed inset-x-0 top-0 z-50 border-b border-stone-200 bg-white/80 shadow-sm backdrop-blur-xl">
         <div className="mx-auto flex h-16 max-w-6xl items-center justify-between px-5 sm:px-6">
           <Link href="/" className="flex items-center gap-3">
-            <div className="flex h-10 w-10 items-center justify-center rounded-2xl bg-orange-700 text-sm font-bold text-white">
-              C
-            </div>
-            <span className="text-base font-bold text-gray-950">Contactor</span>
+            <Image
+              src="/branding/contactor-logo.png"
+              alt="Contactor"
+              width={260}
+              height={70}
+              priority
+              className="h-auto w-[170px] sm:w-[210px]"
+            />
           </Link>
 
           <nav className="hidden items-center gap-6 text-sm font-semibold text-gray-600 md:flex">
@@ -386,11 +391,13 @@ export default function HomePage() {
           {/* Contactor */}
           <div>
             <div className="flex items-center gap-3">
-              <div className="flex h-10 w-10 items-center justify-center rounded-2xl bg-orange-700 text-sm font-bold text-white">
-                C
-              </div>
-
-              <p className="text-lg font-bold">Contactor</p>
+            <Image
+                src="/branding/contactor-logo.png"
+                alt="Contactor"
+                width={220}
+                height={60}
+                className="h-auto w-[180px]"
+            />
             </div>
 
             <p className="mt-4 max-w-sm text-sm leading-7 text-white/60">

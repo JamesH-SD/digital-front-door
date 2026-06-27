@@ -962,6 +962,22 @@ export function TenantWebsite({
                 variant="embed"
               />
             </div>
+
+            <div className="border-t border-stone-100 bg-white px-4 py-2 text-center">
+              <a
+                href="https://getcontactor.com"
+                target="_blank"
+                rel="noopener noreferrer"
+                className="inline-flex items-center justify-center gap-1.5 text-xs font-semibold text-gray-500 transition hover:text-orange-700"
+              >
+                <span>Powered by</span>
+                <img
+                  src="/branding/contactor-logo.png"
+                  alt="Contactor"
+                  className="h-5 w-auto"
+                />
+              </a>
+            </div>
           </div>
         </div>
       ) : null}

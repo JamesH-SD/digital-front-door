@@ -2,6 +2,7 @@ import Link from "next/link";
 import { redirect } from "next/navigation";
 import { getCurrentUser } from "@/lib/auth/getCurrentUser";
 import { getPlatformAdminRole } from "@/lib/auth/platformAccess";
+import Image from "next/image";
 
 export default async function ContactorAdminLayout({
   children,
@@ -20,9 +21,18 @@ export default async function ContactorAdminLayout({
     <main className="min-h-screen bg-stone-50">
       <header className="border-b border-stone-200 bg-white">
         <div className="mx-auto flex h-16 max-w-7xl items-center justify-between px-6">
-          <Link href="/platform" className="font-bold text-gray-950">
-            Contactor Admin
-          </Link>
+        <div className="flex items-center gap-3">
+          <Image
+              src="/branding/contactor-icon.png"
+              alt="Contactor"
+              width={34}
+              height={34}
+          />
+
+          <span className="font-bold">
+              Contactor Admin
+          </span>
+      </div>
 
           <nav className="flex items-center gap-5 text-sm font-semibold text-gray-600">
           <Link
