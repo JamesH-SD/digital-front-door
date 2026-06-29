@@ -36,15 +36,15 @@ export async function requireActiveSubscription({
     ? new Date(billing.trial_ends_at)
     : null;
 
-  const trialActive =
+    const trialActive =
     status === "trialing" && trialEndsAt && trialEndsAt.getTime() > Date.now();
-
-  const subscriptionActive =
-    status === "active" || status === "trialing" || status === "past_due";
-
-  if (trialActive || subscriptionActive) {
-    return;
-  }
+  
+    const subscriptionActive =
+        status === "active" || status === "past_due";
+    
+    if (trialActive || subscriptionActive) {
+        return;
+    }
 
   redirect(`/admin/${tenantSlug}/billing?billing=required`);
 }
