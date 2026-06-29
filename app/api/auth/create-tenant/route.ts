@@ -145,6 +145,23 @@ export async function POST(request: NextRequest) {
     );
   }
 
+  const trialEndsAt = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000);
+
+  const { error: billingError } = await supabase.from("tenant_billing").insert({
+    tenant_slug: tenantSlug,
+    subscription_status: "trialing",
+    trial_ends_at: trialEndsAt.toISOString(),
+  });
+
+  if (billingError) {
+    console.error("Create tenant billing error:", billingError.message);
+
+    return NextResponse.json(
+      { error: billingError.message },
+      { status: 500 }
+    );
+  }
+
   return NextResponse.json({
     tenantSlug,
     alreadyExists: false,

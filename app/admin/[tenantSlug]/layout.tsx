@@ -4,6 +4,7 @@ import { getTenantBySlug } from "@/lib/db/tenants";
 import { getCurrentUser } from "@/lib/auth/getCurrentUser";
 import { getUserTenantMembership } from "@/lib/auth/tenantAccess";
 import { getPlatformAdminRole } from "@/lib/auth/platformAccess";
+import { requireActiveSubscription } from "@/lib/billing/requireActiveSubscription";
 
 type LayoutProps = {
   children: React.ReactNode;
@@ -49,6 +50,11 @@ export default async function AdminTenantLayout({
   if (!membership && !platformRole) {
     redirect("/unauthorized");
   }
+
+  await requireActiveSubscription({
+    tenantSlug,
+    platformRole,
+  });
 
   return (
     <AdminShell
