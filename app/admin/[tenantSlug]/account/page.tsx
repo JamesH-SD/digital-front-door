@@ -11,6 +11,7 @@ import NotificationPreferencesForm from "@/components/admin/account/Notification
 import { getTenantUsers } from "@/lib/db/tenant-users";
 import TenantUsersPanel from "@/components/admin/account/TenantUsersPanel";
 import { getTenantInvites } from "@/lib/db/tenant-invites";
+import { getSubscriptionState } from "@/lib/billing/getSubscriptionState";
 
 type Props = {
   params: Promise<{
@@ -47,6 +48,8 @@ export default async function AccountPage({ params }: Props) {
   if (!membership) {
     redirect("/unauthorized");
   }
+
+  const subscriptionState = await getSubscriptionState(tenantSlug);
 
   const notificationPreferences = await getNotificationPreferences({
     tenantSlug,
@@ -171,7 +174,10 @@ export default async function AccountPage({ params }: Props) {
           </p>
 
           <div className="mt-5">
-            <BillingStatusBanner billing={billing} />
+          <BillingStatusBanner
+            billing={billing}
+            subscriptionState={subscriptionState}
+          />
           </div>
         </section>
 
