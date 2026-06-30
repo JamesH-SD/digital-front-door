@@ -60,7 +60,17 @@ export async function POST() {
     );
   }
 
-  const siteUrl = process.env.NEXT_PUBLIC_SITE_URL || "http://localhost:3000";
+  const siteUrl =
+    process.env.NEXT_PUBLIC_SITE_URL ||
+    process.env.APP_BASE_URL ||
+    "http://localhost:3000";
+
+  if (!siteUrl.startsWith("http://") && !siteUrl.startsWith("https://")) {
+    return NextResponse.json(
+      { error: "Invalid NEXT_PUBLIC_SITE_URL or APP_BASE_URL. Must include http:// or https://." },
+      { status: 500 }
+    );
+  }
   const priceId = process.env.STRIPE_PRICE_ID;
 
   if (!priceId) {

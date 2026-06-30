@@ -4,6 +4,7 @@ import { getTenantBySlug } from "@/lib/db/tenants";
 import { getCurrentUser } from "@/lib/auth/getCurrentUser";
 import { getUserTenantMembership } from "@/lib/auth/tenantAccess";
 import { getPlatformAdminRole } from "@/lib/auth/platformAccess";
+import { getSubscriptionState } from "@/lib/billing/getSubscriptionState";
 import { requireActiveSubscription } from "@/lib/billing/requireActiveSubscription";
 
 type LayoutProps = {
@@ -51,15 +52,18 @@ export default async function AdminTenantLayout({
     redirect("/unauthorized");
   }
 
-  await requireActiveSubscription({
-    tenantSlug,
-    platformRole,
-  });
+  const subscriptionState = await getSubscriptionState(tenantSlug);
+
+  // await requireActiveSubscription({
+  //   tenantSlug,
+  //   platformRole,
+  // });
 
   return (
     <AdminShell
       tenant={tenant}
       supportMode={supportMode}
+      subscriptionState={subscriptionState}
       user={{
         id: user.id,
         email: user.email || "User",

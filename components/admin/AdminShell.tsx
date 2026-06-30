@@ -12,6 +12,7 @@ import {
 import CalendarConnectionStatus from "@/components/admin/CalendarConnectionStatus";
 import AdminUserMenu from "@/components/auth/AdminUserMenu";
 import SupportModeBanner from "@/components/admin/SupportModeBanner";
+import type { SubscriptionState } from "@/lib/billing/getSubscriptionState";
 
 type AdminUser = {
   id: string;
@@ -25,6 +26,7 @@ type AdminShellProps = {
   children: React.ReactNode;
   user: AdminUser;
   supportMode?: boolean;
+  subscriptionState?: SubscriptionState;
 };
 
 function formatSegmentLabel(segment: string) {
@@ -98,6 +100,7 @@ function AdminShellContent({
   children,
   user,
   supportMode = false,
+  subscriptionState,
 }: AdminShellProps) {
   const pathname = usePathname();
   const { breadcrumbs: overrideBreadcrumbs } = useAdminBreadcrumbs();
@@ -151,6 +154,26 @@ function AdminShellContent({
 
           <main className="flex-1">
             <div className="w-full px-5 py-4 sm:px-6 lg:px-8">
+            {subscriptionState?.isExpired ? (
+              <div className="mb-4 rounded-2xl border border-orange-200 bg-orange-50 px-5 py-4">
+                <p className="text-sm font-bold text-orange-900">
+                  Your free trial has ended.
+                </p>
+                <p className="mt-1 text-sm text-orange-800">
+                  Subscribe to continue using Contactor features.
+                </p>
+                <Link
+                  href={`/admin/${tenant.slug}/billing`}
+                  className="mt-3 inline-flex rounded-xl bg-orange-700 px-4 py-2 text-sm font-semibold text-white hover:bg-orange-800"
+                >
+                  View Billing
+                </Link>
+              </div>
+            ) : subscriptionState?.isTrialing ? (
+              <div className="mb-4 rounded-2xl border border-emerald-200 bg-emerald-50 px-5 py-3 text-sm font-semibold text-emerald-800">
+                Free trial active — {subscriptionState.daysRemaining} day(s) remaining.
+              </div>
+            ) : null}
               <nav className="mb-3 flex flex-wrap items-center gap-2 text-xs">
                 {breadcrumbs.map((item, index) => (
                   <span
@@ -193,6 +216,7 @@ export default function AdminShell({
   children,
   user,
   supportMode = false,
+  subscriptionState,
 }: AdminShellProps) {
   return (
     <AdminBreadcrumbsProvider>
@@ -200,6 +224,7 @@ export default function AdminShell({
         tenant={tenant}
         user={user}
         supportMode={supportMode}
+        subscriptionState={subscriptionState}
       >
         <>
           {supportMode && (

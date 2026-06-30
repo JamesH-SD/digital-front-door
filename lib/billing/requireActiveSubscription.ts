@@ -13,7 +13,7 @@ export async function requireActiveSubscription({
   pathname?: string;
 }) {
   // Contactor/platform staff can always access tenant workspaces.
-  if (platformRole) return;
+//   if (platformRole) return;
 
   // Never block the billing page itself or you create a redirect loop.
   if (pathname?.includes("/billing")) return;

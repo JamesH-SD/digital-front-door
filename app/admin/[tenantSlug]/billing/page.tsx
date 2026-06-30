@@ -4,6 +4,7 @@ import { notFound } from "next/navigation";
 import { getTenantBySlug } from "@/lib/db/tenants";
 import { getTenantBillingBySlug } from "@/lib/db/tenant-billing";
 import BillingStatusBanner from "@/components/admin/BillingStatusBanner";
+import { getSubscriptionState } from "@/lib/billing/getSubscriptionState";
 
 type PageProps = {
   params: Promise<{
@@ -21,6 +22,7 @@ export default async function AdminBillingPage({ params }: PageProps) {
   }
 
   const billing = await getTenantBillingBySlug(tenantSlug);
+  const subscriptionState = await getSubscriptionState(tenantSlug);
 
   return (
     <div className="space-y-5">
@@ -39,7 +41,10 @@ export default async function AdminBillingPage({ params }: PageProps) {
         </p>
       </section>
 
-      <BillingStatusBanner billing={billing} />
+      <BillingStatusBanner
+        billing={billing}
+        subscriptionState={subscriptionState}
+      />
 
       <section className="rounded-3xl border border-stone-200/60 bg-white/90 p-6 shadow-[0_10px_30px_rgba(17,24,39,0.05)]">
         <h3 className="text-base font-bold text-gray-950">

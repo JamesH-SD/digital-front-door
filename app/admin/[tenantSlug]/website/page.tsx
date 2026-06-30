@@ -2,6 +2,8 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import { getTenantBySlug } from "@/lib/db/tenants";
 import WebsitePublishControls from "@/components/admin/website/WebsitePublishControls";
+import { getSubscriptionState } from "@/lib/billing/getSubscriptionState";
+import TrialExpiredPage from "@/components/admin/billing/TrialExpiredPage";
 
 
 type PageProps = {
@@ -52,6 +54,18 @@ export default async function WebsitePage({ params }: PageProps) {
   if (!tenant) {
     notFound();
   }
+
+  const subscriptionState = await getSubscriptionState(tenantSlug);
+
+if (subscriptionState.isExpired) {
+  return (
+    <TrialExpiredPage
+      tenantSlug={tenantSlug}
+      title="Website Builder"
+      description="Continue editing your branding, homepage, services, gallery, FAQs, social links, and publishing settings."
+    />
+  );
+}
 
   const readinessItems = getReadinessItems(tenant);
   const completedCount = readinessItems.filter((item) => item.complete).length;

@@ -2,9 +2,11 @@
 
 import { useState } from "react";
 import type { TenantBilling } from "@/lib/db/tenant-billing";
+import type { SubscriptionState } from "@/lib/billing/getSubscriptionState";
 
 type Props = {
   billing: TenantBilling | null;
+  subscriptionState: SubscriptionState;
 };
 
 function formatDate(value?: string | null) {
@@ -17,12 +19,15 @@ function formatDate(value?: string | null) {
   }).format(new Date(value));
 }
 
-export default function BillingStatusBanner({ billing }: Props) {
+export default function BillingStatusBanner({
+  billing,
+  subscriptionState,
+}: Props) {
   const [isLoading, setIsLoading] = useState(false);
 
-  const status = billing?.subscriptionStatus || "inactive";
-  const isActive = status === "active";
-  const isTrialing = status === "trialing";
+  const isActive = subscriptionState.isActive && !subscriptionState.isTrialing;
+  const isTrialing = subscriptionState.isTrialing;
+  const isExpired = subscriptionState.isExpired;
   const hasStripeCustomer = Boolean(billing?.stripeCustomerId);
 
   async function goToCheckout() {
@@ -102,9 +107,37 @@ export default function BillingStatusBanner({ billing }: Props) {
     );
   }
 
+  if (isExpired) {
+    return (
+      <section className="rounded-3xl border border-orange-200 bg-orange-50 px-5 py-4 shadow-sm">
+        <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
+          <div>
+            <p className="text-sm font-bold text-orange-900">
+              Your trial has ended
+            </p>
+  
+            <p className="mt-1 text-sm leading-6 text-orange-800">
+              Resume your subscription to continue using your AI receptionist,
+              website tools, lead capture, scheduling, and knowledge base.
+            </p>
+          </div>
+  
+          <button
+            type="button"
+            onClick={() => void goToCheckout()}
+            disabled={isLoading}
+            className="inline-flex h-11 min-w-[190px] items-center justify-center rounded-xl bg-orange-700 px-5 text-sm font-semibold text-white shadow-sm transition hover:bg-orange-800 disabled:opacity-60"
+          >
+            {isLoading ? "Starting..." : "Resume Subscription"}
+          </button>
+        </div>
+      </section>
+    );
+  }
+  
   if (isActive || isTrialing) {
     const date = isTrialing
-      ? formatDate(billing?.trialEndsAt)
+      ? formatDate(subscriptionState.trialEndsAt)
       : formatDate(billing?.currentPeriodEnd);
 
     return (
