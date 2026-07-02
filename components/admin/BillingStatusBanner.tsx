@@ -38,7 +38,12 @@ export default function BillingStatusBanner({
         method: "POST",
       });
 
-      const result = await response.json();
+      const text = await response.text();
+      const result = text ? JSON.parse(text) : {};
+
+      if (!response.ok) {
+        throw new Error(result.error || "Request failed.");
+      }
 
       if (!response.ok) {
         throw new Error(result.error || "Unable to start checkout.");
@@ -60,7 +65,12 @@ export default function BillingStatusBanner({
         method: "POST",
       });
 
-      const result = await response.json();
+      const text = await response.text();
+      const result = text ? JSON.parse(text) : {};
+
+      if (!response.ok) {
+        throw new Error(result.error || "Request failed.");
+      }
 
       if (!response.ok) {
         throw new Error(result.error || "Unable to open billing portal.");

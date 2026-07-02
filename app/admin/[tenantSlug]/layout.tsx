@@ -5,7 +5,6 @@ import { getCurrentUser } from "@/lib/auth/getCurrentUser";
 import { getUserTenantMembership } from "@/lib/auth/tenantAccess";
 import { getPlatformAdminRole } from "@/lib/auth/platformAccess";
 import { getSubscriptionState } from "@/lib/billing/getSubscriptionState";
-import { requireActiveSubscription } from "@/lib/billing/requireActiveSubscription";
 
 type LayoutProps = {
   children: React.ReactNode;
@@ -53,11 +52,6 @@ export default async function AdminTenantLayout({
   }
 
   const subscriptionState = await getSubscriptionState(tenantSlug);
-
-  // await requireActiveSubscription({
-  //   tenantSlug,
-  //   platformRole,
-  // });
 
   return (
     <AdminShell

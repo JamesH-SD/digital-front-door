@@ -115,7 +115,7 @@ function AdminShellContent({
 
         <div className="flex min-w-0 flex-1 flex-col">
           <header className="sticky top-0 z-30 h-[72px] border-b border-stone-200/60 bg-white/90 backdrop-blur-xl shadow-[0_8px_30px_rgba(17,24,39,0.045)]">
-            <div className="flex h-full w-full items-center justify-between pl-20 pr-5 sm:px-6 lg:px-8">
+            <div className="flex h-full w-full items-center justify-between pl-16 pr-4 sm:px-6 lg:px-8">
             <div className="min-w-0">
               <p className="text-xs font-semibold uppercase tracking-wide text-orange-700">
                 Admin Workspace

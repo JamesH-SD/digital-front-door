@@ -280,6 +280,7 @@ export default function AdminSidebar({ tenant }: AdminSidebarProps) {
         ) : null}
       </Link>
 
+      <div className="hidden lg:block">
         <button
           type="button"
           onClick={() => setIsCollapsed((prev) => !prev)}
@@ -298,6 +299,7 @@ export default function AdminSidebar({ tenant }: AdminSidebarProps) {
             </div>
           ) : null}
         </button>
+        </div>
       </div>
     </div>
   );

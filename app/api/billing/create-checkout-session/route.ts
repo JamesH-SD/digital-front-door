@@ -91,7 +91,6 @@ export async function POST() {
       },
     ],
     subscription_data: {
-      trial_period_days: 7,
       metadata: {
         tenantSlug: tenant.slug,
         userId: user.id,

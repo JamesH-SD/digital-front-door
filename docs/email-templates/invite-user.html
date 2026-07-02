@@ -1,0 +1,43 @@
+<!-- docs/email-templates/invite-user.html -->
+<div style="font-family:Arial,Helvetica,sans-serif;background:#f7f7f7;padding:40px;">
+    <table width="100%" cellspacing="0" cellpadding="0" style="max-width:600px;margin:auto;background:#ffffff;border-radius:16px;padding:40px;">
+      <tr>
+        <td align="center">
+          <a href="https://getcontactor.com">
+            <img src="https://getcontactor.com/branding/contactor-logo.png" alt="Contactor" width="240" style="max-width:100%;height:auto;" />
+          </a>
+  
+          <h1 style="margin:32px 0 12px;color:#111827;font-size:28px;">You’ve Been Invited</h1>
+  
+          <p style="color:#4b5563;font-size:16px;line-height:28px;">
+            You have been invited to join a Contactor workspace on {{ .SiteURL }}.
+          </p>
+  
+          <p style="color:#4b5563;font-size:16px;line-height:28px;">
+            Accept the invitation below to create your account and access the workspace.
+          </p>
+  
+          <a href="{{ .ConfirmationURL }}" style="display:inline-block;margin-top:28px;background:#c55a11;color:#ffffff;text-decoration:none;padding:16px 36px;border-radius:12px;font-weight:bold;">
+            Accept Invitation
+          </a>
+  
+          <p style="margin-top:32px;color:#6b7280;font-size:14px;line-height:22px;">
+            If you were not expecting this invitation, you can safely ignore this email.
+          </p>
+  
+          <hr style="margin:40px 0;border:none;border-top:1px solid #e5e7eb;" />
+  
+          <p style="font-size:13px;color:#6b7280;line-height:22px;">
+            <strong>Contactor</strong><br />
+            AI Receptionist. <span style="color:#c55a11;font-weight:bold;">More Jobs Won.</span>
+          </p>
+  
+          <p style="font-size:12px;color:#9ca3af;">
+            <a href="https://getcontactor.com/privacy" style="color:#6b7280;">Privacy Policy</a>
+            &nbsp;|&nbsp;
+            <a href="https://getcontactor.com/terms" style="color:#6b7280;">Terms</a>
+          </p>
+        </td>
+      </tr>
+    </table>
+  </div>
