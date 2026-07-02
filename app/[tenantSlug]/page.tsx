@@ -30,10 +30,17 @@ export async function generateMetadata({
   }
 
   return {
-    title: `${tenant.businessName} | Digital Front Door`,
+    title: `${tenant.businessName} | Contactor`,
     description:
       tenant.tagline ??
       `Connect instantly with ${tenant.businessName} for questions, quotes, and scheduling.`,
+    icons: tenant.websiteSettings?.faviconUrl
+      ? {
+          icon: tenant.websiteSettings.faviconUrl,
+          shortcut: tenant.websiteSettings.faviconUrl,
+          apple: tenant.websiteSettings.faviconUrl,
+        }
+      : undefined,
   };
 }
 

@@ -147,7 +147,7 @@ if (subscriptionState.isExpired) {
               href={`/admin/${tenant.slug}/website/brand`}
               className="rounded-2xl border border-stone-200 bg-white p-4 text-sm font-semibold hover:border-orange-200 hover:bg-orange-50/50"
             >
-              Brand
+              Brand Assets
             </Link>
 
             <Link
@@ -155,6 +155,13 @@ if (subscriptionState.isExpired) {
               className="rounded-2xl border border-stone-200 bg-white p-4 text-sm font-semibold hover:border-orange-200 hover:bg-orange-50/50"
             >
               Home Page
+            </Link>
+
+            <Link
+              href={`/admin/${tenant.slug}/website/why-us`}
+              className="rounded-2xl border border-stone-200 bg-white p-4 text-sm font-semibold hover:border-orange-200 hover:bg-orange-50/50"
+            >
+              Why Us
             </Link>
 
             <Link
@@ -176,13 +183,6 @@ if (subscriptionState.isExpired) {
               className="rounded-2xl border border-stone-200 bg-white p-4 text-sm font-semibold hover:border-orange-200 hover:bg-orange-50/50"
             >
               FAQs
-            </Link>
-
-            <Link
-              href={`/admin/${tenant.slug}/website/social-links`}
-              className="rounded-2xl border border-stone-200 bg-white p-4 text-sm font-semibold hover:border-orange-200 hover:bg-orange-50/50"
-            >
-              Social Links
             </Link>
           </div>
         </div>

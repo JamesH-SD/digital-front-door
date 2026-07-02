@@ -30,6 +30,7 @@ const defaultSettings: TenantWebsiteSettings = {
   primaryColor: "#1F3B4D",
   accentColor: "#4E9271",
   logoUrl: "",
+  faviconUrl: "",
   heroImageUrl: "",
   whyUsImageUrl: "",
   aboutImageUrl: "",
@@ -49,6 +50,10 @@ const defaultSettings: TenantWebsiteSettings = {
   heroDescription: "",
   heroPrimaryCtaLabel: "Ask Our Receptionist",
   heroSecondaryCtaLabel: "Call Now",
+  heroAiCardMessage:
+    "Tell us what you need help with. We can answer questions, collect details, and help guide the next step.",
+
+  floatingChatLabel: "Chat with us",
 
   whyUsHeading: "Why Us",
   whyUsTitle: "Built to make the first conversation easier",
@@ -97,7 +102,13 @@ const defaultSettings: TenantWebsiteSettings = {
   projectGallery: [],
 };
 
-type AssetType = "logo" | "hero" | "whyUs" | "about" | "gallery";
+type AssetType =
+  | "logo"
+  | "favicon"
+  | "hero"
+  | "whyUs"
+  | "about"
+  | "gallery";
 
 function HelpTip({ text }: { text: string }) {
   return (
@@ -351,6 +362,7 @@ export default function WebsiteSettingsPanel({
     setSettings((prev) => ({
       ...prev,
       logoUrl: "",
+      faviconUrl: "",
       primaryColor: defaultSettings.primaryColor,
       accentColor: defaultSettings.accentColor,
       facebookUrl: "",
@@ -673,13 +685,21 @@ export default function WebsiteSettingsPanel({
       helpText="Use this section to control the overall look of the website. Upload a logo, choose brand colors, and add social profile links."
     >
       <div className="space-y-5">
-        <div className="grid gap-5 lg:grid-cols-2">
+        <div className="grid gap-5 lg:grid-cols-3">
           <ImageUploadCard
             label="Logo"
             imageUrl={settings.logoUrl}
             isSaving={isSaving}
             onUpload={(file) => void uploadAsset("logo", file)}
             onUseDefault={() => updateField("logoUrl", "")}
+          />
+
+          <ImageUploadCard
+            label="Browser Tab Icon"
+            imageUrl={settings.faviconUrl}
+            isSaving={isSaving}
+            onUpload={(file) => void uploadAsset("favicon", file)}
+            onUseDefault={() => updateField("faviconUrl", "")}
           />
 
           <div className="rounded-2xl border border-stone-200 bg-white p-4 shadow-sm">
@@ -795,6 +815,21 @@ export default function WebsiteSettingsPanel({
                   value={settings.heroSecondaryCtaLabel}
                   onChange={(value) => updateField("heroSecondaryCtaLabel", value)}
                   placeholder="Call Now"
+                />
+
+                <TextAreaField
+                  label="AI Receptionist Card Message"
+                  value={settings.heroAiCardMessage}
+                  onChange={(value) => updateField("heroAiCardMessage", value)}
+                  placeholder="Tell visitors what your AI receptionist can help with."
+                  rows={3}
+                />
+
+                <TextField
+                  label="Floating Chat Button Label"
+                  value={settings.floatingChatLabel}
+                  onChange={(value) => updateField("floatingChatLabel", value)}
+                  placeholder="Chat with us"
                 />
               </div>
             </div>

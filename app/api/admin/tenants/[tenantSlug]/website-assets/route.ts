@@ -7,22 +7,31 @@ type RouteParams = {
   }>;
 };
 
-type AssetType = "logo" | "hero" | "whyUs" | "about" | "gallery" | "service";
+type AssetType =
+  | "logo"
+  | "favicon"
+  | "hero"
+  | "whyUs"
+  | "about"
+  | "gallery"
+  | "service";
 
-function getSettingsKey(assetType: AssetType) {
-  switch (assetType) {
-    case "logo":
-      return "logoUrl";
-    case "hero":
-      return "heroImageUrl";
-    case "whyUs":
-      return "whyUsImageUrl";
-    case "about":
-      return "aboutImageUrl";
-    default:
-      return null;
+  function getSettingsKey(assetType: AssetType) {
+    switch (assetType) {
+      case "logo":
+        return "logoUrl";
+      case "favicon":
+        return "faviconUrl";
+      case "hero":
+        return "heroImageUrl";
+      case "whyUs":
+        return "whyUsImageUrl";
+      case "about":
+        return "aboutImageUrl";
+      default:
+        return null;
+    }
   }
-}
 
 export async function POST(request: NextRequest, { params }: RouteParams) {
   try {

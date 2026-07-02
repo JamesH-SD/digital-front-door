@@ -11,6 +11,12 @@ import {
   Star,
   X,
 } from "lucide-react";
+import {
+  FaFacebook,
+  FaInstagram,
+  FaYelp,
+  FaGoogle,
+} from "react-icons/fa";
 import type { Tenant } from "@/lib/types/tenant";
 import { ChatWidget } from "@/components/chat/ChatWidget";
 
@@ -174,6 +180,33 @@ export function TenantWebsite({
 
   const websiteSettings = tenant.websiteSettings || {};
 
+  const socialLinks = [
+    {
+      label: "Facebook",
+      href: websiteSettings.facebookUrl,
+      icon: FaFacebook,
+      colorClass: "text-[#1877F2]",
+    },
+    {
+      label: "Instagram",
+      href: websiteSettings.instagramUrl,
+      icon: FaInstagram,
+      colorClass: "text-[#E4405F]",
+    },
+    {
+      label: "Yelp",
+      href: websiteSettings.yelpUrl,
+      icon: FaYelp,
+      colorClass: "text-[#FF1A1A]",
+    },
+    {
+      label: "Google Business",
+      href: websiteSettings.googleBusinessUrl,
+      icon: FaGoogle,
+      colorClass: "text-[#4285F4]",
+    },
+  ].filter((link) => Boolean(link.href?.trim()));
+
   const heroHeadline =
   websiteSettings.heroHeadline ||
   tenant.tagline ||
@@ -188,6 +221,13 @@ export function TenantWebsite({
 
   const heroSecondaryCtaLabel =
     websiteSettings.heroSecondaryCtaLabel || "Call Now";
+  
+    const heroAiCardMessage =
+    websiteSettings.heroAiCardMessage ||
+    "Tell us what you need help with. We can answer questions, collect details, and help guide the next step.";
+  
+  const floatingChatLabel =
+    websiteSettings.floatingChatLabel || "Chat with us";
 
   const whyUsHeading =
     websiteSettings.whyUsHeading || "Why Us";
@@ -491,8 +531,7 @@ export function TenantWebsite({
               </div>
 
               <p className="mt-5 text-sm leading-6 text-gray-600">
-                “Tell us what you need help with. We can answer questions,
-                collect project details, and help schedule the next step.”
+                “{heroAiCardMessage}”
               </p>
 
               <button
@@ -904,6 +943,26 @@ export function TenantWebsite({
               ) : null}
               {tenant.licenseNumber ? <p>License: {tenant.licenseNumber}</p> : null}
             </div>
+            {socialLinks.length > 0 ? (
+              <div className="mt-5 flex flex-wrap items-center gap-3">
+                {socialLinks.map((link) => {
+                  const Icon = link.icon;
+
+                  return (
+                    <a
+                      key={link.label}
+                      href={link.href}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      aria-label={link.label}
+                      className="inline-flex h-10 w-10 items-center justify-center rounded-full bg-white text-gray-950 shadow-sm transition hover:-translate-y-0.5 hover:shadow-md"
+                    >
+                      <Icon className={`h-5 w-5 ${link.colorClass}`} />
+                    </a>
+                  );
+                })}
+              </div>
+            ) : null}
           </div>
 
           <div className="rounded-2xl border border-white/10 bg-white/10 p-5">
@@ -927,8 +986,8 @@ export function TenantWebsite({
           className="fixed bottom-5 right-5 z-50 flex items-center gap-3 rounded-2xl bg-gray-950 px-4 py-3 text-sm font-bold text-white shadow-2xl transition hover:bg-gray-800"
         >
           <MessageCircle className="h-5 w-5" />
-          <span className="hidden sm:inline">Need a quote? Ask here</span>
-          <span className="sm:hidden">Ask</span>
+            <span className="hidden sm:inline">{floatingChatLabel}</span>
+            <span className="sm:hidden">Chat</span>
         </button>
       ) : null}
 

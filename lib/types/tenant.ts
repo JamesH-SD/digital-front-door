@@ -20,6 +20,7 @@ export type TenantWebsiteSettings = {
   accentColor?: string;
 
   logoUrl?: string;
+  faviconUrl?: string;
   heroImageUrl?: string;
   whyUsImageUrl?: string;
   aboutImageUrl?: string;
@@ -47,6 +48,8 @@ export type TenantWebsiteSettings = {
   heroDescription?: string;
   heroPrimaryCtaLabel?: string;
   heroSecondaryCtaLabel?: string;
+  heroAiCardMessage?: string;
+  floatingChatLabel?: string;
 
   whyUsHeading?: string;
   whyUsTitle?: string;
