@@ -187,8 +187,6 @@ function createInitialFormState(tenant: Tenant) {
     serviceRadiusMiles: tenant.serviceRadiusMiles || 25,
     excludedServiceCities: (tenant.excludedServiceCities || []).join("\n"),
 
-    tagline: tenant.tagline || "",
-    aboutUs: tenant.aboutUs || "",
     licenseNumber: tenant.licenseNumber || "",
     isInsured: tenant.isInsured ?? false,
     shareBusinessAddressInChat: tenant.shareBusinessAddressInChat ?? false,
@@ -866,47 +864,6 @@ export default function SettingsForm({
                     </div>
                   )}
                 </div>
-              </div>
-
-              <div className="md:col-span-2">
-                <label className="text-sm font-medium text-gray-700">
-                  Tagline
-                </label>
-                {editingSections.businessIdentity ? (
-                  <input
-                    value={form.tagline}
-                    onChange={(e) =>
-                      setForm((prev) => ({ ...prev, tagline: e.target.value }))
-                    }
-                    className="saas-input mt-1 w-full px-3 py-2 text-sm"
-                    placeholder="Short business tagline"
-                  />
-                ) : (
-                  <div className="mt-1 rounded-xl border border-stone-200 bg-white px-3 py-2 text-sm shadow-[inset_0_1px_1px_rgba(17,24,39,0.03)]">
-                    {displayValue(form.tagline)}
-                  </div>
-                )}
-              </div>
-
-              <div className="md:col-span-2">
-                <label className="text-sm font-medium text-gray-700">
-                  About Us
-                </label>
-                {editingSections.businessIdentity ? (
-                  <textarea
-                    value={form.aboutUs}
-                    onChange={(e) =>
-                      setForm((prev) => ({ ...prev, aboutUs: e.target.value }))
-                    }
-                    rows={4}
-                    className="saas-input mt-1 w-full px-3 py-2 text-sm"
-                    placeholder="Business description"
-                  />
-                ) : (
-                  <div className="mt-1 rounded-xl border border-stone-200 bg-white px-3 py-2 text-sm whitespace-pre-wrap">
-                    {displayValue(form.aboutUs)}
-                  </div>
-                )}
               </div>
             </div>
         </section>

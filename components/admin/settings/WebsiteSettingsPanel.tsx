@@ -679,9 +679,9 @@ export default function WebsiteSettingsPanel({
 <div className="mt-5 space-y-5">
   {shouldShow("brand") ? (
     <SectionCard
-      title="Brand"
+      title="Brand Assets"
       defaultOpen
-      description="Set the business logo, website colors, and social links."
+      description="Manage logo, browser tab icon, brand colors, and online profile links."
       helpText="Use this section to control the overall look of the website. Upload a logo, choose brand colors, and add social profile links."
     >
       <div className="space-y-5">

@@ -209,7 +209,6 @@ export function TenantWebsite({
 
   const heroHeadline =
   websiteSettings.heroHeadline ||
-  tenant.tagline ||
   `${tenant.businessName} makes it easy to get started.`;
 
   const heroDescription =
@@ -313,9 +312,8 @@ export function TenantWebsite({
     `About ${tenant.businessName}`;
 
   const aboutBody =
-    websiteSettings.aboutBody ||
-    tenant.aboutUs ||
-    `${tenant.businessName} helps customers ask questions, request estimates, and coordinate next steps quickly through a simple online experience.`;
+  websiteSettings.aboutBody ||
+  `${tenant.businessName} helps customers ask questions, share details, and coordinate next steps through a simple online experience.`;
 
   const aboutCtaLabel =
     websiteSettings.aboutCtaLabel ||
@@ -419,7 +417,7 @@ export function TenantWebsite({
               onClick={openChat}
               className="saas-button-accent rounded-xl px-4 py-2 text-sm font-semibold shadow-sm"
             >
-              Get Estimate
+              {heroPrimaryCtaLabel}
             </button>
           </div>
 
