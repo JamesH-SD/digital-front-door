@@ -992,24 +992,15 @@ export function TenantWebsite({
       {/* PROFESSIONAL CHAT WINDOW */}
       {chatOpen ? (
         <div className="fixed inset-0 z-50 flex items-end justify-end bg-black/30 p-3 sm:p-5">
-          <div className="flex h-[86vh] w-full max-w-md flex-col overflow-hidden rounded-3xl bg-white shadow-2xl">
-            <div className="flex items-center justify-between border-b border-stone-200 px-4 py-3">
-              <div>
-                <p className="text-sm font-bold text-gray-950">
-                  {tenant.businessName}
-                </p>
-                <p className="text-xs text-gray-500">AI Receptionist</p>
-              </div>
-
-              <button
-                type="button"
-                onClick={() => setChatOpen(false)}
-                className="flex h-9 w-9 items-center justify-center rounded-xl border border-stone-200 bg-white shadow-sm transition hover:bg-stone-50"
-                aria-label="Close chat"
-              >
-                <X className="h-4 w-4" />
-              </button>
-            </div>
+          <div className="relative flex h-[86vh] w-full max-w-md flex-col overflow-hidden rounded-3xl bg-white shadow-2xl">
+            <button
+              type="button"
+              onClick={() => setChatOpen(false)}
+              className="absolute right-4 top-4 z-10 flex h-9 w-9 items-center justify-center rounded-full border border-stone-200 bg-white shadow-sm transition hover:bg-stone-50"
+              aria-label="Close chat"
+            >
+              <X className="h-4 w-4" />
+            </button>
 
             <div className="min-h-0 flex-1">
               <ChatWidget
