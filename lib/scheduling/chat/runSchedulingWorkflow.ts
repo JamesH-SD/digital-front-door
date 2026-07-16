@@ -504,30 +504,66 @@ function parseSelectedTimeOption(
   message: string,
   offeredSlots: OfferedSlot[]
 ): number | null {
-  const numericOption = parseSelectedOption(message, offeredSlots.length);
-  if (numericOption) return numericOption;
+  const normalized = message.trim().toLowerCase();
 
-  const normalized = message.toLowerCase();
-
+  // 1. Match actual displayed time first.
+  // This prevents "1:00 PM" from being mistaken for option #1.
   for (const slot of offeredSlots) {
-    const time = slot.displayTime.toLowerCase();
+    const time = slot.displayTime.trim().toLowerCase();
 
-    const simple = time
-      .replace(":00", "")
-      .replace(" ", "")
-      .replace("am", "am")
-      .replace("pm", "pm");
+    const normalizedTime = time
+      .replace(/\s+/g, "")
+      .replace(":00", "");
+
+    const normalizedMessage = normalized
+      .replace(/\s+/g, "")
+      .replace(":00", "");
 
     if (
-      normalized.includes(time) ||
-      normalized.includes(simple) ||
-      normalized.includes(time.replace(":00", ""))
+      normalized === time ||
+      normalizedMessage === normalizedTime ||
+      normalized.includes(time)
     ) {
       return slot.optionNumber;
     }
   }
 
+  // 2. Only after time matching, allow numeric option replies like "1" or "option 2".
+  const numericOption = parseSelectedOption(message, offeredSlots.length);
+  if (numericOption) return numericOption;
+
   return null;
+}
+
+function shouldInvitePhotosAfterBooking(input: {
+  tenant: any | null;
+  lead: any | null;
+}) {
+  const { tenant, lead } = input;
+
+  if (!tenant || tenant.askForImagesAfterCapture === false) {
+    return false;
+  }
+
+  const projectType = lead?.projectType?.toLowerCase() || "";
+  const category = tenant.primaryCategory?.toLowerCase() || "";
+
+  return (
+    projectType.includes("remodel") ||
+    projectType.includes("repair") ||
+    projectType.includes("patio") ||
+    projectType.includes("bathroom") ||
+    projectType.includes("kitchen") ||
+    projectType.includes("damage") ||
+    projectType.includes("install") ||
+    category.includes("contractor") ||
+    category.includes("construction") ||
+    category.includes("remodel")
+  );
+}
+
+function buildPhotoUploadInvite() {
+  return "If you have any photos of the current space, you can upload them with the + button below. They aren’t required, but they can help us better understand the project before the appointment.";
 }
 
 function detectAppointmentType(message: string): AppointmentType | null {
@@ -636,6 +672,21 @@ function detectConversationClose(message: string) {
     normalized === "okay thanks" ||
     normalized === "bye" ||
     normalized === "goodbye"
+  );
+}
+
+function detectAppointmentPrepQuestion(message: string) {
+  const normalized = message.trim().toLowerCase();
+
+  return (
+    normalized.includes("anything else") ||
+    normalized.includes("need to do") ||
+    normalized.includes("prep") ||
+    normalized.includes("prepare") ||
+    normalized.includes("before you come") ||
+    normalized.includes("before you swing by") ||
+    normalized.includes("before then") ||
+    normalized.includes("before the appointment")
   );
 }
 
@@ -784,6 +835,13 @@ async function bookSelectedAppointment(input: {
 
   const lead = await getLeadById(session.leadId!);
 
+  const tenant = await getTenantBySlug(session.tenantSlug);
+
+  const shouldInvitePhotos = shouldInvitePhotosAfterBooking({
+    tenant,
+    lead,
+  });
+
   const connection = await getPrimaryCalendarConnectionByTenantSlug(
     session.tenantSlug
   );
@@ -886,14 +944,18 @@ async function bookSelectedAppointment(input: {
 
     await updateSession(session);
 
+    const confirmedMessage = generateSchedulingResponse({
+      type: "confirmed",
+      dayLabel: schedulingState.selectedDay?.displayLabel || "that day",
+      timeLabel: selectedSlot.displayTime,
+    });
+    
     const assistantMessage = createMessageObject(
       sessionId,
       "assistant",
-      generateSchedulingResponse({
-        type: "confirmed",
-        dayLabel: schedulingState.selectedDay?.displayLabel || "that day",
-        timeLabel: selectedSlot.displayTime,
-      })
+      shouldInvitePhotos
+        ? `${confirmedMessage}\n\n${buildPhotoUploadInvite()}`
+        : confirmedMessage
     );
 
     await insertMessage(assistantMessage);
@@ -1050,6 +1112,10 @@ export async function runSchedulingWorkflow({
     schedulingIntent.type === "schedule"
   ) {
     const existingLead = await getLeadById(session.leadId);
+
+    if (detectAppointmentPrepQuestion(trimmedContent)) {
+      return { handled: false };
+    }
   
     const existingAppointment = existingLead?.appointment?.trim();
 

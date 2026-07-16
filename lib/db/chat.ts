@@ -191,7 +191,7 @@ function buildConversationCloseReply(tenant: Tenant) {
     return "Sounds great. Whenever you’re ready, just hit Get Started and we’ll walk you through everything. If you have questions along the way, I’m here to help.";
   }
 
-  return "You’re welcome, we’ll follow up from here.";
+  return "You’re very welcome! If anything else comes up before your appointment, just send us a message here. Have a great day!";
 }
 
 function mapSession(row: any): ChatSession {
@@ -236,30 +236,126 @@ function buildLeadCreatedNextStepReply(tenant: Tenant) {
   return getBookingFlowConfig(tenant).leadCreatedReply;
 }
 
+function removeLeadCompletionLanguage(reply?: string) {
+  if (!reply?.trim()) return "";
+
+  const sentences = reply
+    .trim()
+    .split(/(?<=[.!?])\s+/)
+    .filter(Boolean);
+
+  const filtered = sentences.filter((sentence) => {
+    const normalized = sentence.toLowerCase();
+
+    return !(
+      normalized.includes("i have enough information") ||
+      normalized.includes("we have enough information") ||
+      normalized.includes("get your request started") ||
+      normalized.includes("start your request") ||
+      (
+        normalized.includes("i have your") &&
+        (
+          normalized.includes("name") ||
+          normalized.includes("phone") ||
+          normalized.includes("location") ||
+          normalized.includes("timeline") ||
+          normalized.includes("details")
+        )
+      )
+    );
+  });
+
+  return filtered.join(" ").trim();
+}
+
+function buildLeadCompletionAssistantReply(input: {
+  tenant: Tenant;
+  latestUserMessage: string;
+  generatedReply?: string;
+}) {
+  const nextStepReply = buildLeadCreatedNextStepReply(input.tenant);
+
+  if (!containsDirectBusinessQuestion(input.latestUserMessage)) {
+    return nextStepReply;
+  }
+
+  const directAnswer = removeLeadCompletionLanguage(input.generatedReply);
+
+  if (!directAnswer) {
+    return nextStepReply;
+  }
+
+  if (
+    directAnswer.includes(nextStepReply) ||
+    nextStepReply.includes(directAnswer)
+  ) {
+    return directAnswer;
+  }
+
+  return `${directAnswer}\n\n${nextStepReply}`;
+}
+
 function getDefaultSchedulingAppointmentType(tenant: Tenant) {
   return getBookingFlowConfig(tenant).defaultAppointmentType;
 }
 
 function detectConversationClose(message: string) {
+  const normalized = message
+    .trim()
+    .toLowerCase()
+    .replace(/[.!?]+$/g, "")
+    .replace(/\s+/g, " ");
+
+  const exactClosings = new Set([
+    "thanks",
+    "thank you",
+    "thx",
+    "that's it",
+    "thats it",
+    "that is it",
+    "ok thanks",
+    "okay thanks",
+    "sounds good",
+    "good night",
+    "goodnight",
+    "talk soon",
+    "talk later",
+    "ttyl",
+    "bye",
+    "goodbye",
+    "have a great day",
+    "have a good day",
+    "see ya",
+    "see you then",
+    "i am good",
+    "i'm good",
+    "no i am good",
+    "no i'm good",
+    "good for now",
+    "all good",
+  ]);
+
+  return exactClosings.has(normalized);
+}
+
+function detectNoChangeCorrection(message: string) {
   const normalized = message.trim().toLowerCase();
 
-  return (
-    normalized === "thanks" ||
-    normalized === "thank you" ||
-    normalized === "thx" ||
-    normalized === "that’s it" ||
-    normalized === "that's it" ||
-    normalized === "thats it" ||
-    normalized === "that is it" ||
-    normalized === "ok thanks" ||
-    normalized === "okay thanks" ||
-    normalized === "sounds good" ||
-    normalized === "good night" ||
-    normalized === "goodnight" ||
-    normalized === "talk soon" ||
-    normalized === "bye" ||
-    normalized === "goodbye"
-  );
+  const saysDisregard =
+    normalized.includes("disregard") ||
+    normalized.includes("never mind") ||
+    normalized.includes("nevermind") ||
+    normalized.includes("ignore that") ||
+    normalized.includes("forget that");
+
+  const acknowledgesExistingAppointment =
+    normalized.includes("already scheduled") ||
+    normalized.includes("forgot we scheduled") ||
+    normalized.includes("forgot it was") ||
+    normalized.includes("appointment is a phone call") ||
+    normalized.includes("scheduled a phone call");
+
+  return saysDisregard && acknowledgesExistingAppointment;
 }
 
 function isAffirmativeSchedulingReply(message: string) {
@@ -282,6 +378,60 @@ function isAffirmativeSchedulingReply(message: string) {
     normalized.includes("do that") ||
     normalized.includes("sounds good")
   );
+}
+
+function detectStrongSchedulingRequest(message: string): {
+  hasSchedulingIntent: boolean;
+  appointmentType: "call" | "site_visit" | null;
+} {
+  const normalized = message.toLowerCase();
+
+  const mentionsScheduling =
+    normalized.includes("schedule") ||
+    normalized.includes("book") ||
+    normalized.includes("availability") ||
+    normalized.includes("available") ||
+    normalized.includes("this week") ||
+    normalized.includes("next week") ||
+    normalized.includes("what days") ||
+    normalized.includes("what times") ||
+    normalized.includes("appointment");
+
+  const mentionsSiteVisit =
+    normalized.includes("site visit") ||
+    normalized.includes("on-site") ||
+    normalized.includes("onsite") ||
+    normalized.includes("come out") ||
+    normalized.includes("come take a look") ||
+    normalized.includes("take a look") ||
+    normalized.includes("see the scope") ||
+    normalized.includes("see the work") ||
+    normalized.includes("in person");
+
+  const mentionsCall =
+    normalized.includes("phone call") ||
+    normalized.includes("quick call") ||
+    normalized.includes("call me") ||
+    normalized.includes("call would work");
+
+  if (mentionsSiteVisit && (mentionsScheduling || normalized.includes("let's do"))) {
+    return {
+      hasSchedulingIntent: true,
+      appointmentType: "site_visit",
+    };
+  }
+
+  if (mentionsCall && (mentionsScheduling || normalized.includes("let's do"))) {
+    return {
+      hasSchedulingIntent: true,
+      appointmentType: "call",
+    };
+  }
+
+  return {
+    hasSchedulingIntent: false,
+    appointmentType: null,
+  };
 }
 
 async function insertMessage(message: ChatMessage) {
@@ -529,6 +679,34 @@ function shouldRetrieveKnowledge(message: string) {
   if (normalized.includes("?")) return true;
 
   return normalized.length >= 18;
+}
+
+function containsDirectBusinessQuestion(message: string) {
+  const normalized = message.trim().toLowerCase();
+
+  if (!normalized) return false;
+
+  if (normalized.includes("?")) {
+    return true;
+  }
+
+  const questionPatterns = [
+    /\bdo you\b/,
+    /\bdoes the business\b/,
+    /\bare you\b/,
+    /\bis there\b/,
+    /\bcan you\b/,
+    /\bcould you\b/,
+    /\bwill you\b/,
+    /\bwould you\b/,
+    /\bwhat\b/,
+    /\bwhen\b/,
+    /\bwhere\b/,
+    /\bwhy\b/,
+    /\bhow\b/,
+  ];
+
+  return questionPatterns.some((pattern) => pattern.test(normalized));
 }
 
 async function appendCustomerUpdateToLead(leadId: string, content: string) {
@@ -1328,6 +1506,75 @@ if (
   };
 }
 
+if (
+  session.currentStep === "complete" &&
+  session.leadCaptured &&
+  session.leadId &&
+  detectNoChangeCorrection(trimmedContent)
+) {
+  const assistantMessage = createMessageObject(
+    sessionId,
+    "assistant",
+    "No problem — I’ll leave the appointment exactly as scheduled."
+  );
+
+  await insertMessage(assistantMessage);
+
+  return {
+    sessionId,
+    messages: await getMessagesForSession(sessionId),
+    session,
+  };
+}
+
+const strongSchedulingRequest = detectStrongSchedulingRequest(trimmedContent);
+const existingSchedulingState = session.intakeData?.schedulingState;
+
+if (
+  session.currentStep === "complete" &&
+  session.leadCaptured &&
+  session.leadId &&
+  !existingSchedulingState?.active &&
+  strongSchedulingRequest.hasSchedulingIntent
+) {
+  const schedulingResult = await runSchedulingWorkflow({
+    session,
+    sessionId,
+    trimmedContent,
+    schedulingIntent: {
+      hasSchedulingIntent: true,
+      type: "schedule",
+      appointmentType: strongSchedulingRequest.appointmentType,
+      confidence: "high",
+    },
+  });
+
+  if (schedulingResult.handled && schedulingResult.response) {
+    return schedulingResult.response;
+  }
+}
+
+  if (
+    session.currentStep === "complete" &&
+    session.leadCaptured &&
+    session.leadId &&
+    detectConversationClose(trimmedContent)
+  ) {
+    const assistantMessage = createMessageObject(
+      sessionId,
+      "assistant",
+      buildConversationCloseReply(tenant)
+    );
+
+    await insertMessage(assistantMessage);
+
+    return {
+      sessionId,
+      messages: await getMessagesForSession(sessionId),
+      session,
+    };
+  }
+
   /**
  * AI INTENT INTERPRETER — post-capture only.
  *
@@ -2096,6 +2343,12 @@ if (
     const normalized = message.trim().toLowerCase();
   
     if (!normalized) return false;
+
+    const containsPhoneNumber = /(?:\D*\d){10,11}/.test(normalized);
+
+    if (containsPhoneNumber) {
+      return false;
+    }
   
     /**
      * Do not fast-path anything that may change workflow/state.
@@ -2120,6 +2373,14 @@ if (
       "husband",
       "spouse",
       "partner",
+      "backup number",
+      "back up number",
+      "alternate number",
+      "alternative number",
+      "secondary number",
+      "contact number",
+      "backup contact",
+      "back up contact",
     ];
   
     if (riskyTerms.some((term) => normalized.includes(term))) {
@@ -2159,6 +2420,12 @@ if (
       limit: 5,
     })
   : { items: [] };
+
+  console.log("📚 Pre-capture knowledge retrieval:", {
+    requested: shouldRetrieveKnowledge(trimmedContent),
+    itemCount: tenantKnowledgeResult.items.length,
+    titles: tenantKnowledgeResult.items.map((item) => item.title),
+  });
 
   const aiStart = Date.now();
 
@@ -2277,7 +2544,12 @@ updatedSession = applyFallbackStepCapture({
       const assistantReply = createMessageObject(
         sessionId,
         "assistant",
-        buildLeadCreatedNextStepReply(tenant)
+        buildLeadCompletionAssistantReply({
+          tenant,
+          latestUserMessage: trimmedContent,
+          generatedReply:
+            aiTurn.status === "generated" ? aiTurn.reply : undefined,
+        })
       );
 
       await insertMessage(assistantReply);
@@ -2307,7 +2579,12 @@ updatedSession = applyFallbackStepCapture({
     const assistantReply = createMessageObject(
       sessionId,
       "assistant",
-      buildLeadCreatedNextStepReply(tenant)
+      buildLeadCompletionAssistantReply({
+        tenant,
+        latestUserMessage: trimmedContent,
+        generatedReply:
+          aiTurn.status === "generated" ? aiTurn.reply : undefined,
+      })
     );
 
     await insertMessage(assistantReply);
@@ -2365,7 +2642,12 @@ updatedSession = applyFallbackStepCapture({
     const assistantReply = createMessageObject(
       sessionId,
       "assistant",
-      buildLeadCreatedNextStepReply(tenant)
+      buildLeadCompletionAssistantReply({
+        tenant,
+        latestUserMessage: trimmedContent,
+        generatedReply:
+          aiTurn.status === "generated" ? aiTurn.reply : undefined,
+      })
     );
 
     await insertMessage(assistantReply);

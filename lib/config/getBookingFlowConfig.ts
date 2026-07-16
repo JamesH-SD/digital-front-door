@@ -170,7 +170,7 @@ export function getBookingFlowConfig(tenant: Tenant): BookingFlowConfig {
         leadCreatedReply: joinReply([
           "Great, I have enough information to get your estimate request started.",
           nextStepMessage,
-          "Would you like to schedule a quick call or an on-site visit?",
+          "The next step is usually scheduling a quick call or an on-site visit so we can better understand what you need. Is that something you’d be interested in?",
         ]),
       };
 
@@ -189,9 +189,9 @@ export function getBookingFlowConfig(tenant: Tenant): BookingFlowConfig {
         followUpLanguageAllowed: true,
         showSignupLink: false,
         leadCreatedReply: joinReply([
-          "Great, I have enough information to get your request started.",
+          "I have what I need to get your request started.",
           nextStepMessage,
-          "Would you prefer a quick call, or would you like us to come out for an on-site visit?",
+          "From here, the next step is usually a quick call or an on-site visit so we can better understand what you need. Would either of those work for you?",
         ]),
       };
   }

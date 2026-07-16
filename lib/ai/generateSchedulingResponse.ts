@@ -69,27 +69,21 @@ import type {
    */
   export function generateSchedulingResponse(input: SchedulingResponseInput) {
     switch (input.type) {
-        case "ask_appointment_type":
-          return "Got it. Would you prefer a quick call, or would you like us to come out for an on-site visit?"; 
-        
-        // case "ask_appointment_type":
-        //     return "The next step is usually a quick call or an on-site visit so we can understand what you’re looking for. Would you prefer us to come out, or start with a call?";
-
-        // case "ask_appointment_type":
-        //     return "Got it, we can definitely come take a look. Do you want us to stop by in person, or would you rather start with a quick call?";
-  
+      case "ask_appointment_type":
+        return "The next step is usually scheduling a quick call or an on-site visit so we can better understand what you need. Would you prefer to start with a quick call, or would you like us to schedule an on-site visit?";
+ 
       case "ask_address":
-        return "Great, what’s the full address, including city and ZIP code?";
+        return "Absolutely. To help us schedule the visit, what is the full project address, including the city and ZIP code?";
   
       case "ask_full_address":
-        return "Can you send the full address, including city and ZIP code? That helps us schedule accurately.";
+        return "Could you send the full project address, including the city and ZIP code? That will help us schedule everything correctly.";
   
       case "offer_days": {
         if (input.days.length === 0) {
           return generateSchedulingResponse({ type: "fallback_followup" });
         }
       
-        return "I found some available days. Tap one below, or reply with a day that works best.";
+        return "Great! Here are a few days that currently have openings. You can tap one below, or let me know if another day works better.";
       }
 
       case "offer_times": {
@@ -97,7 +91,7 @@ import type {
           return generateSchedulingResponse({ type: "fallback_followup" });
         }
       
-        return `Here are some available times for ${input.dayLabel}. Tap one below, or reply with the time that works best.`;
+        return `Great! Here are the available times for ${input.dayLabel}. You can tap one below, or let me know if none of these work and I'll check another day.`;
       }
 
       case "reoffer_days": {
@@ -105,19 +99,19 @@ import type {
           return generateSchedulingResponse({ type: "fallback_followup" });
         }
       
-        return "No problem. Here are the available days again, tap one below to check times.";
+        return "No problem at all. Here are a few more available days. Take a look and choose whichever works best for you.";
       }
 
       case "ask_valid_day": {
-        return "I didn’t catch which day you wanted. Please tap one of the available days below.";
+        return "I wasn't sure which day you were referring to. Please choose one of the available days below, or let me know if you'd like me to check other availability.";
       }
 
       case "ask_valid_time": {
-        return "I didn’t catch which time you wanted. Please tap one of the available times below.";
+        return "I wasn't sure which time you meant. Please choose one of the available times below, or let me know if another day would work better.";
       }
   
       case "confirmed":
-        return `Perfect, you’re scheduled for ${input.dayLabel} at ${input.timeLabel}.`;
+        return `Perfect, you’re all set for ${input.dayLabel} at ${input.timeLabel}.`;
   
       case "closed":
         return "Sounds good, we’ll follow up if anything else is needed.";

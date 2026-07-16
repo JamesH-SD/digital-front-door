@@ -4,6 +4,10 @@ import type { Lead } from "@/lib/types/lead";
 import type { Tenant } from "@/lib/types/tenant";
 import { formatTenantKnowledgeForPrompt } from "@/lib/knowledge/formatTenantKnowledgeForPrompt";
 import type { TenantKnowledgeItem } from "@/lib/types/tenant-knowledge";
+import {
+  buildConversationContext,
+  formatConversationContextForPrompt,
+} from "@/lib/chat/buildConversationContext";
 
 type PostCaptureUpdates = {
   email?: string;
@@ -166,6 +170,24 @@ export async function generatePostCaptureReplyOnly(input: {
 
   const tenantKnowledgeContext = formatTenantKnowledgeForPrompt(tenantKnowledge);
 
+  const conversationContext = buildConversationContext({
+    tenant,
+    lead,
+    session: {
+      id: "",
+      tenantSlug: tenant.slug,
+      status: "active",
+      createdAt: "",
+      currentStep: "complete",
+      intakeData: {},
+      leadCaptured: true,
+      leadId: lead.id,
+    },
+  });
+  
+  const conversationContextText =
+    formatConversationContextForPrompt(conversationContext);
+
   try {
     const client = getOpenAIClient();
 
@@ -195,6 +217,29 @@ Rules:
 - Keep the reply short and natural.
 - Do not include markdown.
 - Do not include text outside JSON.
+
+Conversation Context:
+${conversationContextText}
+
+Photo / file behavior:
+- The scheduling workflow already gives the customer one proactive invitation to upload helpful photos or files after an appointment is confirmed.
+- Do not repeat that invitation during ordinary business questions.
+- Do not append upload guidance to unrelated answers.
+- Mention photos, files, or the + button only when:
+  1. the customer directly asks about uploading,
+  2. the customer asks whether an upload was received, or
+  3. the customer explicitly says they have another file or photo to provide.
+- If Uploaded Files Already Received is "yes" and the customer asks whether the upload was received, confirm that it was received.
+- Never ask for another upload merely because uploads are enabled.
+
+Appointment preparation behavior:
+- If the customer asks whether anything is required before an existing appointment, answer that question directly.
+- Do not respond only by repeating that the appointment exists.
+- Do not mention uploads unless the customer specifically asks about them.
+- If no tenant-specific preparation requirements are known, say:
+  "Nothing specific is required. If you think of any questions or additional information before the appointment, just send us a message here."
+- If the customer mentions a date that conflicts with the confirmed appointment, politely correct the date and time.
+- Otherwise, do not repeat the appointment details unnecessarily.
 
 Tenant Context:
 ${buildTenantContext(tenant)}
@@ -424,6 +469,15 @@ export async function generatePostCaptureTurn(input: {
       - If the customer expresses confusion after an appointment was scheduled, explain clearly:
         - "We scheduled an appointment/site visit to review the project, not the actual project work."
       - Do not restart scheduling unless the customer explicitly asks to schedule a new appointment.
+      If the customer asks what they should do before an appointment:
+      - Give practical preparation guidance.
+      - If nothing is required, say that clearly.
+      - If an appointment is already scheduled, reference it naturally without over-repeating details.
+      - If Uploaded Files Already Received is "yes", acknowledge that the uploaded file/photo was received and do not ask them to upload again.
+      - Do not sound pushy.
+      - Do not imply photos/files are required.
+      - Good wording:
+        "Nothing else is required. If you think of any other questions before then, just send me a message here."
 
       Closing rules:
       - When the customer indicates they are done, respond with a short recap instead of asking another question.
