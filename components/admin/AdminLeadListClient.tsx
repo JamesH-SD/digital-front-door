@@ -60,6 +60,53 @@ function getStatusClasses(status: string) {
   }
 }
 
+function getLeadSourceLabel(lead: Lead) {
+  if (lead.campaignName?.trim()) {
+    return {
+      icon: "📣",
+      label: lead.campaignName,
+    };
+  }
+
+  switch (lead.leadSource) {
+    case "website":
+      return {
+        icon: "🌐",
+        label: "Website",
+      };
+
+    case "google_ads":
+      return {
+        icon: "🔍",
+        label: "Google Ads",
+      };
+
+    case "facebook":
+      return {
+        icon: "📘",
+        label: "Facebook",
+      };
+
+    case "instagram":
+      return {
+        icon: "📷",
+        label: "Instagram",
+      };
+
+    case "referral":
+      return {
+        icon: "🤝",
+        label: "Referral",
+      };
+
+    default:
+      return {
+        icon: "❓",
+        label: "Unknown",
+      };
+  }
+}
+
 function SortableHeader({
   label,
   field,
@@ -357,9 +404,16 @@ export default function AdminLeadListClient({
                       <p className="text-xs font-medium tracking-wide text-gray-500">
                         {lead.leadNumber || lead.id}
                       </p>
-                      <h2 className="mt-1 text-sm font-semibold text-gray-900">
-                        {lead.customerName}
-                      </h2>
+                      <div>
+                        <h2 className="mt-1 text-sm font-semibold text-gray-900">
+                          {lead.customerName}
+                        </h2>
+
+                        <div className="mt-2 inline-flex items-center gap-1 rounded-full border border-stone-200 bg-stone-50 px-2.5 py-1 text-[11px] font-medium text-stone-600">
+                          <span>{getLeadSourceLabel(lead).icon}</span>
+                          <span>{getLeadSourceLabel(lead).label}</span>
+                        </div>
+                      </div>
                     </div>
 
                     <span
@@ -385,8 +439,15 @@ export default function AdminLeadListClient({
                     {lead.leadNumber || lead.id}
                   </div>
 
-                  <div className="text-sm font-medium text-gray-900">
-                    {lead.customerName}
+                  <div>
+                    <div className="text-sm font-medium text-gray-900">
+                      {lead.customerName}
+                    </div>
+
+                    <div className="mt-1 inline-flex items-center gap-1 rounded-full border border-stone-200 bg-stone-50 px-2 py-0.5 text-[10px] font-medium text-stone-600">
+                      <span>{getLeadSourceLabel(lead).icon}</span>
+                      <span>{getLeadSourceLabel(lead).label}</span>
+                    </div>
                   </div>
 
                   <div className="text-sm text-gray-600">

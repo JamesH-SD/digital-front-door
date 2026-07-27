@@ -75,7 +75,14 @@ export async function GET(
 ) {
   const { tenantSlug } = await params;
 
-  const items = await getTenantKnowledgeItems(tenantSlug);
+  const { searchParams } = new URL(_request.url);
+const campaignId = searchParams.get("campaignId");
+
+const allItems = await getTenantKnowledgeItems(tenantSlug);
+
+const items = campaignId
+  ? allItems.filter((item) => item.campaignId === campaignId)
+  : allItems;
 
   return NextResponse.json({
     items,
@@ -213,13 +220,21 @@ export async function POST(
   const title = typeof body.title === "string" ? body.title.trim() : "";
   const content = typeof body.content === "string" ? body.content.trim() : "";
 
+  const knowledgeScope =
+  body.knowledgeScope === "campaign" ? "campaign" : "global";
+
+  const campaignId =
+    knowledgeScope === "campaign" && typeof body.campaignId === "string"
+      ? body.campaignId.trim() || null
+      : null;
+
   if (!title || !content) {
     return NextResponse.json(
       { error: "Title and content are required." },
       { status: 400 }
     );
   }
-
+  
   const item = await createTenantKnowledgeItem({
     tenantSlug,
     sourceType: isValidSourceType(body.sourceType)
@@ -235,7 +250,11 @@ export async function POST(
         ? body.confidence
         : "medium",
     sourceLabel:
-      typeof body.sourceLabel === "string" ? body.sourceLabel : "Manual Entry",
+      typeof body.sourceLabel === "string"
+        ? body.sourceLabel
+        : "Manual Entry",
+    knowledgeScope,
+    campaignId,
   });
 
   return NextResponse.json({ item }, { status: 201 });

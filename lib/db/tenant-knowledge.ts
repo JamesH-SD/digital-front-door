@@ -16,6 +16,14 @@ function mapKnowledgeRow(row: any): TenantKnowledgeItem {
     sourceLabel: row.source_label || undefined,
     createdAt: row.created_at || undefined,
     updatedAt: row.updated_at || undefined,
+    knowledgeScope:
+      row.knowledge_scope === "campaign" ? "campaign" : "global",
+    campaignId: row.campaign_id || null,
+    summary: row.summary || null,
+    fileUrl: row.file_url || null,
+    fileName: row.file_name || null,
+    fileSize: row.file_size || null,
+    mimeType: row.mime_type || null,
   };
 }
 
@@ -55,6 +63,8 @@ export async function createTenantKnowledgeItem(input: {
   tags?: string[];
   confidence?: "low" | "medium" | "high";
   sourceLabel?: string;
+  knowledgeScope?: "global" | "campaign";
+  campaignId?: string | null;
 }): Promise<TenantKnowledgeItem> {
   const supabase = createAdminClient();
 
@@ -70,6 +80,12 @@ export async function createTenantKnowledgeItem(input: {
       source_label: input.sourceLabel?.trim() || "Manual Entry",
       is_active: true,
       updated_at: new Date().toISOString(),
+      knowledge_scope:
+        input.knowledgeScope === "campaign" ? "campaign" : "global",
+      campaign_id:
+        input.knowledgeScope === "campaign"
+          ? input.campaignId || null
+          : null,
     })
     .select("*")
     .single();

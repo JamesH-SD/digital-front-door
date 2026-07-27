@@ -13,6 +13,7 @@ import {
   FileText,
   Globe,
   Home,
+  Megaphone,
   Menu,
   Plug,
   Settings,
@@ -122,6 +123,13 @@ export default function AdminSidebar({ tenant }: AdminSidebarProps) {
       href: `/admin/${tenant.slug}/knowledge`,
       description: "Business knowledge library",
       icon: FileText,
+      isEnabled: true,
+    },
+    {
+      label: "Campaigns",
+      href: `/admin/${tenant.slug}/campaigns`,
+      description: "Business campaign library",
+      icon: Megaphone,
       isEnabled: true,
     },
     {

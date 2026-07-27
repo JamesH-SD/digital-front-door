@@ -9,6 +9,11 @@ export async function POST(request: NextRequest) {
     const leadSource =
       typeof body?.leadSource === "string" ? body.leadSource : "website";
 
+    const campaignId =
+    typeof body?.campaignId === "string"
+      ? body.campaignId
+      : undefined;
+
     if (!tenantSlug || typeof tenantSlug !== "string") {
       return NextResponse.json(
         { error: "tenantSlug is required" },
@@ -16,9 +21,13 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    const result = await createChatSessionForTenantSlug(tenantSlug, {
-      leadSource,
-    });
+    const result = await createChatSessionForTenantSlug(
+      tenantSlug,
+      {
+          leadSource,
+          campaignId,
+      }
+  );
 
     if (!result) {
       return NextResponse.json(

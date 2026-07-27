@@ -98,6 +98,9 @@ export type ChatSession = {
   leadCaptured: boolean;
   leadId?: string | null;
   notificationSentAt?: string | null;
+  campaignId?: string | null;
+  campaignName?: string | null;
+  campaignGreeting?: string | null;
 
   /**
  * Scheduling flow state (NEW)

@@ -25,6 +25,7 @@ import { retrieveTenantKnowledge } from "@/lib/knowledge/retrieveTenantKnowledge
 import type { SchedulingIntentResult } from "@/lib/chat/detectSchedulingIntent";
 import { getBookingFlowConfig } from "@/lib/config/getBookingFlowConfig";
 import { getTenantConfig } from "@/lib/config/getTenantConfig";
+import { getCampaignById } from "@/lib/db/campaigns";
 
 function generateId(prefix: string) {
   return `${prefix}_${Math.random().toString(36).slice(2, 10)}`;
@@ -397,15 +398,21 @@ function detectStrongSchedulingRequest(message: string): {
     normalized.includes("what times") ||
     normalized.includes("appointment");
 
-  const mentionsSiteVisit =
+    const mentionsSiteVisit =
     normalized.includes("site visit") ||
     normalized.includes("on-site") ||
+    normalized.includes("on site") ||
     normalized.includes("onsite") ||
+    normalized.includes("come by") ||
+    normalized.includes("come over") ||
     normalized.includes("come out") ||
     normalized.includes("come take a look") ||
     normalized.includes("take a look") ||
     normalized.includes("see the scope") ||
     normalized.includes("see the work") ||
+    normalized.includes("see the property") ||
+    normalized.includes("see the house") ||
+    normalized.includes("see the home") ||
     normalized.includes("in person");
 
   const mentionsCall =
@@ -839,12 +846,24 @@ async function createLeadAndNotifyOnce(session: ChatSession) {
 
   const intake = session.intakeData;
 
+  const campaign = intake.campaignId
+    ? await getCampaignById({
+        tenantSlug: session.tenantSlug,
+        campaignId: intake.campaignId,
+      })
+    : null;
+
   const createLeadStart = Date.now();
 
   const lead = await createLead({
     tenantId: session.tenantId,
     tenantSlug: session.tenantSlug,
     sessionId: session.id,
+
+    leadSource: intake.leadSource || "website",
+    campaignId: campaign?.id ?? null,
+    campaignName: campaign?.name ?? null,
+
     customerName: intake.name || "Unknown",
     phone: intake.contact || "Unknown",
     email: undefined,
@@ -1223,6 +1242,7 @@ export async function createChatSessionForTenantSlug(
   tenantSlug: string,
   options?: {
     leadSource?: string;
+    campaignId?: string;
   }
 ) {
   const tenant = await getTenantBySlug(tenantSlug);
@@ -1234,6 +1254,15 @@ export async function createChatSessionForTenantSlug(
   const supabase = await createClient();
   const now = new Date().toISOString();
 
+  let campaign = null;
+
+  if (options?.campaignId) {
+    campaign = await getCampaignById({
+      tenantSlug,
+      campaignId: options.campaignId,
+    });
+  }
+
   const session: ChatSession = {
     id: generateId("sess"),
     tenantId: tenant.id,
@@ -1241,7 +1270,10 @@ export async function createChatSessionForTenantSlug(
     status: "active",
     createdAt: now,
     currentStep: "project_type",
-    intakeData: {leadSource: options?.leadSource || "website"},
+    intakeData: {
+      leadSource: campaign ? "campaign" : (options?.leadSource || "website"),
+      campaignId: campaign?.id ?? null,
+    },
     leadCaptured: false,
     leadId: null,
     notificationSentAt: null,
@@ -1267,6 +1299,7 @@ export async function createChatSessionForTenantSlug(
   }
 
   const greetingContent =
+    campaign?.greetingMessage?.trim() ||
     tenant.greetingMessage?.trim() ||
     getPromptForStep("project_type", tenant.businessName);
 
@@ -1602,6 +1635,7 @@ if (
       const tenantKnowledgeResult = shouldRetrieveKnowledge(trimmedContent)
         ? await retrieveTenantKnowledge({
             tenantSlug: session.tenantSlug,
+            campaignId: session.intakeData?.campaignId ?? null,
             query: buildKnowledgeRetrievalQuery(messages, trimmedContent),
             limit: 5,
           })
@@ -1818,7 +1852,10 @@ if (
     session.currentStep === "complete" &&
     session.leadId &&
     session.intakeData?.awaitingSchedulingConfirmation &&
-    isAffirmativeSchedulingReply(trimmedContent)
+    (
+      isAffirmativeSchedulingReply(trimmedContent) ||
+      strongSchedulingRequest.hasSchedulingIntent
+    )
   ) {
     session.intakeData = {
       ...session.intakeData,
@@ -1837,8 +1874,9 @@ if (
         hasSchedulingIntent: true,
         type: "schedule",
         appointmentType:
-          getDefaultSchedulingAppointmentType(tenant) ??
+          strongSchedulingRequest.appointmentType ??
           inferredSchedulingIntent.appointmentType ??
+          getDefaultSchedulingAppointmentType(tenant) ??
           undefined,
         confidence: "high",
       },
@@ -1980,12 +2018,13 @@ if (
     const tenantSlug = previousLeadState.tenantSlug || session.tenantSlug;
 
     const tenantKnowledgeResult = shouldRetrieveKnowledge(trimmedContent)
-  ? await retrieveTenantKnowledge({
-      tenantSlug: session.tenantSlug,
-      query: buildKnowledgeRetrievalQuery(messages, trimmedContent),
-      limit: 5,
-    })
-  : { items: [] };
+      ? await retrieveTenantKnowledge({
+          tenantSlug: session.tenantSlug,
+          campaignId: session.intakeData?.campaignId ?? null,
+          query: buildKnowledgeRetrievalQuery(messages, trimmedContent),
+          limit: 5,
+        })
+      : { items: [] };
 
     const aiStart = Date.now();
 
@@ -2414,12 +2453,13 @@ if (
   }
 
   const tenantKnowledgeResult = shouldRetrieveKnowledge(trimmedContent)
-  ? await retrieveTenantKnowledge({
-      tenantSlug: session.tenantSlug,
-      query: buildKnowledgeRetrievalQuery(messages, trimmedContent),
-      limit: 5,
-    })
-  : { items: [] };
+    ? await retrieveTenantKnowledge({
+        tenantSlug: session.tenantSlug,
+        campaignId: session.intakeData?.campaignId ?? null,
+        query: buildKnowledgeRetrievalQuery(messages, trimmedContent),
+        limit: 5,
+      })
+    : { items: [] };
 
   console.log("📚 Pre-capture knowledge retrieval:", {
     requested: shouldRetrieveKnowledge(trimmedContent),

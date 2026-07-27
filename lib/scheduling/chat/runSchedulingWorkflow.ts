@@ -23,6 +23,7 @@ import { getTenantBySlug } from "@/lib/db/tenants";
 import { getTenantConfig } from "@/lib/config/getTenantConfig";
 import { detectInteractionType } from "@/lib/chat/detectInteractionType";
 import { getBookingFlowConfig } from "@/lib/config/getBookingFlowConfig";
+import { buildAppointmentDescription } from "@/lib/calendar/buildAppointmentDescription";
 
 type RunSchedulingWorkflowInput = {
   session: ChatSession;
@@ -57,13 +58,16 @@ type OfferedDay = Omit<BookableAppointmentDay, "slots"> & {
 
 type SchedulingState = {
   active?: boolean;
+
   step?:
     | "collect_details"
     | "select_day"
     | "select_slot"
     | "collect_email"
     | "confirm"
+    | "calendar_retry"
     | "fallback_followup";
+
   interactionType?: InteractionType;
   appointmentType?: AppointmentType;
   address?: string;
@@ -75,7 +79,10 @@ type SchedulingState = {
   email?: string;
   dayRetryCount?: number;
   timeRetryCount?: number;
-  calendarStatus?: "active" | "invalid" | "missing";
+
+  calendarStatus?: "active" | "invalid" | "missing" | "unavailable";
+  retryAction?: "load_days" | "book_slot";
+
   appointmentPreference?: string;
 };
 
@@ -328,32 +335,78 @@ function buildChatAppointmentTitle(input: {
     : `${project} ${suffix}`;
 }
 
-function buildChatAppointmentDescription(input: {
-  lead?: any | null;
-  appointmentType: AppointmentType;
-  interactionType?: InteractionType;
-  address?: string | null;
-}) {
-  const lead = input.lead;
+// function buildChatAppointmentDescription(input: {
+//   lead?: any | null;
+//   appointmentType: AppointmentType;
+//   interactionType?: InteractionType;
+//   address?: string | null;
+// }) {
+//   const lead = input.lead;
 
-  return [
-    "Scheduled from: Chat",
-    lead?.leadNumber ? `Lead: ${lead.leadNumber}` : null,
-    lead?.customerName ? `Customer: ${toTitleCase(lead.customerName)}` : null,
-    lead?.phone ? `Phone: ${formatPhoneForCalendar(lead.phone)}` : null,
-    lead?.email ? `Email: ${lead.email}` : null,
-    lead?.projectType ? `Project: ${toTitleCase(lead.projectType)}` : null,
-    lead?.location ? `Location: ${toTitleCase(lead.location)}` : null,
-    lead?.timeline ? `Timeline: ${toTitleCase(lead.timeline)}` : null,
-    `Appointment Type: ${
-      input.appointmentType === "site_visit" ? "On-site Visit" : "Phone Call"
-    }`,
-    input.address ? `Address: ${formatAddressForDisplay(input.address)}` : null,
-    lead?.notes ? `Notes: ${lead.notes}` : null,
-  ]
-    .filter(Boolean)
-    .join("\n");
-}
+//   return [
+//     "Scheduled From: Chat",
+  
+//     "",
+  
+//     `Lead Source: ${
+//       lead?.campaignName
+//         ? "Campaign"
+//         : lead?.leadSource
+//         ? toTitleCase(lead.leadSource.replace(/_/g, " "))
+//         : "Website"
+//     }`,
+  
+//     lead?.campaignName
+//       ? `Campaign: ${lead.campaignName}`
+//       : null,
+  
+//     "",
+  
+//     lead?.leadNumber
+//       ? `Lead: ${lead.leadNumber}`
+//       : null,
+  
+//     lead?.customerName
+//       ? `Customer: ${toTitleCase(lead.customerName)}`
+//       : null,
+  
+//     lead?.phone
+//       ? `Phone: ${formatPhoneForCalendar(lead.phone)}`
+//       : null,
+  
+//     lead?.email
+//       ? `Email: ${lead.email}`
+//       : null,
+  
+//     lead?.projectType
+//       ? `Project: ${toTitleCase(lead.projectType)}`
+//       : null,
+  
+//     lead?.location
+//       ? `Location: ${toTitleCase(lead.location)}`
+//       : null,
+  
+//     lead?.timeline
+//       ? `Timeline: ${toTitleCase(lead.timeline)}`
+//       : null,
+  
+//     `Appointment Type: ${
+//       input.appointmentType === "site_visit"
+//         ? "On-site Visit"
+//         : "Phone Call"
+//     }`,
+  
+//     input.address
+//       ? `Address: ${formatAddressForDisplay(input.address)}`
+//       : null,
+  
+//     lead?.notes
+//       ? `Notes: ${lead.notes}`
+//       : null,
+//   ]
+//     .filter(Boolean)
+//     .join("\n");
+// }
 
 /**
  * Parse numeric option replies.
@@ -675,6 +728,31 @@ function detectConversationClose(message: string) {
   );
 }
 
+function detectCalendarRetryRequest(message: string) {
+  const normalized = message
+    .trim()
+    .toLowerCase()
+    .replace(/[.!?]+$/g, "")
+    .replace(/\s+/g, " ");
+
+  return (
+    normalized === "retry" ||
+    normalized === "try again" ||
+    normalized === "check again" ||
+    normalized === "please try again" ||
+    normalized === "please check again" ||
+    normalized.includes("try the calendar again") ||
+    normalized.includes("check the calendar again") ||
+    normalized.includes("see if the calendar is available") ||
+    normalized.includes("see if it is working") ||
+    normalized.includes("see if it's working") ||
+    normalized.includes("i think it is working now") ||
+    normalized.includes("i think it's working now") ||
+    normalized.includes("calendar available now") ||
+    normalized.includes("calendar working now")
+  );
+}
+
 function detectAppointmentPrepQuestion(message: string) {
   const normalized = message.trim().toLowerCase();
 
@@ -821,6 +899,50 @@ async function fallbackAndCloseScheduling(input: {
   };
 }
 
+async function pauseSchedulingForCalendarRetry(input: {
+  session: ChatSession;
+  sessionId: string;
+  schedulingState: SchedulingState;
+  appointmentPreference: string;
+  retryAction: "load_days" | "book_slot";
+  calendarStatus?: "invalid" | "missing" | "unavailable";
+}): Promise<RunSchedulingWorkflowResult> {
+  input.session.intakeData = {
+    ...input.session.intakeData,
+    schedulingState: {
+      ...input.schedulingState,
+
+      // Preserve all scheduling details so the customer does not
+      // have to repeat the appointment type, address, day, or time.
+      active: true,
+      step: "calendar_retry",
+
+      retryAction: input.retryAction,
+      appointmentPreference: input.appointmentPreference,
+      calendarStatus: input.calendarStatus ?? "unavailable",
+    },
+  };
+
+  await updateSession(input.session);
+
+  const assistantMessage = createMessageObject(
+    input.sessionId,
+    "assistant",
+    "I have your scheduling details, but the online calendar is temporarily unavailable. You can say “try again” and I’ll check it again, or someone from the team can follow up directly."
+  );
+
+  await insertMessage(assistantMessage);
+
+  return {
+    handled: true,
+    response: {
+      sessionId: input.sessionId,
+      messages: await getMessagesForSession(input.sessionId),
+      session: input.session,
+    },
+  };
+}
+
 async function bookSelectedAppointment(input: {
   session: ChatSession;
   sessionId: string;
@@ -847,11 +969,16 @@ async function bookSelectedAppointment(input: {
   );
 
   if (!connection) {
-    return fallbackAndCloseScheduling({
+    return pauseSchedulingForCalendarRetry({
       session,
       sessionId,
+      schedulingState: {
+        ...schedulingState,
+        selectedSlot,
+      },
       appointmentPreference:
         "Customer selected an appointment time, but no calendar connection was available.",
+      retryAction: "book_slot",
       calendarStatus: "missing",
     });
   }
@@ -863,10 +990,10 @@ async function bookSelectedAppointment(input: {
     interactionType: mapAppointmentTypeToInteractionType(appointmentType),
   });
 
-  const description = buildChatAppointmentDescription({
+  const description = buildAppointmentDescription({
+    source: "chat",
     lead,
     appointmentType,
-    interactionType: mapAppointmentTypeToInteractionType(appointmentType),
     address: schedulingState.address || null,
   });
 
@@ -976,13 +1103,20 @@ async function bookSelectedAppointment(input: {
       error,
     });
 
-    return fallbackAndCloseScheduling({
+    return pauseSchedulingForCalendarRetry({
       session,
       sessionId,
+      schedulingState: {
+        ...schedulingState,
+        selectedSlot,
+      },
       appointmentPreference: `${
         schedulingState.selectedDay?.displayLabel || "Selected day"
       } at ${selectedSlot.displayTime}`,
-      calendarStatus: isCalendarAuthError(error) ? "invalid" : undefined,
+      retryAction: "book_slot",
+      calendarStatus: isCalendarAuthError(error)
+        ? "invalid"
+        : "unavailable",
     });
   }
 }
@@ -1203,8 +1337,8 @@ export async function runSchedulingWorkflow({
         ? "call"
         : detectAppointmentType(trimmedContent));
 
-    const effectiveRequestedAppointmentType =
-      bookingFlow?.defaultAppointmentType ?? requestedAppointmentType;
+      const effectiveRequestedAppointmentType =
+        requestedAppointmentType ?? bookingFlow?.defaultAppointmentType;
 
   /**
    * If the customer already requested an on-site visit, move directly to
@@ -1308,17 +1442,28 @@ export async function runSchedulingWorkflow({
       };
     } catch (error) {
       console.error("Availability fetch failed:", error);
-
+    
       await markCalendarInvalidIfNeeded({
         tenantSlug: session.tenantSlug,
         error,
       });
-
-      return fallbackAndCloseScheduling({
+    
+      return pauseSchedulingForCalendarRetry({
         session,
         sessionId,
+        schedulingState: {
+          active: true,
+          appointmentType: "call",
+          interactionType: "phone_call",
+          preferenceText: trimmedContent,
+          dayRetryCount: 0,
+          timeRetryCount: 0,
+        },
         appointmentPreference: "Customer requested a phone call.",
-        calendarStatus: isCalendarAuthError(error) ? "invalid" : undefined,
+        retryAction: "load_days",
+        calendarStatus: isCalendarAuthError(error)
+          ? "invalid"
+          : "unavailable",
       });
     }
   }
@@ -1368,6 +1513,132 @@ export async function runSchedulingWorkflow({
   if (!schedulingState?.active || !session.leadId) {
     return { handled: false };
   }
+
+  /**
+ * CALENDAR RETRY
+ *
+ * Preserve the scheduling state when the calendar is unavailable.
+ * A retry should continue from the point of failure rather than
+ * restarting appointment-type or address collection.
+ */
+if (schedulingState.step === "calendar_retry") {
+  if (!detectCalendarRetryRequest(trimmedContent)) {
+    // Allow ordinary business questions to pass through to normal chat
+    // while the scheduling information remains saved.
+    return { handled: false };
+  }
+
+  /**
+   * Retry loading available appointment days.
+   */
+  if (schedulingState.retryAction === "load_days") {
+    try {
+      const availableDays = await getOfferedDaysForTenant({
+        tenantSlug: session.tenantSlug,
+      });
+
+      if (availableDays.length === 0) {
+        return fallbackAndCloseScheduling({
+          session,
+          sessionId,
+          appointmentPreference:
+            schedulingState.appointmentPreference ||
+            "Customer requested an appointment, but no available days were found.",
+        });
+      }
+
+      session.intakeData = {
+        ...session.intakeData,
+        schedulingState: {
+          ...schedulingState,
+          active: true,
+          step: "select_day",
+          calendarStatus: "active",
+          retryAction: undefined,
+          availableDays,
+          selectedDay: undefined,
+          offeredSlots: undefined,
+          selectedSlot: undefined,
+          dayRetryCount: 0,
+          timeRetryCount: 0,
+        },
+      };
+
+      await updateSession(session);
+
+      const assistantMessage = createMessageObject(
+        sessionId,
+        "assistant",
+        generateSchedulingResponse({
+          type: "offer_days",
+          days: availableDays,
+        })
+      );
+
+      await insertMessage(assistantMessage);
+
+      return {
+        handled: true,
+        response: {
+          sessionId,
+          messages: await getMessagesForSession(sessionId),
+          session,
+        },
+      };
+    } catch (error) {
+      console.error("Calendar retry availability fetch failed:", error);
+
+      await markCalendarInvalidIfNeeded({
+        tenantSlug: session.tenantSlug,
+        error,
+      });
+
+      return pauseSchedulingForCalendarRetry({
+        session,
+        sessionId,
+        schedulingState,
+        appointmentPreference:
+          schedulingState.appointmentPreference ||
+          "Customer requested another calendar availability check.",
+        retryAction: "load_days",
+        calendarStatus: isCalendarAuthError(error)
+          ? "invalid"
+          : "unavailable",
+      });
+    }
+  }
+
+  /**
+   * Retry creating the previously selected appointment.
+   */
+  if (schedulingState.retryAction === "book_slot") {
+    if (!schedulingState.selectedSlot) {
+      return fallbackAndCloseScheduling({
+        session,
+        sessionId,
+        appointmentPreference:
+          schedulingState.appointmentPreference ||
+          "The customer requested a calendar retry, but no selected time was saved.",
+      });
+    }
+
+    return bookSelectedAppointment({
+      session,
+      sessionId,
+      schedulingState,
+      selectedSlot: schedulingState.selectedSlot,
+      emailForAppointment: schedulingState.email ?? null,
+    });
+  }
+
+  return fallbackAndCloseScheduling({
+    session,
+    sessionId,
+    appointmentPreference:
+      schedulingState.appointmentPreference ||
+      "The customer requested a calendar retry, but the retry point was unavailable.",
+  });
+}
 
   /**
    * Let friendly closing messages pass through the scheduling layer
@@ -1519,11 +1790,19 @@ export async function runSchedulingWorkflow({
         error,
       });
 
-      return fallbackAndCloseScheduling({
+      return pauseSchedulingForCalendarRetry({
         session,
         sessionId,
+        schedulingState: {
+          ...schedulingState,
+          appointmentType: "call",
+          interactionType: "phone_call",
+        },
         appointmentPreference: "Customer requested a phone call.",
-        calendarStatus: isCalendarAuthError(error) ? "invalid" : undefined,
+        retryAction: "load_days",
+        calendarStatus: isCalendarAuthError(error)
+          ? "invalid"
+          : "unavailable",
       });
     }
   }
@@ -1558,10 +1837,6 @@ export async function runSchedulingWorkflow({
     const formattedAddress = formatAddressForDisplay(trimmedContent);
 
     try {
-      const availableDays = await getOfferedDaysForTenant({
-        tenantSlug: session.tenantSlug,
-      });
-
       await updateLeadFields(session.leadId, {
         address: formattedAddress,
       });
@@ -1572,6 +1847,10 @@ export async function runSchedulingWorkflow({
         fieldName: "address",
         previousValue: null,
         newValue: formattedAddress,
+      });
+      
+      const availableDays = await getOfferedDaysForTenant({
+        tenantSlug: session.tenantSlug,
       });
 
       if (availableDays.length === 0) {
@@ -1625,11 +1904,22 @@ export async function runSchedulingWorkflow({
         error,
       });
 
-      return fallbackAndCloseScheduling({
+      return pauseSchedulingForCalendarRetry({
         session,
         sessionId,
-        appointmentPreference: `Customer requested an on-site visit at ${formattedAddress}.`,
-        calendarStatus: isCalendarAuthError(error) ? "invalid" : undefined,
+        schedulingState: {
+          ...schedulingState,
+          active: true,
+          appointmentType: "site_visit",
+          interactionType: "site_visit",
+          address: formattedAddress,
+        },
+        appointmentPreference:
+          `Customer requested an on-site visit at ${formattedAddress}.`,
+        retryAction: "load_days",
+        calendarStatus: isCalendarAuthError(error)
+          ? "invalid"
+          : "unavailable",
       });
     }
   }

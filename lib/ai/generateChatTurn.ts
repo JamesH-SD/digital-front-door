@@ -47,7 +47,7 @@ function buildKnownContext(session: ChatSession, tenant: Tenant) {
 
   return [
     `Business Name: ${tenant.businessName || "Unknown"}`,
-    `Greeting Message: ${tenant.greetingMessage || "Not provided"}`,
+    `Greeting Message: ${tenant.greetingMessage ?? "Not provided"}`,
     `Primary Category: ${tenant.primaryCategory || "Not provided"}`,
     `Primary Phone: ${tenant.primaryPhone || "Not provided"}`,
     `Business Email: ${tenant.email || "Not provided"}`,
@@ -91,6 +91,33 @@ function buildKnownContext(session: ChatSession, tenant: Tenant) {
     `Lead Already Captured: ${session.leadCaptured ? "yes" : "no"}`,
     `Required Fields Before Lead Creation: ${requiredFields.join(", ") || "none"}`,
   ].join("\n");
+}
+
+function buildCampaignContext(session: ChatSession) {
+  const intake = session.intakeData || {};
+
+  if (!intake.campaignId) {
+    return "No active campaign.";
+  }
+
+  return `
+    Campaign Context
+
+    The customer intentionally started this conversation from an active marketing campaign.
+    The retrieved campaign knowledge below describes the promotion, offer, or service that brought them here.
+    Use that information as conversational context.
+    Avoid asking questions that are already answered or strongly implied by the campaign.
+    Continue naturally from the campaign topic unless the customer changes direction.
+    Campaign ID: ${intake.campaignId}
+
+    Conversation Guidance:
+    - Treat the campaign as the customer's likely reason for contacting the business.
+    - Use the campaign to guide the conversation naturally.
+    - Avoid asking questions whose answers are already strongly implied by the campaign.
+    - Do not automatically assume the campaign is the customer's actual project.
+    - If the customer indicates they need something different, immediately pivot and continue naturally.
+    - The campaign provides context only. It does not restrict the conversation.
+    `.trim();
 }
 
 /**
@@ -162,6 +189,8 @@ export async function generateChatTurn(input: {
 }): Promise<GenerateChatTurnResult> {
   const { tenant, session, messages, tenantKnowledge = [] } = input;
 
+  let greetingMessage = tenant.greetingMessage;
+
   const tenantKnowledgeContext = formatTenantKnowledgeForPrompt(tenantKnowledge);
 
   try {
@@ -198,6 +227,15 @@ export async function generateChatTurn(input: {
       - Do not become a passive FAQ bot when the customer came in asking for help with a real request.
       - Do not jump aggressively to name, phone, email, or scheduling if the customer is still evaluating.
       - The goal is: answer first, then guide naturally.
+
+      CAMPAIGN AWARENESS:
+      If Campaign Context indicates the customer entered through an active campaign:
+      - Assume the campaign is the customer's likely reason for contacting the business.
+      - Do not repeatedly ask what service they are interested in when it is already strongly implied by the campaign.
+      - Continue naturally from the campaign topic.
+      - Ask the next useful question instead.
+      - The campaign is conversational context only.
+      - If the customer indicates another service, immediately continue with that service without mentioning the campaign again.
 
       YOUR JOB:
       1. make the customer feel welcomed and comfortable
@@ -477,8 +515,11 @@ Knowledge grounding rules:
 - If Additional Tenant Knowledge does not contain the answer, do not guess.
 - If the customer asks about "he", "she", "they", "him", or "her", use the recent conversation to resolve who they mean before answering.
 
-Business / session context:
+Tenant Context:
 ${buildKnownContext(session, tenant)}
+
+Campaign Context:
+${buildCampaignContext(session)}
 
 Additional Tenant Knowledge:
 ${tenantKnowledgeContext}

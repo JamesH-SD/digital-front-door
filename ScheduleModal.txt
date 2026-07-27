@@ -2,10 +2,7 @@
 
 import { useMemo, useState } from "react";
 import AppointmentSlotPicker from "@/components/leads/AppointmentSlotPicker";
-import {
-  buildAppointmentDescription,
-  type AppointmentLead,
-} from "@/lib/calendar/buildAppointmentDescription";
+import { buildAppointmentDescription } from "@/lib/calendar/buildAppointmentDescription";
 
 type AppointmentType = "call" | "site_visit";
 
@@ -27,7 +24,6 @@ export default function ScheduleModal({
   leadId,
   tenantSlug,
   onClose,
-  lead,
   initialTitle,
   initialAddress,
 }: {
@@ -35,7 +31,19 @@ export default function ScheduleModal({
   tenantSlug: string;
   onClose: () => void;
   initialTitle?: string;
-  lead: AppointmentLead;
+  lead: {
+    leadNumber?: string;
+    customerName?: string;
+    phone?: string;
+    email?: string;
+    projectType?: string;
+    location?: string;
+    timeline?: string;
+    notes?: string;
+    customerUpdates?: string;
+    leadSource?: string;
+    campaignName?: string;
+  };
   initialAddress?: string;
 }) {
   const [step, setStep] = useState<1 | 2>(1);
@@ -46,12 +54,14 @@ export default function ScheduleModal({
 
   const [address, setAddress] = useState(initialAddress || "");
   const [title, setTitle] = useState(initialTitle || "On-site Estimate");
-  const description = buildAppointmentDescription({
-    source: "office",
-    lead,
-    appointmentType,
-    address: appointmentType === "site_visit" ? address : null,
-  });
+  const description = useMemo(() => {
+    return buildAppointmentDescription({
+      source: "office",
+      lead,
+      appointmentType,
+      address,
+    });
+  }, [lead, appointmentType, address]);
 
   const [isBooking, setIsBooking] = useState(false);
   const [error, setError] = useState("");
@@ -217,12 +227,8 @@ export default function ScheduleModal({
 
               <div>
                 <label className="text-sm font-semibold text-gray-700">
-                  Calendar Event Preview
+                  Description
                 </label>
-
-                <pre className="mt-2 max-h-64 overflow-y-auto whitespace-pre-wrap rounded-xl border border-stone-200 bg-stone-50 p-3 text-sm text-gray-700">
-                  {description}
-                </pre>
               </div>
             </div>
           )}

@@ -5,6 +5,7 @@ import type { Lead } from "@/lib/types/lead";
 import type { LeadActivity } from "@/lib/types/lead-activity";
 import AppointmentModal from "@/components/leads/AppointmentModal";
 import ScheduleModal from "@/components/leads/ScheduleModal";
+import { buildAppointmentDescription } from "@/lib/calendar/buildAppointmentDescription";
 
 type LeadStatus = "new" | "contacted" | "booked" | "closed";
 
@@ -976,6 +977,32 @@ export default function LeadDetailClient({
             </p>
           </div>
 
+          <div className="rounded-2xl border bg-gray-50 p-4">
+          <h3 className="text-sm font-semibold text-gray-900">
+            How They Found You
+          </h3>
+
+            <div className="mt-4 grid gap-3 md:grid-cols-2">
+
+            <CompactField
+              label="Source"
+              value={
+                lead.campaignName
+                  ? "Campaign"
+                  : lead.leadSource
+                  ? lead.leadSource.replace(/_/g, " ")
+                  : "Unknown"
+              }
+            />
+
+              <CompactField
+                label="Campaign"
+                value={lead.campaignName || "—"}
+              />
+
+            </div>
+          </div>
+
           <div className="grid gap-3 md:grid-cols-2">
             <CompactField
               label="Phone"
@@ -1402,29 +1429,31 @@ export default function LeadDetailClient({
           </div>
         </div>
       ) : null}
-            {showSchedule && (
-        <ScheduleModal
-          leadId={lead.id}
-          tenantSlug={lead.tenantSlug}
-          initialTitle={buildAppointmentTitle({
-            projectType: form.projectType,
-            customerName: lead.customerName,
-          })}
-          initialDescription={
-            aiSummary ||
-            [
-              form.projectType ? `Project: ${form.projectType}` : null,
-              form.location ? `Location: ${form.location}` : null,
-              form.timeline ? `Timeline: ${form.timeline}` : null,
-              form.customerUpdates ? `Customer updates: ${form.customerUpdates}` : null,
-            ]
-              .filter(Boolean)
-              .join("\n\n")
-          }
-          initialAddress={form.address || ""}
-          onClose={() => setShowSchedule(false)}
-        />
-      )}
+            {showSchedule ? (
+              <ScheduleModal
+                leadId={lead.id}
+                tenantSlug={lead.tenantSlug}
+                initialTitle={buildAppointmentTitle({
+                  projectType: form.projectType,
+                  customerName: lead.customerName,
+                })}
+                lead={{
+                  leadNumber: lead.leadNumber,
+                  customerName: lead.customerName,
+                  phone: form.phone,
+                  email: form.email,
+                  projectType: form.projectType,
+                  location: form.location,
+                  timeline: form.timeline,
+                  notes: form.notes,
+                  customerUpdates: form.customerUpdates,
+                  leadSource: lead.leadSource,
+                  campaignName: lead.campaignName,
+                }}
+                initialAddress={form.address || ""}
+                onClose={() => setShowSchedule(false)}
+              />
+            ) : null}
 
       {showAppointmentModal && latestAppointment ? (
         <AppointmentModal

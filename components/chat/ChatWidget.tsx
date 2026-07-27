@@ -12,6 +12,7 @@ type Props = {
   tenant: Tenant;
   autoOpen?: boolean;
   leadSource?: string;
+  campaignId?: string;
   variant?: "page" | "embed";
 };
 
@@ -96,6 +97,7 @@ export function ChatWidget({
   tenant,
   autoOpen = true,
   leadSource = "website",
+  campaignId,
   variant = "page",
 }: Props) {
   const [sessionId, setSessionId] = useState<string | null>(null);
@@ -163,6 +165,7 @@ export function ChatWidget({
         body: JSON.stringify({
           tenantSlug: tenant.slug,
           leadSource,
+          campaignId,
         }),
       });
 
@@ -626,4 +629,4 @@ export function ChatWidget({
       )}
     </div>
   );
-};
+}

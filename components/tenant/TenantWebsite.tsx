@@ -23,6 +23,7 @@ import { ChatWidget } from "@/components/chat/ChatWidget";
 type Props = {
   tenant: Tenant;
   leadSource: string;
+  campaignId?: string;
   autoOpenChat?: boolean;
   isPreview?: boolean;
 };
@@ -163,6 +164,7 @@ const sampleReviews = [
 export function TenantWebsite({
   tenant,
   leadSource,
+  campaignId,
   autoOpenChat = false,
   isPreview = false,
 }: Props) {
@@ -1007,6 +1009,7 @@ export function TenantWebsite({
                 tenant={tenant}
                 autoOpen
                 leadSource={leadSource}
+                campaignId={campaignId}
                 variant="embed"
               />
             </div>

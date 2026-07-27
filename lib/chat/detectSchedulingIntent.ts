@@ -29,11 +29,56 @@ function looksLikeContactInfoUpdate(normalized: string) {
   return mentionsContactPerson && mentionsContactMethod;
 }
 
+function isAppointmentInformationQuestion(message: string) {
+  const normalized = message.toLowerCase();
+
+  const informationPatterns = [
+    "who will",
+    "who's",
+    "who is",
+    "who am i",
+    "who do i",
+    "who may",
+    "who might",
+    "who usually",
+    "who handles",
+    "who performs",
+    "who does",
+    "who'll",
+    "who will be",
+    "who is coming",
+    "who is calling",
+    "who will be calling",
+    "who will be coming",
+    "who will i be speaking",
+    "who am i speaking",
+    "who is assigned",
+    "who's assigned",
+    "who is my appointment with",
+    "who will i meet",
+    "who am i meeting"
+  ];
+
+  return informationPatterns.some(pattern =>
+    normalized.includes(pattern)
+  );
+}
+
 /**
  * Fast deterministic checks for obvious scheduling language.
  */
 function detectSchedulingIntentWithRules(message: string): SchedulingIntentResult {
   const normalized = message.trim().toLowerCase();
+
+  // Appointment information questions are NOT scheduling requests.
+  if (isAppointmentInformationQuestion(normalized)) {
+    return {
+      hasSchedulingIntent: false,
+      type: "none",
+      appointmentType: null,
+      confidence: "high",
+    };
+  }
 
   if (looksLikeContactInfoUpdate(normalized)) {
     return {
@@ -45,7 +90,7 @@ function detectSchedulingIntentWithRules(message: string): SchedulingIntentResul
   }
 
   if (!normalized) {
-    return { hasSchedulingIntent: false, type: "none", confidence: "low" };
+    return { hasSchedulingIntent: false, type: "none", appointmentType: null, confidence: "low" };
   }
 
   const isClosingAfterBookedAppointment =

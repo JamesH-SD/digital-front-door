@@ -20,6 +20,9 @@ export type Lead = {
   location: string;
   timeline: string;
   appointment?: string;
+  leadSource?: string | null;
+  campaignId?: string | null;
+  campaignName?: string | null;
   notes?: string;
   customerUpdates?: string;
   images: LeadImage[];
