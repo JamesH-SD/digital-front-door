@@ -159,38 +159,40 @@ export default function AppointmentSlotPicker({
   }
 
   return (
-    <div className="space-y-4">
+    <div className="space-y-6">
       {isLoading ? (
-        <p className="text-sm text-gray-500">Loading available times...</p>
+        <div className="rounded-2xl border border-stone-200 bg-stone-50 px-4 py-6 text-center text-sm text-stone-500">
+          Loading available appointment times...
+        </div>
       ) : error ? (
-        <div className="rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700">
+        <div className="rounded-2xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
           {error}
         </div>
       ) : dayGroups.length === 0 ? (
-        <div className="rounded-lg border bg-gray-50 px-3 py-2 text-sm text-gray-600">
+        <div className="rounded-2xl border border-stone-200 bg-stone-50 px-4 py-4 text-sm text-stone-600">
           No available appointment times were found. A team member can follow up
           directly to coordinate.
         </div>
       ) : (
         <>
-          <div className="rounded-xl border bg-gray-50 p-3">
-            <div className="mb-3 flex items-center justify-between">
+          <div className="rounded-3xl border border-stone-200/70 bg-white p-5 shadow-sm">
+            <div className="mb-4 flex items-center justify-between">
               <button
                 type="button"
                 onClick={() => moveMonth("prev")}
-                className="rounded-lg border bg-white px-2 py-1 text-sm hover:bg-gray-100"
+                className="flex h-10 w-10 items-center justify-center rounded-full border border-stone-200 bg-white text-lg text-gray-700 shadow-sm transition hover:border-orange-300 hover:bg-orange-50 hover:text-orange-700"
               >
                 ←
               </button>
 
-              <p className="text-sm font-semibold text-gray-900">
+              <p className="text-base font-semibold tracking-tight text-gray-900">
                 {monthLabel}
               </p>
 
               <button
                 type="button"
                 onClick={() => moveMonth("next")}
-                className="rounded-lg border bg-white px-2 py-1 text-sm hover:bg-gray-100"
+                className="flex h-10 w-10 items-center justify-center rounded-full border border-stone-200 bg-white text-lg text-gray-700 shadow-sm transition hover:border-orange-300 hover:bg-orange-50 hover:text-orange-700"
               >
                 →
               </button>
@@ -216,11 +218,11 @@ export default function AppointmentSlotPicker({
                     type="button"
                     disabled={!hasAvailability}
                     onClick={() => setSelectedDate(key)}
-                    className={`rounded-lg px-2 py-2 text-sm transition ${
+                    className={`rounded-2xl py-2.5 text-sm font-medium transition-all ${
                       isSelected
-                        ? "bg-blue-600 text-white"
+                        ? "bg-[#d35400] text-white shadow-md"
                         : hasAvailability
-                        ? "bg-white text-gray-900 hover:bg-blue-50"
+                        ? "border border-transparent bg-white text-gray-900 hover:border-orange-300 hover:bg-orange-50"
                         : "text-gray-300"
                     } ${!isCurrentMonth ? "opacity-40" : ""}`}
                   >
@@ -231,15 +233,21 @@ export default function AppointmentSlotPicker({
             </div>
           </div>
 
-          <div className="rounded-xl border bg-white p-3">
-            <p className="text-sm font-semibold text-gray-900">
-              {selectedGroup
-                ? `Available times for ${selectedGroup.displayLabel}`
-                : "Select a day"}
-            </p>
+          <div className="rounded-3xl border border-stone-200/70 bg-white p-5 shadow-sm">
+            <div className="mb-4">
+              <h3 className="text-base font-semibold text-gray-900">
+                Available Times
+              </h3>
+
+              <p className="mt-1 text-sm text-gray-500">
+                {selectedGroup
+                  ? selectedGroup.displayLabel
+                  : "Select a highlighted day"}
+              </p>
+            </div>
 
             {selectedGroup ? (
-              <div className="mt-3 grid grid-cols-2 gap-2 sm:grid-cols-3">
+              <div className="grid grid-cols-2 gap-3 sm:grid-cols-3">
                 {selectedGroup.slots.map((slot) => {
                   const isSelected = selectedSlot?.startAt === slot.startAt;
 
@@ -248,10 +256,10 @@ export default function AppointmentSlotPicker({
                       key={`${slot.startAt}-${slot.endAt}`}
                       type="button"
                       onClick={() => onSelectSlot(slot)}
-                      className={`rounded-xl border px-3 py-2 text-sm font-semibold transition ${
+                      className={`saas-button-secondary justify-center px-3 py-3 text-sm font-semibold transition-all ${
                         isSelected
-                          ? "border-blue-600 bg-blue-50 text-blue-800"
-                          : "bg-white text-gray-700 hover:bg-gray-50"
+                          ? "border-[#d35400] bg-[#d35400] text-white shadow-md hover:bg-[#b94700]"
+                          : ""
                       }`}
                     >
                       {formatTime(slot)}
@@ -260,7 +268,7 @@ export default function AppointmentSlotPicker({
                 })}
               </div>
             ) : (
-              <p className="mt-2 text-sm text-gray-500">
+              <p className="text-sm text-gray-500">
                 Choose a highlighted day to see available times.
               </p>
             )}

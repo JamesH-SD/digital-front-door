@@ -111,14 +111,14 @@ export default function ScheduleModal({
   }
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">
-      <div className="flex max-h-[90vh] w-full max-w-2xl flex-col rounded-2xl bg-white p-5 shadow-xl">
-        <div className="flex items-start justify-between gap-3">
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-gray-950/55 p-4 backdrop-blur-sm">
+      <div className="flex max-h-[90vh] w-full max-w-2xl flex-col overflow-hidden rounded-3xl border border-stone-200/80 bg-white shadow-[0_24px_70px_rgba(17,24,39,0.22)]">
+        <div className="flex items-start justify-between gap-4 border-b border-stone-100 px-5 py-5 sm:px-6">
           <div>
-            <h2 className="text-lg font-semibold text-gray-900">
+            <h2 className="text-xl font-semibold tracking-tight text-gray-950">
               Schedule Appointment
             </h2>
-            <p className="mt-1 text-sm text-gray-500">
+            <p className="mt-1 text-sm leading-6 text-gray-500">
               {step === 1
                 ? "Select an available date and time."
                 : "Confirm appointment details before booking."}
@@ -128,19 +128,19 @@ export default function ScheduleModal({
           <button
             type="button"
             onClick={onClose}
-            className="rounded-lg px-2 py-1 text-sm text-gray-500 hover:bg-gray-100"
+            className="inline-flex h-9 w-9 items-center justify-center rounded-xl border border-stone-200 bg-white text-sm text-gray-500 transition hover:bg-stone-50 hover:text-gray-900"
           >
             ✕
           </button>
         </div>
 
         {error ? (
-          <div className="mt-4 rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700">
+          <div className="mx-5 mt-4 rounded-2xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700 sm:mx-6">
             {error}
           </div>
         ) : null}
 
-        <div className="mt-4 overflow-y-auto pr-1">
+        <div className="overflow-y-auto px-5 py-5 sm:px-6">
           {step === 1 ? (
             <AppointmentSlotPicker
               tenantSlug={tenantSlug}
@@ -149,7 +149,7 @@ export default function ScheduleModal({
             />
           ) : (
             <div className="space-y-4">
-              <div className="rounded-xl border bg-blue-50 px-3 py-2 text-sm text-blue-900">
+              <div className="rounded-2xl border border-orange-200 bg-orange-50 px-4 py-3 text-sm text-orange-900">
                 <span className="font-semibold">Selected time:</span>{" "}
                 {formatSelectedSlot(selectedSlot)}
               </div>
@@ -159,14 +159,14 @@ export default function ScheduleModal({
                   Appointment Type
                 </label>
 
-                <div className="mt-2 grid grid-cols-2 gap-2">
+                <div className="mt-2 grid grid-cols-2 gap-3">
                   <button
                     type="button"
                     onClick={() => setAppointmentType("call")}
-                    className={`rounded-xl border px-3 py-2 text-sm font-semibold ${
+                    className={`rounded-2xl border px-4 py-3 text-sm font-semibold shadow-sm transition ${
                       appointmentType === "call"
-                        ? "border-blue-600 bg-blue-50 text-blue-800"
-                        : "bg-white text-gray-700 hover:bg-gray-50"
+                        ? "border-orange-300 bg-orange-50 text-orange-900 ring-2 ring-orange-100"
+                        : "border-stone-200 bg-white text-gray-700 hover:bg-stone-50"
                     }`}
                   >
                     Phone Call
@@ -175,10 +175,10 @@ export default function ScheduleModal({
                   <button
                     type="button"
                     onClick={() => setAppointmentType("site_visit")}
-                    className={`rounded-xl border px-3 py-2 text-sm font-semibold ${
+                    className={`rounded-2xl border px-4 py-3 text-sm font-semibold shadow-sm transition ${
                       appointmentType === "site_visit"
-                        ? "border-blue-600 bg-blue-50 text-blue-800"
-                        : "bg-white text-gray-700 hover:bg-gray-50"
+                        ? "border-orange-300 bg-orange-50 text-orange-900 ring-2 ring-orange-100"
+                        : "border-stone-200 bg-white text-gray-700 hover:bg-stone-50"
                     }`}
                   >
                     Site Visit
@@ -195,7 +195,7 @@ export default function ScheduleModal({
                     value={address}
                     onChange={(e) => setAddress(e.target.value)}
                     placeholder="Enter the project address"
-                    className="mt-1 w-full rounded-lg border border-stone-200 px-3 py-2 text-sm outline-none focus:border-stone-400"
+                    className="saas-input mt-1 w-full px-3 py-2.5 text-sm"
                   />
                   <p className="mt-1 text-xs text-gray-500">
                     Required for site visits. Phone calls do not need an address.
@@ -211,7 +211,7 @@ export default function ScheduleModal({
                   value={title}
                   onChange={(e) => setTitle(e.target.value)}
                   placeholder="Example: Bathroom Remodel Walkthrough"
-                  className="mt-1 w-full rounded-lg border border-stone-200 px-3 py-2 text-sm outline-none focus:border-stone-400"
+                  className="saas-input mt-1 w-full px-3 py-2.5 text-sm"
                 />
               </div>
 
@@ -220,7 +220,7 @@ export default function ScheduleModal({
                   Calendar Event Preview
                 </label>
 
-                <pre className="mt-2 max-h-64 overflow-y-auto whitespace-pre-wrap rounded-xl border border-stone-200 bg-stone-50 p-3 text-sm text-gray-700">
+                <pre className="mt-2 max-h-64 overflow-y-auto whitespace-pre-wrap rounded-2xl border border-stone-200 bg-stone-50/80 p-4 text-sm leading-6 text-gray-700">
                   {description}
                 </pre>
               </div>
@@ -228,13 +228,13 @@ export default function ScheduleModal({
           )}
         </div>
 
-        <div className="mt-5 flex justify-end gap-2 border-t pt-4">
+        <div className="flex justify-end gap-3 border-t border-stone-100 px-5 py-4 sm:px-6">
           {step === 1 ? (
             <>
               <button
                 type="button"
                 onClick={onClose}
-                className="rounded-lg px-3 py-2 text-sm font-medium text-gray-700 hover:bg-gray-100"
+                className="saas-button-secondary px-4 py-2 text-sm font-semibold"
               >
                 Cancel
               </button>
@@ -243,7 +243,7 @@ export default function ScheduleModal({
                 type="button"
                 onClick={() => setStep(2)}
                 disabled={!canContinue}
-                className="rounded-lg bg-blue-600 px-4 py-2 text-sm font-semibold text-white hover:bg-blue-700 disabled:cursor-not-allowed disabled:opacity-50"
+                className="saas-button-primary px-4 py-2 text-sm font-semibold disabled:cursor-not-allowed disabled:opacity-50"
               >
                 Next
               </button>
@@ -253,7 +253,7 @@ export default function ScheduleModal({
               <button
                 type="button"
                 onClick={() => setStep(1)}
-                className="rounded-lg border px-3 py-2 text-sm font-semibold text-gray-700 hover:bg-gray-100"
+                className="saas-button-secondary px-4 py-2 text-sm font-semibold"
               >
                 Back
               </button>
@@ -262,7 +262,7 @@ export default function ScheduleModal({
                 type="button"
                 onClick={() => void book()}
                 disabled={!canBook || isBooking}
-                className="rounded-lg bg-blue-600 px-4 py-2 text-sm font-semibold text-white hover:bg-blue-700 disabled:cursor-not-allowed disabled:opacity-50"
+                className="saas-button-primary px-4 py-2 text-sm font-semibold disabled:cursor-not-allowed disabled:opacity-50"
               >
                 {isBooking ? "Booking..." : "Book Appointment"}
               </button>

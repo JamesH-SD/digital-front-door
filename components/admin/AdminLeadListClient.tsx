@@ -126,7 +126,7 @@ function SortableHeader({
     <button
       type="button"
       onClick={() => onSort(field)}
-      className="inline-flex items-center gap-1 text-left transition hover:text-gray-900"
+      className="inline-flex items-center gap-1.5 text-left transition hover:text-gray-950"
     >
       <span>{label}</span>
       <span className="text-[10px]">
@@ -237,7 +237,7 @@ export default function AdminLeadListClient({
 
   if (leads.length === 0) {
     return (
-      <div className="rounded-2xl border border-dashed bg-white px-6 py-16 text-center shadow-sm">
+      <div className="rounded-3xl border border-dashed border-stone-300 bg-white/95 px-6 py-16 text-center shadow-[0_12px_30px_rgba(17,24,39,0.05)]">
         <h2 className="text-xl font-semibold text-gray-900">
           No leads captured yet
         </h2>
@@ -249,9 +249,9 @@ export default function AdminLeadListClient({
   }
 
   return (
-    <div className="space-y-3">
-      <div className="flex flex-col gap-4 border-b border-stone-100 pb-4 lg:flex-row lg:items-center lg:justify-end">
-        <div className="flex flex-col gap-3 sm:flex-row sm:items-center">
+    <div className="space-y-4">
+      <div className="rounded-3xl border border-stone-200/70 bg-white/95 p-4 shadow-[0_10px_26px_rgba(17,24,39,0.05)] lg:flex lg:items-center lg:justify-end">
+        <div className="flex w-full flex-col gap-3 sm:flex-row sm:items-center lg:w-auto">
         <div className="relative w-full sm:w-80">
           <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-gray-400" />
           <input
@@ -262,7 +262,7 @@ export default function AdminLeadListClient({
               resetToFirstPage();
             }}
             placeholder="Search leads..."
-            className="w-full rounded-2xl border border-stone-200 bg-white/90 py-2.5 pl-10 pr-4 text-sm text-gray-900 shadow-sm outline-none transition focus:border-[#d35400]/40 focus:ring-4 focus:ring-orange-100"
+            className="saas-input w-full py-2.5 pl-10 pr-4 text-sm"
           />
         </div>
 
@@ -273,7 +273,7 @@ export default function AdminLeadListClient({
               setStatusFilter(e.target.value as StatusFilter);
               resetToFirstPage();
             }}
-            className="rounded-2xl border border-stone-200 bg-white/90 px-4 py-2.5 text-sm text-gray-900 shadow-sm outline-none transition focus:border-[#d35400]/40 focus:ring-4 focus:ring-orange-100"
+            className="saas-input px-4 py-2.5 text-sm"
           >
             <option value="all">All statuses</option>
             <option value="new">New</option>
@@ -282,7 +282,7 @@ export default function AdminLeadListClient({
             <option value="closed">Closed</option>
           </select>
 
-          <span className="whitespace-nowrap rounded-full bg-stone-100 px-3 py-1 text-xs font-semibold text-stone-600">
+          <span className="whitespace-nowrap rounded-full border border-stone-200 bg-stone-50 px-3 py-1.5 text-xs font-semibold text-stone-600">
             {filteredAndSortedLeads.length} / {leads.length}
           </span>
         </div>
@@ -300,7 +300,7 @@ export default function AdminLeadListClient({
             setSortField(field);
             setSortDirection(direction);
           }}
-          className="w-full rounded-lg border bg-white px-3 py-2 text-sm text-gray-900 outline-none focus:border-stone-400"
+          className="saas-input w-full px-3 py-2.5 text-sm"
         >
           <option value="createdAt:desc">Created (Newest)</option>
           <option value="createdAt:asc">Created (Oldest)</option>
@@ -318,7 +318,7 @@ export default function AdminLeadListClient({
       </div>
 
       {filteredAndSortedLeads.length === 0 ? (
-      <div className="rounded-2xl border bg-white px-6 py-16 text-center shadow-sm">
+      <div className="rounded-3xl border border-stone-200/70 bg-white/95 px-6 py-16 text-center shadow-[0_12px_30px_rgba(17,24,39,0.05)]">
         <h2 className="text-xl font-semibold text-gray-900">
           No matching leads
         </h2>
@@ -328,8 +328,8 @@ export default function AdminLeadListClient({
       </div>
     ) : (
       <>
-        <div className="overflow-hidden rounded-3xl border border-stone-200/70 bg-white/95 shadow-[0_12px_30px_rgba(17,24,39,0.06)]">
-          <div className="hidden grid-cols-6 gap-4 border-b border-stone-200 bg-stone-50/80 px-5 py-3 text-[11px] font-semibold tracking-[0.12em] text-stone-500 md:grid">
+        <div className="overflow-hidden rounded-3xl border border-stone-200/70 bg-white/95 shadow-[0_14px_36px_rgba(17,24,39,0.06)]">
+          <div className="hidden grid-cols-6 gap-4 border-b border-stone-200 bg-stone-50/80 px-5 py-3.5 text-[11px] font-semibold uppercase tracking-[0.12em] text-stone-500 md:grid">
             <div>
               <SortableHeader
                 label="Lead"
@@ -396,7 +396,7 @@ export default function AdminLeadListClient({
               <Link
                 key={lead.id}
                 href={`/admin/${tenantSlug}/leads/${lead.id}`}
-                className="block border-b border-stone-100 px-5 py-4 transition hover:bg-orange-50/40 hover:shadow-[inset_3px_0_0_#c2410c]"
+                className="group block border-b border-stone-100 px-5 py-4 transition last:border-b-0 hover:bg-orange-50/50 hover:shadow-[inset_3px_0_0_#c2410c]"
               >
                 <div className="space-y-2 md:hidden">
                   <div className="flex items-start justify-between gap-3">
@@ -478,7 +478,7 @@ export default function AdminLeadListClient({
         </div>
 
         {filteredAndSortedLeads.length > pageSize ? (
-          <div className="mt-4 flex flex-col gap-3 rounded-2xl border border-stone-200 bg-white px-4 py-3 text-sm text-gray-600 sm:flex-row sm:items-center sm:justify-between">
+          <div className="mt-4 flex flex-col gap-3 rounded-3xl border border-stone-200/70 bg-white/95 px-4 py-3 text-sm text-gray-600 shadow-[0_10px_24px_rgba(17,24,39,0.04)] sm:flex-row sm:items-center sm:justify-between">
             <p>
               Showing{" "}
               <span className="font-semibold text-gray-900">

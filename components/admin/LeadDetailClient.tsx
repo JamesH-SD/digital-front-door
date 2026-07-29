@@ -292,7 +292,7 @@ function CompactField({
 }) {
   if (isEditing) {
     return (
-      <div className="rounded-lg border bg-gray-50 px-3 py-2">
+      <div className="rounded-2xl border border-stone-200/70 bg-white px-4 py-3 shadow-sm">
         <label className="text-sm font-semibold text-gray-700">
           {label}:
         </label>
@@ -300,7 +300,7 @@ function CompactField({
           value={value || ""}
           onChange={(e) => onChange?.(e.target.value)}
           placeholder={placeholder || `Enter ${label.toLowerCase()}`}
-          className="mt-1 w-full rounded-md border border-stone-200 bg-white px-3 py-2 text-sm text-gray-900 outline-none focus:border-stone-400"
+          className="mt-2 w-full rounded-2xl border border-stone-200 bg-white px-4 py-2.5 text-sm text-gray-900 shadow-sm outline-none transition focus:border-[#d35400] focus:ring-2 focus:ring-orange-100"
         />
       </div>
     );
@@ -313,7 +313,7 @@ function CompactField({
   const href = hrefBuilder ? hrefBuilder(value) : null;
 
   return (
-    <div className="rounded-lg border bg-gray-50 px-3 py-2 text-sm text-gray-900">
+    <div className="rounded-2xl border border-stone-200/70 bg-white px-4 py-3 text-sm text-gray-900 shadow-sm">
       <span className="font-semibold text-gray-700">{label}:</span>{" "}
       {href && value && value.trim() ? (
         <a
@@ -343,7 +343,7 @@ function CollapsibleSection({
   rightLabel?: string;
 }) {
   return (
-    <div className="rounded-2xl border bg-gray-50/60">
+    <div className="rounded-3xl border border-stone-200/70 bg-white shadow-sm">
       <button
         type="button"
         onClick={onToggle}
@@ -366,7 +366,7 @@ function CollapsibleSection({
         </span>
       </button>
 
-      {isOpen ? <div className="border-t px-4 py-4">{children}</div> : null}
+      {isOpen ? <div className="border-t border-stone-200 px-6 py-6">{children}</div> : null}
     </div>
   );
 }
@@ -733,9 +733,9 @@ export default function LeadDetailClient({
 
   return (
     <div className="space-y-6">
-      <div className="rounded-3xl border bg-white p-5 shadow-sm sm:p-6">
-        <div className="space-y-5">
-        <div className="mb-4 rounded-2xl border bg-gray-50 p-4">
+      <div className="rounded-3xl border border-stone-200/70 bg-white p-6 shadow-sm">
+        <div className="space-y-8">
+        <div className="mb-6 rounded-3xl border border-stone-200/70 bg-stone-50/60 p-6 shadow-sm">
           <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
             <div className="min-w-0">
               <h3 className="text-sm font-semibold text-gray-900">
@@ -751,7 +751,7 @@ export default function LeadDetailClient({
                 type="button"
                 onClick={() => void loadLeadCopilot(true)}
                 disabled={isGeneratingSummary || isGeneratingReply || isGeneratingInsights}
-                className="inline-flex items-center justify-center rounded-xl border bg-white px-3 py-2 text-sm font-semibold text-gray-700 transition hover:bg-gray-50 disabled:cursor-not-allowed disabled:opacity-50"
+                className="inline-flex items-center justify-center rounded-2xl bg-[#d35400] px-4 py-2.5 text-sm font-semibold text-white shadow-sm transition hover:bg-[#b84700] hover:shadow-md disabled:cursor-not-allowed disabled:opacity-50"
               >
                 {isGeneratingSummary || isGeneratingReply || isGeneratingInsights
                   ? "Generating..."
@@ -763,14 +763,14 @@ export default function LeadDetailClient({
               <button
                 type="button"
                 onClick={() => setIsAiToolsOpen((prev) => !prev)}
-                className="inline-flex items-center justify-center rounded-xl border bg-white px-3 py-2 text-sm font-semibold text-gray-700 transition hover:bg-gray-50"
+                className="inline-flex items-center justify-center rounded-2xl border border-stone-200 bg-white px-4 py-2.5 text-sm font-semibold text-gray-700 shadow-sm transition hover:border-[#d35400]/30 hover:bg-orange-50 hover:text-[#d35400] hover:shadow-md"
               >
                 {isAiToolsOpen ? "Hide AI Tools" : "Show AI Tools"}
               </button>
             </div>
           </div>
 
-          <div className="mt-4 rounded-xl border bg-white p-3">
+          <div className="mt-4 rounded-xl border border-stone-200/70 bg-white p-3">
             <p className="text-xs font-semibold uppercase tracking-wide text-gray-500">
               Summary
             </p>
@@ -792,7 +792,7 @@ export default function LeadDetailClient({
 
           {isAiToolsOpen ? (
             <div className="mt-3 space-y-3">
-              <div className="rounded-xl border bg-white p-3">
+              <div className="rounded-2xl border border-stone-200/70 bg-white p-5 shadow-sm">
                 <p className="text-xs font-semibold uppercase tracking-wide text-gray-500">
                   Suggested Reply
                 </p>
@@ -811,7 +811,7 @@ export default function LeadDetailClient({
                       {buildSmsReplyHref() ? (
                         <a
                           href={buildSmsReplyHref() || undefined}
-                          className="inline-flex items-center justify-center rounded-xl border bg-white px-3 py-2 text-sm font-semibold text-gray-700 transition hover:bg-gray-50 sm:hidden"
+                          className="inline-flex items-center justify-center rounded-xl border border-stone-200/70 bg-white px-3 py-2 text-sm font-semibold text-gray-700 transition hover:bg-gray-50 sm:hidden"
                         >
                           Text Reply
                         </a>
@@ -820,7 +820,7 @@ export default function LeadDetailClient({
                       {buildEmailReplyHref() ? (
                         <a
                           href={buildEmailReplyHref() || undefined}
-                          className="inline-flex items-center justify-center rounded-xl border bg-white px-3 py-2 text-sm font-semibold text-gray-700 transition hover:bg-gray-50"
+                          className="inline-flex items-center justify-center rounded-xl border border-stone-200/70 bg-white px-3 py-2 text-sm font-semibold text-gray-700 transition hover:bg-gray-50"
                         >
                           Email Reply
                         </a>
@@ -829,7 +829,7 @@ export default function LeadDetailClient({
                       <button
                         type="button"
                         onClick={() => void handleCopyReply()}
-                        className="inline-flex items-center justify-center rounded-xl border bg-white px-3 py-2 text-sm font-semibold text-gray-700 transition hover:bg-gray-50"
+                        className="inline-flex items-center justify-center rounded-xl border border-stone-200/70 bg-white px-3 py-2 text-sm font-semibold text-gray-700 transition hover:bg-gray-50"
                       >
                         Copy Reply
                       </button>
@@ -848,7 +848,7 @@ export default function LeadDetailClient({
                 )}
               </div>
 
-              <div className="rounded-xl border bg-white p-3">
+              <div className="rounded-2xl border border-stone-200/70 bg-white p-5 shadow-sm">
                 <p className="text-xs font-semibold uppercase tracking-wide text-gray-500">
                   Missing Info
                 </p>
@@ -870,7 +870,7 @@ export default function LeadDetailClient({
                 )}
               </div>
 
-              <div className="rounded-xl border bg-white p-3">
+              <div className="rounded-2xl border border-stone-200/70 bg-white p-5 shadow-sm">
                 <p className="text-xs font-semibold uppercase tracking-wide text-gray-500">
                   Suggested Next Step
                 </p>
@@ -924,7 +924,7 @@ export default function LeadDetailClient({
               {buildTelHref(form.phone) ? (
                 <a
                   href={buildTelHref(form.phone) || undefined}
-                  className="inline-flex items-center justify-center rounded-xl border bg-white px-4 py-2 text-sm font-semibold text-gray-700 transition hover:bg-gray-50"
+                  className="inline-flex items-center justify-center rounded-2xl border border-stone-200 bg-white px-4 py-2.5 text-sm font-semibold text-gray-700 shadow-sm transition hover:border-[#d35400]/30 hover:bg-orange-50 hover:text-[#d35400] hover:shadow-md"
                 >
                   Call
                 </a>
@@ -932,7 +932,7 @@ export default function LeadDetailClient({
                 <button
                   type="button"
                   disabled
-                  className="inline-flex items-center justify-center rounded-xl border bg-gray-100 px-4 py-2 text-sm font-semibold text-gray-400"
+                  className="inline-flex items-center justify-center rounded-2xl border border-stone-200 bg-stone-100 px-4 py-2.5 text-sm font-semibold text-stone-400 opacity-70"
                 >
                   Call
                 </button>
@@ -940,7 +940,7 @@ export default function LeadDetailClient({
               {buildSmsHref(form.phone) ? (
                 <a
                   href={buildSmsHref(form.phone) || undefined}
-                  className="inline-flex items-center justify-center rounded-xl border bg-white px-4 py-2 text-sm font-semibold text-gray-700 transition hover:bg-gray-50"
+                  className="inline-flex items-center justify-center rounded-2xl border border-stone-200 bg-white px-4 py-2.5 text-sm font-semibold text-gray-700 shadow-sm transition hover:border-[#d35400]/30 hover:bg-orange-50 hover:text-[#d35400] hover:shadow-md"
                 >
                   Text
                 </a>
@@ -948,7 +948,7 @@ export default function LeadDetailClient({
                 <button
                   type="button"
                   disabled
-                  className="inline-flex items-center justify-center rounded-xl border bg-gray-100 px-4 py-2 text-sm font-semibold text-gray-400"
+                  className="inline-flex items-center justify-center rounded-2xl border border-stone-200 bg-stone-100 px-4 py-2.5 text-sm font-semibold text-stone-400 opacity-70"
                 >
                   Text
                 </button>
@@ -956,7 +956,7 @@ export default function LeadDetailClient({
               {buildMailtoHref(form.email) ? (
                 <a
                   href={buildMailtoHref(form.email) || undefined}
-                  className="inline-flex items-center justify-center rounded-xl border bg-white px-4 py-2 text-sm font-semibold text-gray-700 transition hover:bg-gray-50"
+                  className="inline-flex items-center justify-center rounded-2xl border border-stone-200 bg-white px-4 py-2.5 text-sm font-semibold text-gray-700 shadow-sm transition hover:border-[#d35400]/30 hover:bg-orange-50 hover:text-[#d35400] hover:shadow-md"
                 >
                   Email
                 </a>
@@ -964,7 +964,7 @@ export default function LeadDetailClient({
                 <button
                   type="button"
                   disabled
-                  className="inline-flex items-center justify-center rounded-xl border bg-gray-100 px-4 py-2 text-sm font-semibold text-gray-400"
+                  className="inline-flex items-center justify-center rounded-2xl border border-stone-200 bg-stone-100 px-4 py-2.5 text-sm font-semibold text-stone-400 opacity-70"
                 >
                   Email
                 </button>
@@ -977,10 +977,10 @@ export default function LeadDetailClient({
             </p>
           </div>
 
-          <div className="rounded-2xl border bg-gray-50 p-4">
-          <h3 className="text-sm font-semibold text-gray-900">
-            How They Found You
-          </h3>
+          <div className="rounded-3xl border border-stone-200/70 bg-stone-50/60 px-4 py-5 shadow-sm">
+            <h3 className="text-sm font-semibold text-gray-900">
+              How They Found You
+            </h3>
 
             <div className="mt-4 grid gap-3 md:grid-cols-2">
 
@@ -1003,7 +1003,7 @@ export default function LeadDetailClient({
             </div>
           </div>
 
-          <div className="grid gap-3 md:grid-cols-2">
+          <div className="grid gap-3 px-4 md:grid-cols-2">
             <CompactField
               label="Phone"
               value={form.phone}
@@ -1034,7 +1034,7 @@ export default function LeadDetailClient({
               }
             />
 
-            <div className="rounded-lg border bg-gray-50 px-3 py-2 text-sm text-gray-900">
+            <div className="rounded-2xl border border-stone-200/70 bg-white px-4 py-3 text-sm text-gray-900 shadow-sm">
               {isEditing ? (
                 <>
                   <label className="text-sm font-semibold text-gray-700">
@@ -1049,7 +1049,7 @@ export default function LeadDetailClient({
                       }))
                     }
                     placeholder="Enter date and time"
-                    className="mt-1 w-full rounded-md border border-stone-200 bg-white px-3 py-2 text-sm text-gray-900 outline-none focus:border-stone-400"
+                    className="mt-2 w-full rounded-2xl border border-stone-200 bg-white px-4 py-2.5 text-sm text-gray-900 shadow-sm outline-none transition focus:border-[#d35400] focus:ring-2 focus:ring-orange-100"
                   />
                 </>
               ) : (
@@ -1074,7 +1074,7 @@ export default function LeadDetailClient({
                     <button
                       type="button"
                       onClick={() => setShowAppointmentModal(true)}
-                      className="shrink-0 rounded-lg border px-3 py-1.5 text-xs font-semibold text-gray-700 transition hover:bg-gray-100"
+                      className="rounded-xl border border-stone-200 bg-white px-3 py-2 text-xs font-semibold text-gray-700 shadow-sm transition hover:border-[#d35400]/30 hover:bg-orange-50 hover:text-[#d35400]"
                     >
                       View Appointment
                     </button>
@@ -1082,7 +1082,7 @@ export default function LeadDetailClient({
                     <button
                       type="button"
                       onClick={() => setShowSchedule(true)}
-                      className="shrink-0 rounded-lg border px-3 py-1.5 text-xs font-semibold text-gray-700 transition hover:bg-gray-100"
+                      className="rounded-xl border border-stone-200 bg-white px-3 py-2 text-xs font-semibold text-gray-700 shadow-sm transition hover:border-[#d35400]/30 hover:bg-orange-50 hover:text-[#d35400]"
                     >
                       Schedule Appointment
                     </button>
@@ -1167,7 +1167,7 @@ export default function LeadDetailClient({
                     type="button"
                     onClick={() => fileInputRef.current?.click()}
                     disabled={isUploading}
-                    className="rounded-lg border px-3 py-1.5 text-xs font-semibold text-gray-700 transition hover:bg-gray-100 disabled:cursor-not-allowed disabled:opacity-60"
+                    className="rounded-xl border border-stone-200 bg-white px-3 py-2 text-xs font-semibold text-gray-700 shadow-sm transition hover:border-[#d35400]/30 hover:bg-orange-50 hover:text-[#d35400]"
                   >
                     {isUploading ? "Uploading..." : "Upload Image"}
                   </button>
@@ -1177,7 +1177,7 @@ export default function LeadDetailClient({
               {form.images.length > 0 ? (
                 <div className="mt-3 grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
                   {form.images.map((image, index) => (
-                    <div key={image.id} className="rounded-xl border bg-gray-50 p-3">
+                    <div key={image.id} className="rounded-2xl border border-stone-200/70 bg-white p-4 shadow-sm transition hover:shadow-md">
                       <button
                         type="button"
                         onClick={() => {
@@ -1215,7 +1215,7 @@ export default function LeadDetailClient({
               {customerUpdateEntries.length > 0 ? (
                 <div className="space-y-3">
                   {customerUpdateEntries.map((entry, index) => (
-                    <div key={`${entry.timestamp || "update"}-${index}`} className="rounded-xl border bg-white p-3">
+                    <div key={`${entry.timestamp || "update"}-${index}`} className="rounded-2xl border border-stone-200/70 bg-white p-5 shadow-sm">
                       {entry.timestamp ? (
                         <p className="mb-1 text-xs font-medium text-gray-500">
                           {formatTimestampForDisplay(entry.timestamp)}
@@ -1268,7 +1268,7 @@ export default function LeadDetailClient({
               }`}
             >
               {visibleActivities.length > 0 ? (
-                <div className="rounded-xl border bg-white px-4 py-2">
+                <div className="rounded-2xl border border-stone-200/70 bg-white p-6 shadow-sm">
                   <div className="space-y-4">
                     {orderedGroups.map((group) => (
                       <div key={group}>
