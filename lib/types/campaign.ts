@@ -12,8 +12,18 @@ export type TenantCampaign = {
   updatedAt: string;
 };
 
+export type CampaignSourceCount = {
+  source: string;
+  count: number;
+};
+
 export type CampaignWithCounts = TenantCampaign & {
   knowledgeItemCount: number;
   imageCount: number;
   documentCount: number;
+
+  leadCount: number;
+  bookedAppointmentCount: number;
+  bookingRate: number;
+  sourceCounts: CampaignSourceCount[];
 };

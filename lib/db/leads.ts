@@ -19,6 +19,7 @@ function mapLead(row: any): Lead {
     leadSource: row.lead_source ?? null,
     campaignId: row.campaign_id ?? null,
     campaignName: row.campaign_name ?? null,
+    campaignAssetId: row.campaign_asset_id ?? null,
     notes: row.notes ?? undefined,
     customerUpdates: row.customer_updates ?? undefined,
     images: row.images ?? [],
@@ -83,6 +84,7 @@ export async function createLead(input: {
   appointment?: string;
   leadSource?: string | null;
   campaignId?: string | null;
+  campaignAssetId?: string | null;
   campaignName?: string | null;
   notes?: string;
   customerUpdates?: string;
@@ -127,6 +129,7 @@ export async function createLead(input: {
       session_id: input.sessionId ?? null,
       lead_source: input.leadSource ?? "website",
       campaign_id: input.campaignId ?? null,
+      campaign_asset_id: input.campaignAssetId ?? null,
       campaign_name: input.campaignName ?? null,
       customer_name: input.customerName,
       phone: input.phone ?? null,

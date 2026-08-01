@@ -37,14 +37,18 @@ export async function getTenantCampaigns(
 ): Promise<CampaignWithCounts[]> {
   const supabase = createAdminClient();
 
-  const { data: campaigns, error } = await supabase
+  const { data: campaigns, error: campaignError } = await supabase
     .from("tenant_campaigns")
     .select("*")
     .eq("tenant_slug", tenantSlug)
     .order("created_at", { ascending: false });
 
-  if (error) {
-    console.error("Error loading tenant campaigns:", error.message);
+  if (campaignError) {
+    console.error(
+      "Error loading tenant campaigns:",
+      campaignError.message
+    );
+
     return [];
   }
 
@@ -56,11 +60,25 @@ export async function getTenantCampaigns(
 
   const campaignIds = campaignRows.map((campaign) => campaign.id);
 
-  const { data: knowledgeItems, error: knowledgeError } = await supabase
-    .from("tenant_knowledge_items")
-    .select("campaign_id, source_type, mime_type")
-    .eq("tenant_slug", tenantSlug)
-    .in("campaign_id", campaignIds);
+  /*
+   * Load campaign content and campaign leads at the same time.
+   */
+  const [
+    { data: knowledgeItems, error: knowledgeError },
+    { data: campaignLeads, error: leadsError },
+  ] = await Promise.all([
+    supabase
+      .from("tenant_knowledge_items")
+      .select("campaign_id, source_type, mime_type")
+      .eq("tenant_slug", tenantSlug)
+      .in("campaign_id", campaignIds),
+
+    supabase
+      .from("leads")
+      .select("id, campaign_id, lead_source, status")
+      .eq("tenant_slug", tenantSlug)
+      .in("campaign_id", campaignIds),
+  ]);
 
   if (knowledgeError) {
     console.error(
@@ -69,7 +87,45 @@ export async function getTenantCampaigns(
     );
   }
 
-  const counts = new Map<
+  if (leadsError) {
+    console.error(
+      "Error loading campaign lead analytics:",
+      leadsError.message
+    );
+  }
+
+  const leadRows = campaignLeads ?? [];
+  const leadIds = leadRows.map((lead) => lead.id);
+
+  /*
+   * Appointments are linked to leads rather than directly to campaigns.
+   * Only query them when campaign leads exist.
+   */
+  let appointmentRows: Array<{
+    lead_id: string;
+    status: string;
+  }> = [];
+
+  if (leadIds.length > 0) {
+    const { data: appointments, error: appointmentError } = await supabase
+      .from("appointments")
+      .select("lead_id, status")
+      .in("lead_id", leadIds);
+
+    if (appointmentError) {
+      console.error(
+        "Error loading campaign appointment analytics:",
+        appointmentError.message
+      );
+    } else {
+      appointmentRows = appointments ?? [];
+    }
+  }
+
+  /*
+   * Existing campaign-content counts.
+   */
+  const contentCounts = new Map<
     string,
     {
       knowledgeItemCount: number;
@@ -81,7 +137,7 @@ export async function getTenantCampaigns(
   for (const item of knowledgeItems ?? []) {
     if (!item.campaign_id) continue;
 
-    const current = counts.get(item.campaign_id) ?? {
+    const current = contentCounts.get(item.campaign_id) ?? {
       knowledgeItemCount: 0,
       imageCount: 0,
       documentCount: 0,
@@ -102,20 +158,127 @@ export async function getTenantCampaigns(
       current.documentCount += 1;
     }
 
-    counts.set(item.campaign_id, current);
+    contentCounts.set(item.campaign_id, current);
+  }
+
+  /*
+   * Create a lookup from lead ID to campaign ID.
+   */
+  const campaignIdByLeadId = new Map<string, string>();
+
+  for (const lead of leadRows) {
+    if (!lead.id || !lead.campaign_id) continue;
+
+    campaignIdByLeadId.set(lead.id, lead.campaign_id);
+  }
+
+  /*
+   * Track unique leads that have a confirmed appointment.
+   *
+   * Using a Set prevents one lead with multiple appointment records from
+   * being counted more than once.
+   */
+  const bookedLeadIdsByCampaign = new Map<string, Set<string>>();
+
+  for (const appointment of appointmentRows) {
+    if (appointment.status !== "confirmed") {
+      continue;
+    }
+
+    const campaignId = campaignIdByLeadId.get(appointment.lead_id);
+
+    if (!campaignId) {
+      continue;
+    }
+
+    const current =
+      bookedLeadIdsByCampaign.get(campaignId) ?? new Set<string>();
+
+    current.add(appointment.lead_id);
+    bookedLeadIdsByCampaign.set(campaignId, current);
+  }
+
+  /*
+   * Track lead totals and source breakdowns.
+   */
+  const leadCountsByCampaign = new Map<string, number>();
+
+  const sourceCountsByCampaign = new Map<
+    string,
+    Map<string, number>
+  >();
+
+  for (const lead of leadRows) {
+    if (!lead.campaign_id) continue;
+
+    leadCountsByCampaign.set(
+      lead.campaign_id,
+      (leadCountsByCampaign.get(lead.campaign_id) ?? 0) + 1
+    );
+
+    const source =
+      typeof lead.lead_source === "string" &&
+      lead.lead_source.trim()
+        ? lead.lead_source.trim()
+        : "unknown";
+
+    const campaignSources =
+      sourceCountsByCampaign.get(lead.campaign_id) ??
+      new Map<string, number>();
+
+    campaignSources.set(
+      source,
+      (campaignSources.get(source) ?? 0) + 1
+    );
+
+    sourceCountsByCampaign.set(
+      lead.campaign_id,
+      campaignSources
+    );
   }
 
   return campaignRows.map((row) => {
     const campaign = mapCampaignRow(row);
-    const campaignCounts = counts.get(campaign.id) ?? {
-      knowledgeItemCount: 0,
-      imageCount: 0,
-      documentCount: 0,
-    };
+
+    const campaignContentCounts =
+      contentCounts.get(campaign.id) ?? {
+        knowledgeItemCount: 0,
+        imageCount: 0,
+        documentCount: 0,
+      };
+
+    const leadCount =
+      leadCountsByCampaign.get(campaign.id) ?? 0;
+
+    const bookedAppointmentCount =
+      bookedLeadIdsByCampaign.get(campaign.id)?.size ?? 0;
+
+    const bookingRate =
+      leadCount > 0
+        ? Number(
+            (
+              (bookedAppointmentCount / leadCount) *
+              100
+            ).toFixed(1)
+          )
+        : 0;
+
+    const sourceCounts = Array.from(
+      sourceCountsByCampaign.get(campaign.id)?.entries() ?? []
+    )
+      .map(([source, count]) => ({
+        source,
+        count,
+      }))
+      .sort((a, b) => b.count - a.count);
 
     return {
       ...campaign,
-      ...campaignCounts,
+      ...campaignContentCounts,
+      leadCount,
+      bookedAppointmentCount,
+      bookingRate,
+      sourceCounts,
     };
   });
 }

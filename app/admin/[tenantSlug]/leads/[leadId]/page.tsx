@@ -3,6 +3,7 @@ import LeadDetailClient from "@/components/admin/LeadDetailClient";
 import { getLeadById } from "@/lib/db/leads";
 import { getLeadActivities } from "@/lib/db/lead-activities";
 import AdminBreadcrumbsSetter from "@/components/admin/AdminBreadcrumbsSetter";
+import { getMessagesForSession } from "@/lib/db/chat";
 
 type PageProps = {
   params: Promise<{
@@ -20,7 +21,12 @@ export default async function LeadDetailPage({ params }: PageProps) {
     notFound();
   }
 
-  const activities = await getLeadActivities(lead.id);
+  const [activities, messages] = await Promise.all([
+    getLeadActivities(lead.id),
+    lead.sessionId
+      ? getMessagesForSession(lead.sessionId)
+      : Promise.resolve([]),
+  ]);
 
   return (
     <>
@@ -32,7 +38,11 @@ export default async function LeadDetailPage({ params }: PageProps) {
         ]}
       />
 
-      <LeadDetailClient lead={lead} activities={activities} />
+      <LeadDetailClient
+        lead={lead}
+        activities={activities}
+        messages={messages}
+      />
     </>
   );
 }

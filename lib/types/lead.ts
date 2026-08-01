@@ -22,6 +22,7 @@ export type Lead = {
   appointment?: string;
   leadSource?: string | null;
   campaignId?: string | null;
+  campaignAssetId?: string | null;
   campaignName?: string | null;
   notes?: string;
   customerUpdates?: string;

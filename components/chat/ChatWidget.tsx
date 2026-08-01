@@ -13,6 +13,7 @@ type Props = {
   autoOpen?: boolean;
   leadSource?: string;
   campaignId?: string;
+  campaignAssetId?: string;
   variant?: "page" | "embed";
 };
 
@@ -98,6 +99,7 @@ export function ChatWidget({
   autoOpen = true,
   leadSource = "website",
   campaignId,
+  campaignAssetId,
   variant = "page",
 }: Props) {
   const [sessionId, setSessionId] = useState<string | null>(null);
@@ -166,6 +168,7 @@ export function ChatWidget({
           tenantSlug: tenant.slug,
           leadSource,
           campaignId,
+          campaignAssetId,
         }),
       });
 

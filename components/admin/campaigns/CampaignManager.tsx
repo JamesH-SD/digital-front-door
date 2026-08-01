@@ -1,7 +1,6 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
-import QRCode from "qrcode";
 import type {
   CampaignStatus,
   CampaignWithCounts,
@@ -10,6 +9,8 @@ import type {
   TenantKnowledgeItem,
   TenantKnowledgeSourceType,
 } from "@/lib/types/tenant-knowledge";
+import MarketingAssetsPanel from "@/components/admin/campaigns/MarketingAssetsPanel";
+import { formatLeadSource } from "@/lib/utils/leadSource";
 
 type Props = {
   tenantSlug: string;
@@ -58,6 +59,64 @@ function parseTags(value: string) {
     .filter(Boolean);
 }
 
+function CampaignWorkspaceSection({
+  title,
+  description,
+  isOpen,
+  onToggle,
+  summary,
+  children,
+}: {
+  title: string;
+  description: string;
+  isOpen: boolean;
+  onToggle: () => void;
+  summary?: string;
+  children: React.ReactNode;
+}) {
+  return (
+    <section className="overflow-hidden rounded-3xl border border-stone-200/70 bg-white shadow-sm">
+      <button
+        type="button"
+        onClick={onToggle}
+        className="flex w-full items-center justify-between gap-4 px-5 py-5 text-left transition hover:bg-stone-50/70"
+        aria-expanded={isOpen}
+      >
+        <div className="min-w-0">
+          <h3 className="font-semibold text-gray-950">
+            {title}
+          </h3>
+
+          <p className="mt-1 text-sm leading-6 text-gray-500">
+            {description}
+          </p>
+
+          {!isOpen && summary ? (
+            <p className="mt-2 text-xs font-medium text-gray-500">
+              {summary}
+            </p>
+          ) : null}
+        </div>
+
+        <span
+          className={`shrink-0 text-sm text-gray-500 transition-transform ${
+            isOpen ? "rotate-180" : ""
+          }`}
+          aria-hidden="true"
+        >
+          ▼
+        </span>
+      </button>
+
+      {isOpen ? (
+        <div className="border-t border-stone-200/70 px-5 py-5">
+          {children}
+        </div>
+      ) : null}
+    </section>
+  );
+}
+
 export default function CampaignManager({ tenantSlug }: Props) {
   const [campaigns, setCampaigns] = useState<CampaignWithCounts[]>([]);
   const [selectedCampaignId, setSelectedCampaignId] = useState<string | null>(
@@ -68,9 +127,10 @@ export default function CampaignManager({ tenantSlug }: Props) {
   const [isSaving, setIsSaving] = useState(false);
   const [message, setMessage] = useState("");
 
-  const [campaignQrPreviewUrl, setCampaignQrPreviewUrl] = useState("");
-  const [isGeneratingQr, setIsGeneratingQr] = useState(false);
-  const [isCampaignLinkCopied, setIsCampaignLinkCopied] = useState(false);
+  const [isDetailsOpen, setIsDetailsOpen] = useState(true);
+  const [isKnowledgeOpen, setIsKnowledgeOpen] = useState(true);
+  const [isAssetsOpen, setIsAssetsOpen] = useState(true);
+  const [isResultsOpen, setIsResultsOpen] = useState(false);
 
   const [newCampaign, setNewCampaign] = useState({
     name: "",
@@ -111,20 +171,6 @@ export default function CampaignManager({ tenantSlug }: Props) {
       campaigns.find((campaign) => campaign.id === selectedCampaignId) || null,
     [campaigns, selectedCampaignId]
   );
-
-  const campaignPublicUrl = useMemo(() => {
-    if (!selectedCampaign) {
-      return "";
-    }
-  
-    const path = `/${tenantSlug}/campaign/${selectedCampaign.qrSlug}`;
-  
-    if (typeof window === "undefined") {
-      return path;
-    }
-  
-    return `${window.location.origin}${path}`;
-  }, [selectedCampaign, tenantSlug]);
 
   async function loadCampaigns() {
     try {
@@ -208,6 +254,11 @@ export default function CampaignManager({ tenantSlug }: Props) {
           knowledgeItemCount: 0,
           imageCount: 0,
           documentCount: 0,
+      
+          leadCount: 0,
+          bookedAppointmentCount: 0,
+          bookingRate: 0,
+          sourceCounts: [],
         },
         ...previous,
       ]);
@@ -530,61 +581,6 @@ export default function CampaignManager({ tenantSlug }: Props) {
     }
   }
 
-  async function copyCampaignLink() {
-    if (!campaignPublicUrl) {
-      return;
-    }
-  
-    try {
-      await navigator.clipboard.writeText(campaignPublicUrl);
-      setIsCampaignLinkCopied(true);
-  
-      window.setTimeout(() => {
-        setIsCampaignLinkCopied(false);
-      }, 1500);
-    } catch (error) {
-      console.error("Failed to copy campaign link:", error);
-      setMessage("Could not copy the campaign link.");
-    }
-  }
-
-  async function downloadCampaignQr() {
-    if (!selectedCampaign || !campaignPublicUrl) {
-      return;
-    }
-  
-    try {
-      setIsGeneratingQr(true);
-      setMessage("");
-  
-      const dataUrl = await QRCode.toDataURL(campaignPublicUrl, {
-        width: 1024,
-        margin: 2,
-        errorCorrectionLevel: "H",
-      });
-  
-      const safeCampaignName = selectedCampaign.name
-        .trim()
-        .toLowerCase()
-        .replace(/[^a-z0-9]+/g, "-")
-        .replace(/^-+|-+$/g, "");
-  
-      const link = document.createElement("a");
-  
-      link.href = dataUrl;
-      link.download = `${safeCampaignName || "campaign"}-qr.png`;
-  
-      document.body.appendChild(link);
-      link.click();
-      link.remove();
-    } catch (error) {
-      console.error("Failed to generate campaign QR code:", error);
-      setMessage("Could not generate the campaign QR code.");
-    } finally {
-      setIsGeneratingQr(false);
-    }
-  }
-
   async function deleteCampaignItem(item: TenantKnowledgeItem) {
     const confirmed = window.confirm(
       item.fileUrl
@@ -719,30 +715,6 @@ export default function CampaignManager({ tenantSlug }: Props) {
     }
   }, [selectedCampaignId]);
 
-  useEffect(() => {
-    async function generateCampaignQrPreview() {
-      if (!campaignPublicUrl) {
-        setCampaignQrPreviewUrl("");
-        return;
-      }
-  
-      try {
-        const dataUrl = await QRCode.toDataURL(campaignPublicUrl, {
-          width: 320,
-          margin: 2,
-          errorCorrectionLevel: "H",
-        });
-  
-        setCampaignQrPreviewUrl(dataUrl);
-      } catch (error) {
-        console.error("Failed generating campaign QR preview:", error);
-        setCampaignQrPreviewUrl("");
-      }
-    }
-  
-    void generateCampaignQrPreview();
-  }, [campaignPublicUrl]);
-
   return (
     <div className="space-y-6">
       {message ? (
@@ -849,6 +821,11 @@ export default function CampaignManager({ tenantSlug }: Props) {
                     setIsEditingCampaign(false);
                     setEntryMode("none");
                     setMessage("");
+                  
+                    setIsDetailsOpen(true);
+                    setIsKnowledgeOpen(campaign.knowledgeItemCount === 0);
+                    setIsAssetsOpen(true);
+                    setIsResultsOpen(false);
                   }}
                   className={`w-full rounded-2xl border p-4 text-left transition ${
                     selectedCampaignId === campaign.id
@@ -956,18 +933,18 @@ export default function CampaignManager({ tenantSlug }: Props) {
                 </div>
               </div>
 
-              <div className="mt-5 rounded-2xl border border-stone-200 bg-white p-5">
-                <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
-                  <div>
-                    <h3 className="font-semibold text-gray-950">
-                      Campaign Details
-                    </h3>
-
-                    <p className="mt-1 text-sm text-gray-500">
-                      Information that defines this campaign and its opening AI message.
-                    </p>
-                  </div>
-
+              <div className="mt-5">
+                <CampaignWorkspaceSection
+                  title="Campaign Details"
+                  description="Define the campaign, its internal purpose, and the greeting customers receive."
+                  isOpen={isDetailsOpen}
+                  onToggle={() => setIsDetailsOpen((previous) => !previous)}
+                  summary={
+                    selectedCampaign.description?.trim() ||
+                    "No internal description has been added."
+                  }
+                >
+                  <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
                   {!isEditingCampaign ? (
                     <button
                       type="button"
@@ -1082,476 +1059,534 @@ export default function CampaignManager({ tenantSlug }: Props) {
                     </div>
                   </div>
                 )}
-              </div>
+                </CampaignWorkspaceSection>
+            </div>
 
-              <div className="mt-5 rounded-2xl border border-stone-200 bg-stone-50 p-5">
-                <div className="flex flex-col gap-5 sm:flex-row sm:items-start sm:justify-between">
-                  <div className="min-w-0 flex-1">
-                    <p className="text-sm font-semibold text-gray-900">
-                      Campaign QR Code
-                    </p>
-
-                    <p className="mt-1 text-xs leading-5 text-gray-500">
-                      Customers can scan this code to open this campaign.
-                    </p>
-
-                    <div className="mt-4 rounded-xl border border-stone-200 bg-white px-3 py-3">
-                      <p className="break-all text-xs text-gray-700">
-                        {campaignPublicUrl}
-                      </p>
-                    </div>
-
-                    <div className="mt-4 flex flex-wrap gap-2">
-                      <button
-                        type="button"
-                        onClick={() => {
-                          if (!campaignPublicUrl) return;
-
-                          window.open(
-                            campaignPublicUrl,
-                            "_blank",
-                            "noopener,noreferrer"
-                          );
-                        }}
-                        disabled={!campaignPublicUrl}
-                        className="saas-button-secondary px-4 py-2 text-sm font-semibold"
-                      >
-                        Open
-                      </button>
-
-                      <button
-                        type="button"
-                        onClick={copyCampaignLink}
-                        disabled={!campaignPublicUrl}
-                        className="saas-button-secondary px-4 py-2 text-sm font-semibold"
-                      >
-                        {isCampaignLinkCopied ? "Copied" : "Copy Link"}
-                      </button>
-
-                      <button
-                        type="button"
-                        onClick={downloadCampaignQr}
-                        disabled={!campaignPublicUrl || isGeneratingQr}
-                        className="saas-button-accent px-4 py-2 text-sm font-semibold shadow-sm disabled:cursor-not-allowed disabled:opacity-60"
-                      >
-                        {isGeneratingQr ? "Generating..." : "Download QR"}
-                      </button>
-                    </div>
-                  </div>
-
-                  {campaignQrPreviewUrl ? (
-                    <img
-                      src={campaignQrPreviewUrl}
-                      alt={`${selectedCampaign.name} QR code`}
-                      className="h-32 w-32 shrink-0 rounded-xl border border-stone-200 bg-white p-2"
-                    />
-                  ) : (
-                    <div className="flex h-32 w-32 shrink-0 items-center justify-center rounded-xl border border-dashed border-stone-300 bg-white text-center text-xs text-gray-500">
-                      Generating QR...
-                    </div>
-                  )}
-                </div>
-              </div>
-
-              <div className="mt-6">
-                <div className="border-b border-stone-100 pb-5">
-                  <h3 className="font-semibold text-gray-950">
-                    Campaign Knowledge
-                  </h3>
-
-                  <p className="mt-1 max-w-2xl text-sm leading-6 text-gray-500">
-                    Everything added here is available only to this campaign.
-                    Upload documents and images, or add information manually for
-                    your AI receptionist.
-                  </p>
-
-                  <div className="mt-4 flex flex-wrap gap-3">
-                    <button
-                      type="button"
-                      onClick={() =>
-                        setEntryMode((current) =>
-                          current === "upload" ? "none" : "upload"
-                        )
-                      }
-                      className={
-                        entryMode === "upload"
-                          ? "saas-button-primary px-4 py-2 text-sm font-semibold"
-                          : "saas-button-secondary px-4 py-2 text-sm font-semibold"
-                      }
+            <div className="mt-5">
+                    <CampaignWorkspaceSection
+                      title="Campaign Knowledge"
+                      description="Upload documents, images, offers, FAQs, and instructions available only to this campaign."
+                      isOpen={isKnowledgeOpen}
+                      onToggle={() => setIsKnowledgeOpen((previous) => !previous)}
+                      summary={`${selectedCampaign.knowledgeItemCount} item${
+                        selectedCampaign.knowledgeItemCount === 1 ? "" : "s"
+                      } · ${selectedCampaign.imageCount} image${
+                        selectedCampaign.imageCount === 1 ? "" : "s"
+                      } · ${selectedCampaign.documentCount} document${
+                        selectedCampaign.documentCount === 1 ? "" : "s"
+                      }`}
                     >
-                      {entryMode === "upload" ? "Close Upload" : "Upload File"}
-                    </button>
 
-                    <button
-                      type="button"
-                      onClick={() =>
-                        setEntryMode((current) =>
-                          current === "manual" ? "none" : "manual"
-                        )
-                      }
-                      className={
-                        entryMode === "manual"
-                          ? "saas-button-primary px-4 py-2 text-sm font-semibold"
-                          : "saas-button-secondary px-4 py-2 text-sm font-semibold"
-                      }
-                    >
-                      {entryMode === "manual"
-                        ? "Close Information"
-                        : "Add Information"}
-                    </button>
-                  </div>
-                </div>
+                    {entryMode === "upload" ? (
+                      <div className="mt-5 space-y-4">
+                        <label className="block">
+                          <span className="text-xs font-semibold uppercase tracking-wide text-gray-500">
+                            File
+                          </span>
 
-                {entryMode === "upload" ? (
-                  <div className="mt-5 space-y-4">
-                    <label className="block">
-                      <span className="text-xs font-semibold uppercase tracking-wide text-gray-500">
-                        File
-                      </span>
+                          <input
+                            type="file"
+                            onChange={(event) => {
+                              const file = event.target.files?.[0] || null;
+                            
+                              setUploadForm((previous) => ({
+                                ...previous,
+                                file,
+                                title:
+                                  previous.title ||
+                                  (file
+                                    ? file.name.replace(/\.[^/.]+$/, "")
+                                    : ""),
+                              }));
+                            }}
+                            className="mt-1 block w-full rounded-xl border border-stone-200 bg-white px-3 py-3 text-sm text-gray-600"
+                          />
 
-                      <input
-                        type="file"
-                        onChange={(event) => {
-                          const file = event.target.files?.[0] || null;
-                        
-                          setUploadForm((previous) => ({
-                            ...previous,
-                            file,
-                            title:
-                              previous.title ||
-                              (file
-                                ? file.name.replace(/\.[^/.]+$/, "")
-                                : ""),
-                          }));
-                        }}
-                        className="mt-1 block w-full rounded-xl border border-stone-200 bg-white px-3 py-3 text-sm text-gray-600"
-                      />
-
-                      {uploadForm.file ? (
-                        <p className="mt-2 text-sm text-green-700">
-                          ✓ Selected: {uploadForm.file.name}
-                        </p>
-                      ) : null}
-                    </label>
-
-                    <div className="grid gap-4 md:grid-cols-2">
-                      <label>
-                        <span className="text-xs font-semibold uppercase tracking-wide text-gray-500">
-                          Title
-                        </span>
-
-                        <input
-                          value={uploadForm.title}
-                          onChange={(event) =>
-                            setUploadForm((previous) => ({
-                              ...previous,
-                              title: event.target.value,
-                            }))
-                          }
-                          className="saas-input mt-1 w-full px-3 py-2 text-sm"
-                          placeholder="Campaign flyer, pricing sheet, example photo..."
-                        />
-                      </label>
-
-                      <label>
-                        <span className="text-xs font-semibold uppercase tracking-wide text-gray-500">
-                          Type
-                        </span>
-
-                        <select
-                          value={uploadForm.sourceType}
-                          onChange={(event) =>
-                            setUploadForm((previous) => ({
-                              ...previous,
-                              sourceType:
-                                event.target.value as TenantKnowledgeSourceType,
-                            }))
-                          }
-                          className="saas-input mt-1 w-full px-3 py-2 text-sm"
-                        >
-                          <option value="document">Document</option>
-                          <option value="photo">Photo</option>
-                          <option value="faq">FAQ</option>
-                          <option value="pricing">Pricing</option>
-                          <option value="policy">Policy</option>
-                          <option value="service">Service</option>
-                          <option value="manual_note">Other</option>
-                        </select>
-                      </label>
-                    </div>
-
-                    <label className="block">
-                      <span className="text-xs font-semibold uppercase tracking-wide text-gray-500">
-                        Summary
-                      </span>
-
-                      <textarea
-                        value={uploadForm.summary}
-                        onChange={(event) =>
-                          setUploadForm((previous) => ({
-                            ...previous,
-                            summary: event.target.value,
-                          }))
-                        }
-                        rows={3}
-                        className="saas-input mt-1 w-full px-3 py-2 text-sm"
-                        placeholder="Briefly explain what the AI receptionist should know about this file."
-                      />
-                    </label>
-
-                    <label className="block">
-                      <span className="text-xs font-semibold uppercase tracking-wide text-gray-500">
-                        Additional Notes
-                      </span>
-
-                      <textarea
-                        value={uploadForm.notes}
-                        onChange={(event) =>
-                          setUploadForm((previous) => ({
-                            ...previous,
-                            notes: event.target.value,
-                          }))
-                        }
-                        rows={3}
-                        className="saas-input mt-1 w-full px-3 py-2 text-sm"
-                        placeholder="Optional details that may not be included in the uploaded file."
-                      />
-                    </label>
-
-                    <label className="block">
-                      <span className="text-xs font-semibold uppercase tracking-wide text-gray-500">
-                        Tags
-                      </span>
-
-                      <input
-                        value={uploadForm.tags}
-                        onChange={(event) =>
-                          setUploadForm((previous) => ({
-                            ...previous,
-                            tags: event.target.value,
-                          }))
-                        }
-                        className="saas-input mt-1 w-full px-3 py-2 text-sm"
-                        placeholder="promotion, summer, service name"
-                      />
-                    </label>
-
-                    <div className="flex justify-end">
-                      <button
-                        type="button"
-                        onClick={uploadCampaignFile}
-                        disabled={isSaving}
-                        className="saas-button-accent px-4 py-2 text-sm font-semibold disabled:cursor-not-allowed disabled:opacity-60"
-                      >
-                        {isSaving ? "Uploading..." : "Upload to Campaign"}
-                      </button>
-                    </div>
-                  </div>
-                ) : entryMode === "manual" ? (
-                  <div className="mt-5 space-y-4">
-                    <div className="grid gap-4 md:grid-cols-2">
-                      <label>
-                        <span className="text-xs font-semibold uppercase tracking-wide text-gray-500">
-                          Title
-                        </span>
-
-                        <input
-                          value={manualForm.title}
-                          onChange={(event) =>
-                            setManualForm((previous) => ({
-                              ...previous,
-                              title: event.target.value,
-                            }))
-                          }
-                          className="saas-input mt-1 w-full px-3 py-2 text-sm"
-                          placeholder="Summer promotion details"
-                        />
-                      </label>
-
-                      <label>
-                        <span className="text-xs font-semibold uppercase tracking-wide text-gray-500">
-                          Type
-                        </span>
-
-                        <select
-                          value={manualForm.sourceType}
-                          onChange={(event) =>
-                            setManualForm((previous) => ({
-                              ...previous,
-                              sourceType:
-                                event.target.value as TenantKnowledgeSourceType,
-                            }))
-                          }
-                          className="saas-input mt-1 w-full px-3 py-2 text-sm"
-                        >
-                          <option value="manual_note">General Information</option>
-                          <option value="faq">FAQ</option>
-                          <option value="service">Service</option>
-                          <option value="pricing">Pricing or Offer</option>
-                          <option value="policy">Terms or Policy</option>
-                        </select>
-                      </label>
-                    </div>
-
-                    <label className="block">
-                      <span className="text-xs font-semibold uppercase tracking-wide text-gray-500">
-                        Campaign Information
-                      </span>
-
-                      <textarea
-                        value={manualForm.content}
-                        onChange={(event) =>
-                          setManualForm((previous) => ({
-                            ...previous,
-                            content: event.target.value,
-                          }))
-                        }
-                        rows={7}
-                        className="saas-input mt-1 w-full px-3 py-2 text-sm"
-                        placeholder="Example: This promotion runs through August 31. Customers receive 10% off qualifying services. The promotion cannot be combined with other discounts."
-                      />
-                    </label>
-
-                    <div className="grid gap-4 md:grid-cols-2">
-                      <label>
-                        <span className="text-xs font-semibold uppercase tracking-wide text-gray-500">
-                          Tags
-                        </span>
-
-                        <input
-                          value={manualForm.tags}
-                          onChange={(event) =>
-                            setManualForm((previous) => ({
-                              ...previous,
-                              tags: event.target.value,
-                            }))
-                          }
-                          className="saas-input mt-1 w-full px-3 py-2 text-sm"
-                          placeholder="promotion, discount, August"
-                        />
-                      </label>
-
-                      <label>
-                        <span className="text-xs font-semibold uppercase tracking-wide text-gray-500">
-                          Confidence
-                        </span>
-
-                        <select
-                          value={manualForm.confidence}
-                          onChange={(event) =>
-                            setManualForm((previous) => ({
-                              ...previous,
-                              confidence: event.target.value as Confidence,
-                            }))
-                          }
-                          className="saas-input mt-1 w-full px-3 py-2 text-sm"
-                        >
-                          <option value="high">High — confirmed information</option>
-                          <option value="medium">Medium</option>
-                          <option value="low">Low — verify if needed</option>
-                        </select>
-                      </label>
-                    </div>
-
-                    <div className="flex justify-end">
-                      <button
-                        type="button"
-                        onClick={createManualCampaignItem}
-                        disabled={isSaving}
-                        className="saas-button-accent px-4 py-2 text-sm font-semibold disabled:cursor-not-allowed disabled:opacity-60"
-                      >
-                        {isSaving ? "Saving..." : "Add to Campaign"}
-                      </button>
-                    </div>
-                  </div>
-                ) : null}
-              </div>
-
-              <div className="mt-8">
-                <h3 className="font-semibold text-gray-950">
-                  Campaign Content
-                </h3>
-
-                <div className="mt-3 space-y-3">
-                  {campaignItems.length === 0 ? (
-                    <p className="rounded-xl border border-dashed border-stone-300 bg-stone-50 p-5 text-sm text-gray-500">
-                      This campaign doesn't have any information yet.
-
-                      Upload documents, add photos, or write information for your AI receptionist.
-                    </p>
-                  ) : (
-                    campaignItems.map((item) => (
-                      <div
-                        key={item.id}
-                        className="rounded-xl border border-stone-200 bg-white p-4"
-                      >
-                        <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
-                          <div className="min-w-0 flex-1">
-                            {item.fileUrl ? (
-                              <a
-                                href={item.fileUrl}
-                                target="_blank"
-                                rel="noreferrer"
-                                className="font-semibold text-gray-950 transition hover:text-orange-700 hover:underline"
-                              >
-                                {item.title}
-                              </a>
-                            ) : (
-                              <p className="font-semibold text-gray-950">
-                                {item.title}
-                              </p>
-                            )}
-
-                            <p className="mt-1 text-xs text-gray-500">
-                              {item.sourceType}
+                          {uploadForm.file ? (
+                            <p className="mt-2 text-sm text-green-700">
+                              ✓ Selected: {uploadForm.file.name}
                             </p>
-                          </div>
+                          ) : null}
+                        </label>
 
-                          <div className="flex shrink-0 flex-wrap items-center gap-2">
-                            {item.fileUrl ? (
-                              <a
-                                href={item.fileUrl}
-                                target="_blank"
-                                rel="noreferrer"
-                                className="saas-button-secondary whitespace-nowrap px-3 py-2 text-xs font-semibold"
-                              >
-                                Open File
-                              </a>
-                            ) : null}
+                        <div className="grid gap-4 md:grid-cols-2">
+                          <label>
+                            <span className="text-xs font-semibold uppercase tracking-wide text-gray-500">
+                              Title
+                            </span>
 
-                            <button
-                              type="button"
-                              onClick={() => deleteCampaignItem(item)}
-                              disabled={isSaving}
-                              className="inline-flex items-center justify-center whitespace-nowrap rounded-lg border border-red-200 bg-white px-3 py-2 text-xs font-semibold text-red-700 transition hover:bg-red-50 disabled:cursor-not-allowed disabled:opacity-60"
+                            <input
+                              value={uploadForm.title}
+                              onChange={(event) =>
+                                setUploadForm((previous) => ({
+                                  ...previous,
+                                  title: event.target.value,
+                                }))
+                              }
+                              className="saas-input mt-1 w-full px-3 py-2 text-sm"
+                              placeholder="Campaign flyer, pricing sheet, example photo..."
+                            />
+                          </label>
+
+                          <label>
+                            <span className="text-xs font-semibold uppercase tracking-wide text-gray-500">
+                              Type
+                            </span>
+
+                            <select
+                              value={uploadForm.sourceType}
+                              onChange={(event) =>
+                                setUploadForm((previous) => ({
+                                  ...previous,
+                                  sourceType:
+                                    event.target.value as TenantKnowledgeSourceType,
+                                }))
+                              }
+                              className="saas-input mt-1 w-full px-3 py-2 text-sm"
                             >
-                              Delete Campaign
-                            </button>
-                          </div>
+                              <option value="document">Document</option>
+                              <option value="photo">Photo</option>
+                              <option value="faq">FAQ</option>
+                              <option value="pricing">Pricing</option>
+                              <option value="policy">Policy</option>
+                              <option value="service">Service</option>
+                              <option value="manual_note">Other</option>
+                            </select>
+                          </label>
                         </div>
 
-                        {(item.summary || item.content) ? (
-                          <p className="mt-3 whitespace-pre-wrap text-sm leading-6 text-gray-600">
-                            {item.summary || item.content}
-                          </p>
-                        ) : null}
-                        {item.tags?.length ? (
-                          <div className="mt-3 flex flex-wrap gap-2">
-                            {item.tags.map((tag) => (
-                              <span
-                                key={`${item.id}-${tag}`}
-                                className="rounded-full bg-stone-100 px-2.5 py-1 text-xs font-medium text-stone-600"
-                              >
-                                {tag}
-                              </span>
-                            ))}
-                          </div>
-                        ) : null}
+                        <label className="block">
+                          <span className="text-xs font-semibold uppercase tracking-wide text-gray-500">
+                            Summary
+                          </span>
+
+                          <textarea
+                            value={uploadForm.summary}
+                            onChange={(event) =>
+                              setUploadForm((previous) => ({
+                                ...previous,
+                                summary: event.target.value,
+                              }))
+                            }
+                            rows={3}
+                            className="saas-input mt-1 w-full px-3 py-2 text-sm"
+                            placeholder="Briefly explain what the AI receptionist should know about this file."
+                          />
+                        </label>
+
+                        <label className="block">
+                          <span className="text-xs font-semibold uppercase tracking-wide text-gray-500">
+                            Additional Notes
+                          </span>
+
+                          <textarea
+                            value={uploadForm.notes}
+                            onChange={(event) =>
+                              setUploadForm((previous) => ({
+                                ...previous,
+                                notes: event.target.value,
+                              }))
+                            }
+                            rows={3}
+                            className="saas-input mt-1 w-full px-3 py-2 text-sm"
+                            placeholder="Optional details that may not be included in the uploaded file."
+                          />
+                        </label>
+
+                        <label className="block">
+                          <span className="text-xs font-semibold uppercase tracking-wide text-gray-500">
+                            Tags
+                          </span>
+
+                          <input
+                            value={uploadForm.tags}
+                            onChange={(event) =>
+                              setUploadForm((previous) => ({
+                                ...previous,
+                                tags: event.target.value,
+                              }))
+                            }
+                            className="saas-input mt-1 w-full px-3 py-2 text-sm"
+                            placeholder="promotion, summer, service name"
+                          />
+                        </label>
+
+                        <div className="flex justify-end">
+                          <button
+                            type="button"
+                            onClick={uploadCampaignFile}
+                            disabled={isSaving}
+                            className="saas-button-accent px-4 py-2 text-sm font-semibold disabled:cursor-not-allowed disabled:opacity-60"
+                          >
+                            {isSaving ? "Uploading..." : "Upload to Campaign"}
+                          </button>
+                        </div>
                       </div>
-                    ))
+                    ) : entryMode === "manual" ? (
+                      <div className="mt-5 space-y-4">
+                        <div className="grid gap-4 md:grid-cols-2">
+                          <label>
+                            <span className="text-xs font-semibold uppercase tracking-wide text-gray-500">
+                              Title
+                            </span>
+
+                            <input
+                              value={manualForm.title}
+                              onChange={(event) =>
+                                setManualForm((previous) => ({
+                                  ...previous,
+                                  title: event.target.value,
+                                }))
+                              }
+                              className="saas-input mt-1 w-full px-3 py-2 text-sm"
+                              placeholder="Summer promotion details"
+                            />
+                          </label>
+
+                          <label>
+                            <span className="text-xs font-semibold uppercase tracking-wide text-gray-500">
+                              Type
+                            </span>
+
+                            <select
+                              value={manualForm.sourceType}
+                              onChange={(event) =>
+                                setManualForm((previous) => ({
+                                  ...previous,
+                                  sourceType:
+                                    event.target.value as TenantKnowledgeSourceType,
+                                }))
+                              }
+                              className="saas-input mt-1 w-full px-3 py-2 text-sm"
+                            >
+                              <option value="manual_note">General Information</option>
+                              <option value="faq">FAQ</option>
+                              <option value="service">Service</option>
+                              <option value="pricing">Pricing or Offer</option>
+                              <option value="policy">Terms or Policy</option>
+                            </select>
+                          </label>
+                        </div>
+
+                        <label className="block">
+                          <span className="text-xs font-semibold uppercase tracking-wide text-gray-500">
+                            Campaign Information
+                          </span>
+
+                          <textarea
+                            value={manualForm.content}
+                            onChange={(event) =>
+                              setManualForm((previous) => ({
+                                ...previous,
+                                content: event.target.value,
+                              }))
+                            }
+                            rows={7}
+                            className="saas-input mt-1 w-full px-3 py-2 text-sm"
+                            placeholder="Example: This promotion runs through August 31. Customers receive 10% off qualifying services. The promotion cannot be combined with other discounts."
+                          />
+                        </label>
+
+                        <div className="grid gap-4 md:grid-cols-2">
+                          <label>
+                            <span className="text-xs font-semibold uppercase tracking-wide text-gray-500">
+                              Tags
+                            </span>
+
+                            <input
+                              value={manualForm.tags}
+                              onChange={(event) =>
+                                setManualForm((previous) => ({
+                                  ...previous,
+                                  tags: event.target.value,
+                                }))
+                              }
+                              className="saas-input mt-1 w-full px-3 py-2 text-sm"
+                              placeholder="promotion, discount, August"
+                            />
+                          </label>
+
+                          <label>
+                            <span className="text-xs font-semibold uppercase tracking-wide text-gray-500">
+                              Confidence
+                            </span>
+
+                            <select
+                              value={manualForm.confidence}
+                              onChange={(event) =>
+                                setManualForm((previous) => ({
+                                  ...previous,
+                                  confidence: event.target.value as Confidence,
+                                }))
+                              }
+                              className="saas-input mt-1 w-full px-3 py-2 text-sm"
+                            >
+                              <option value="high">High — confirmed information</option>
+                              <option value="medium">Medium</option>
+                              <option value="low">Low — verify if needed</option>
+                            </select>
+                          </label>
+                        </div>
+
+                        <div className="flex justify-end">
+                          <button
+                            type="button"
+                            onClick={createManualCampaignItem}
+                            disabled={isSaving}
+                            className="saas-button-accent px-4 py-2 text-sm font-semibold disabled:cursor-not-allowed disabled:opacity-60"
+                          >
+                            {isSaving ? "Saving..." : "Add to Campaign"}
+                          </button>
+                        </div>
+                      </div>
+                    ) : null}
+                    <div className="mt-2">
+                      <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+                        <h3 className="font-semibold text-gray-950">
+                          Campaign Content
+                        </h3>
+
+                        <div className="flex flex-wrap gap-3">
+                          <button
+                            type="button"
+                            onClick={() =>
+                              setEntryMode((current) =>
+                                current === "upload" ? "none" : "upload"
+                              )
+                            }
+                            className={
+                              entryMode === "upload"
+                                ? "saas-button-primary px-4 py-2 text-sm font-semibold"
+                                : "saas-button-secondary px-4 py-2 text-sm font-semibold"
+                            }
+                          >
+                            {entryMode === "upload" ? "Close Upload" : "Upload File"}
+                          </button>
+
+                          <button
+                            type="button"
+                            onClick={() =>
+                              setEntryMode((current) =>
+                                current === "manual" ? "none" : "manual"
+                              )
+                            }
+                            className={
+                              entryMode === "manual"
+                                ? "saas-button-primary px-4 py-2 text-sm font-semibold"
+                                : "saas-button-secondary px-4 py-2 text-sm font-semibold"
+                            }
+                          >
+                            {entryMode === "manual"
+                              ? "Close Information"
+                              : "Add Information"}
+                          </button>
+                        </div>
+                      </div>
+
+                      <div className="mt-3 space-y-3">
+                        {campaignItems.length === 0 ? (
+                          <p className="rounded-xl border border-dashed border-stone-300 bg-stone-50 p-5 text-sm text-gray-500">
+                            This campaign doesn't have any information yet.
+
+                            Upload documents, add photos, or write information for your AI receptionist.
+                          </p>
+                        ) : (
+                          campaignItems.map((item) => (
+                            <div
+                              key={item.id}
+                              className="rounded-xl border border-stone-200 bg-white p-4"
+                            >
+                              <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
+                                <div className="min-w-0 flex-1">
+                                  {item.fileUrl ? (
+                                    <a
+                                      href={item.fileUrl}
+                                      target="_blank"
+                                      rel="noreferrer"
+                                      className="font-semibold text-gray-950 transition hover:text-orange-700 hover:underline"
+                                    >
+                                      {item.title}
+                                    </a>
+                                  ) : (
+                                    <p className="font-semibold text-gray-950">
+                                      {item.title}
+                                    </p>
+                                  )}
+
+                                  <p className="mt-1 text-xs text-gray-500">
+                                    {item.sourceType}
+                                  </p>
+                                </div>
+
+                                <div className="flex shrink-0 flex-wrap items-center gap-2">
+                                  {item.fileUrl ? (
+                                    <a
+                                      href={item.fileUrl}
+                                      target="_blank"
+                                      rel="noreferrer"
+                                      className="saas-button-secondary whitespace-nowrap px-3 py-2 text-xs font-semibold"
+                                    >
+                                      Open File
+                                    </a>
+                                  ) : null}
+
+                                  <button
+                                    type="button"
+                                    onClick={() => deleteCampaignItem(item)}
+                                    disabled={isSaving}
+                                    className="inline-flex items-center justify-center whitespace-nowrap rounded-lg border border-red-200 bg-white px-3 py-2 text-xs font-semibold text-red-700 transition hover:bg-red-50 disabled:cursor-not-allowed disabled:opacity-60"
+                                  >
+                                    Delete Campaign
+                                  </button>
+                                </div>
+                              </div>
+
+                              {(item.summary || item.content) ? (
+                                <p className="mt-3 whitespace-pre-wrap text-sm leading-6 text-gray-600">
+                                  {item.summary || item.content}
+                                </p>
+                              ) : null}
+                              {item.tags?.length ? (
+                                <div className="mt-3 flex flex-wrap gap-2">
+                                  {item.tags.map((tag) => (
+                                    <span
+                                      key={`${item.id}-${tag}`}
+                                      className="rounded-full bg-stone-100 px-2.5 py-1 text-xs font-medium text-stone-600"
+                                    >
+                                      {tag}
+                                    </span>
+                                  ))}
+                                </div>
+                              ) : null}
+                            </div>
+                          ))
+                        )}
+                      </div>
+                    </div>
+                    </CampaignWorkspaceSection>
+                  </div>
+
+              <div className="mt-5">
+                <CampaignWorkspaceSection
+                  title="Marketing Assets"
+                  description="Create tracked links and QR codes for each place this campaign is distributed."
+                  isOpen={isAssetsOpen}
+                  onToggle={() => setIsAssetsOpen((previous) => !previous)}
+                  summary="Website, business cards, vehicles, yard signs, flyers, social media, and custom channels."
+                >
+                  <MarketingAssetsPanel
+                    tenantSlug={tenantSlug}
+                    campaignId={selectedCampaign.id}
+                    campaignName={selectedCampaign.name}
+                    campaignQrSlug={selectedCampaign.qrSlug}
+                  />
+                </CampaignWorkspaceSection>
+              </div>
+
+              <div className="mt-5">
+              <CampaignWorkspaceSection
+                title="Campaign Results"
+                description="Review leads, booked appointments, booking rate, and performance by marketing source."
+                isOpen={isResultsOpen}
+                onToggle={() => setIsResultsOpen((previous) => !previous)}
+                summary={`${selectedCampaign.leadCount} lead${
+                  selectedCampaign.leadCount === 1 ? "" : "s"
+                } · ${selectedCampaign.bookedAppointmentCount} booked · ${selectedCampaign.bookingRate.toFixed(
+                  1
+                )}% booking rate`}
+              >
+
+                <div className="grid gap-3 sm:grid-cols-3">
+                  <div className="rounded-2xl border border-stone-200/70 bg-white p-4 shadow-sm">
+                    <p className="text-xs font-semibold uppercase tracking-wide text-gray-500">
+                      Leads
+                    </p>
+
+                    <p className="mt-2 text-2xl font-bold text-gray-950">
+                      {selectedCampaign.leadCount}
+                    </p>
+                  </div>
+
+                  <div className="rounded-2xl border border-stone-200/70 bg-white p-4 shadow-sm">
+                    <p className="text-xs font-semibold uppercase tracking-wide text-gray-500">
+                      Booked
+                    </p>
+
+                    <p className="mt-2 text-2xl font-bold text-gray-950">
+                      {selectedCampaign.bookedAppointmentCount}
+                    </p>
+                  </div>
+
+                  <div className="rounded-2xl border border-stone-200/70 bg-white p-4 shadow-sm">
+                    <p className="text-xs font-semibold uppercase tracking-wide text-gray-500">
+                      Booking Rate
+                    </p>
+
+                    <p className="mt-2 text-2xl font-bold text-gray-950">
+                      {selectedCampaign.bookingRate.toFixed(1)}%
+                    </p>
+                  </div>
+                </div>
+
+                <div className="mt-5 rounded-2xl border border-stone-200/70 bg-white p-4 shadow-sm">
+                  <div>
+                    <p className="text-sm font-semibold text-gray-900">
+                      How Customers Found This Campaign
+                    </p>
+
+                    <p className="mt-1 text-xs text-gray-500">
+                      Lead totals broken down by the link or QR code used.
+                    </p>
+                  </div>
+
+                  {selectedCampaign.sourceCounts.length > 0 ? (
+                    <div className="mt-4 divide-y divide-stone-200">
+                      {selectedCampaign.sourceCounts.map((item) => {
+                        const percentage =
+                          selectedCampaign.leadCount > 0
+                            ? (item.count / selectedCampaign.leadCount) * 100
+                            : 0;
+
+                        return (
+                          <div
+                            key={item.source}
+                            className="py-3 first:pt-0 last:pb-0"
+                          >
+                            <div className="flex items-center justify-between gap-4">
+                              <p className="text-sm font-semibold text-gray-800">
+                                {formatLeadSource(item.source)}
+                              </p>
+
+                              <p className="text-sm text-gray-600">
+                                {item.count} lead{item.count === 1 ? "" : "s"}
+                              </p>
+                            </div>
+
+                            <div className="mt-2 h-2 overflow-hidden rounded-full bg-stone-100">
+                              <div
+                                className="h-full rounded-full bg-[#d35400]"
+                                style={{
+                                  width: `${Math.max(
+                                    percentage,
+                                    item.count > 0 ? 4 : 0
+                                  )}%`,
+                                }}
+                              />
+                            </div>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  ) : (
+                    <div className="mt-4 rounded-2xl border border-dashed border-stone-300 bg-stone-50 px-4 py-6 text-center">
+                      <p className="text-sm text-gray-500">
+                        This campaign has not generated any leads yet.
+                      </p>
+                    </div>
                   )}
                 </div>
-              </div>
+              </CampaignWorkspaceSection>
+            </div>
             </div>
           )}
         </section>

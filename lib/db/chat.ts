@@ -26,6 +26,8 @@ import type { SchedulingIntentResult } from "@/lib/chat/detectSchedulingIntent";
 import { getBookingFlowConfig } from "@/lib/config/getBookingFlowConfig";
 import { getTenantConfig } from "@/lib/config/getTenantConfig";
 import { getCampaignById } from "@/lib/db/campaigns";
+import { runLeadCopilot } from "@/lib/ai/runLeadCopilot";
+import { getCampaignAssetById } from "@/lib/db/campaign-asset";
 
 function generateId(prefix: string) {
   return `${prefix}_${Math.random().toString(36).slice(2, 10)}`;
@@ -517,6 +519,36 @@ async function safeSendLeadNotification(
   }
 }
 
+/**
+ * Generate Lead Copilot without allowing an AI failure
+ * to break lead creation or the customer conversation.
+ */
+async function safeRunLeadCopilot(
+  lead: Awaited<ReturnType<typeof createLead>>
+) {
+  try {
+    const startedAt = Date.now();
+
+    const result = await runLeadCopilot(lead);
+
+    console.log("⏱️ runLeadCopilot ms:", Date.now() - startedAt);
+    console.log("🧠 Lead Copilot result:", {
+      leadId: lead.id,
+      cached: result.cached,
+      generated: result.status === "generated",
+    });
+
+    return result;
+  } catch (error) {
+    console.error(
+      "Non-fatal Lead Copilot generation error:",
+      error
+    );
+
+    return null;
+  }
+}
+
 function buildIntentCustomerUpdate(intent: MessageIntentResult) {
   const data = intent.extractedData || {};
 
@@ -862,6 +894,7 @@ async function createLeadAndNotifyOnce(session: ChatSession) {
 
     leadSource: intake.leadSource || "website",
     campaignId: campaign?.id ?? null,
+    campaignAssetId: intake.campaignAssetId ?? null,
     campaignName: campaign?.name ?? null,
 
     customerName: intake.name || "Unknown",
@@ -897,7 +930,20 @@ async function createLeadAndNotifyOnce(session: ChatSession) {
 
   await updateSession(session);
 
-  console.log("⏱️ updateSession after lead create ms:", Date.now() - sessionUpdateStart);
+  console.log(
+    "⏱️ updateSession after lead create ms:",
+    Date.now() - sessionUpdateStart
+  );
+
+  /**
+   * Generate Lead Copilot once after the lead and session are safely stored.
+   *
+   * Important:
+   * - failures are non-fatal
+   * - runLeadCopilot checks the database cache first
+   * - this does not regenerate an already-complete Copilot result
+   */
+  // await safeRunLeadCopilot(lead); // commenting out to stop Lead AI Summary from generating to early
 
   return session;
 }
@@ -1243,6 +1289,7 @@ export async function createChatSessionForTenantSlug(
   options?: {
     leadSource?: string;
     campaignId?: string;
+    campaignAssetId?: string;
   }
 ) {
   const tenant = await getTenantBySlug(tenantSlug);
@@ -1255,12 +1302,24 @@ export async function createChatSessionForTenantSlug(
   const now = new Date().toISOString();
 
   let campaign = null;
+  let campaignAsset = null;
 
   if (options?.campaignId) {
     campaign = await getCampaignById({
       tenantSlug,
       campaignId: options.campaignId,
     });
+  }
+
+  if (campaign && options?.campaignAssetId) {
+    const possibleAsset = await getCampaignAssetById({
+      tenantSlug,
+      campaignAssetId: options.campaignAssetId,
+    });
+
+    if (possibleAsset?.campaignId === campaign.id) {
+      campaignAsset = possibleAsset;
+    }
   }
 
   const session: ChatSession = {
@@ -1271,8 +1330,13 @@ export async function createChatSessionForTenantSlug(
     createdAt: now,
     currentStep: "project_type",
     intakeData: {
-      leadSource: campaign ? "campaign" : (options?.leadSource || "website"),
+      leadSource:
+        campaignAsset?.source ||
+        (campaign ? "campaign" : options?.leadSource || "website"),
+    
       campaignId: campaign?.id ?? null,
+    
+      campaignAssetId: campaignAsset?.id ?? null,
     },
     leadCaptured: false,
     leadId: null,

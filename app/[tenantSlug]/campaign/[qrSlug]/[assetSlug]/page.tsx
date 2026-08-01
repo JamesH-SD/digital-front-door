@@ -1,17 +1,19 @@
 import { notFound } from "next/navigation";
 import { getTenantBySlug } from "@/lib/db/tenants";
 import { getCampaignByQrSlug } from "@/lib/db/campaigns";
+import { getCampaignAssetBySlug } from "@/lib/db/campaign-asset";
 import { TenantWebsite } from "@/components/tenant/TenantWebsite";
 
 type PageProps = {
   params: Promise<{
     tenantSlug: string;
     qrSlug: string;
+    assetSlug: string;
   }>;
 };
 
-export default async function CampaignPage({ params }: PageProps) {
-  const { tenantSlug, qrSlug } = await params;
+export default async function CampaignAssetPage({ params }: PageProps) {
+  const { tenantSlug, qrSlug, assetSlug } = await params;
 
   const tenant = await getTenantBySlug(tenantSlug);
 
@@ -25,6 +27,16 @@ export default async function CampaignPage({ params }: PageProps) {
   });
 
   if (!campaign) {
+    notFound();
+  }
+
+  const campaignAsset = await getCampaignAssetBySlug({
+    tenantSlug,
+    campaignId: campaign.id,
+    assetSlug,
+  });
+
+  if (!campaignAsset) {
     notFound();
   }
 
@@ -47,8 +59,9 @@ export default async function CampaignPage({ params }: PageProps) {
   return (
     <TenantWebsite
       tenant={tenant}
-      leadSource="campaign"
+      leadSource={campaignAsset.source}
       campaignId={campaign.id}
+      campaignAssetId={campaignAsset.id}
       autoOpenChat
       isPreview={false}
     />

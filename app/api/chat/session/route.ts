@@ -6,13 +6,21 @@ export async function POST(request: NextRequest) {
     const body = await request.json().catch(() => ({}));
 
     const tenantSlug = body?.tenantSlug;
+
     const leadSource =
-      typeof body?.leadSource === "string" ? body.leadSource : "website";
+      typeof body?.leadSource === "string"
+        ? body.leadSource
+        : "website";
 
     const campaignId =
-    typeof body?.campaignId === "string"
-      ? body.campaignId
-      : undefined;
+      typeof body?.campaignId === "string"
+        ? body.campaignId
+        : undefined;
+
+    const campaignAssetId =
+      typeof body?.campaignAssetId === "string"
+        ? body.campaignAssetId
+        : undefined;
 
     if (!tenantSlug || typeof tenantSlug !== "string") {
       return NextResponse.json(
@@ -21,13 +29,11 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    const result = await createChatSessionForTenantSlug(
-      tenantSlug,
-      {
-          leadSource,
-          campaignId,
-      }
-  );
+    const result = await createChatSessionForTenantSlug(tenantSlug, {
+      leadSource,
+      campaignId,
+      campaignAssetId,
+    });
 
     if (!result) {
       return NextResponse.json(

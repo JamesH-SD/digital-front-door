@@ -14,6 +14,7 @@ type PageProps = {
     embed?: string;
     preview?: string;
     campaign?: string;
+    campaignAsset?: string;
   }>;
 };
 
@@ -56,6 +57,7 @@ export default async function TenantPage({ params, searchParams }: PageProps) {
   const query = searchParams ? await searchParams : {};
   const leadSource = query.source || "website";
   const campaignId = query.campaign;
+  const campaignAssetId = query.campaignAsset;
   const isEmbed = query.embed === "1";
   const isPreview = query.preview === "true" && tenant.websiteStatus !== "published";
 
@@ -90,6 +92,7 @@ export default async function TenantPage({ params, searchParams }: PageProps) {
           autoOpen
           leadSource={leadSource}
           campaignId={campaignId}
+          campaignAssetId={campaignAssetId}
           variant="embed"
         />
       </main>
@@ -101,6 +104,7 @@ export default async function TenantPage({ params, searchParams }: PageProps) {
       tenant={tenant}
       leadSource={leadSource}
       campaignId={campaignId}
+      campaignAssetId={campaignAssetId}
       autoOpenChat={autoOpenChat}
       isPreview={isPreview}
     />

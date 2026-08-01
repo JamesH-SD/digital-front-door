@@ -3,9 +3,10 @@
 import { useEffect, useRef, useState } from "react";
 import type { Lead } from "@/lib/types/lead";
 import type { LeadActivity } from "@/lib/types/lead-activity";
+import type { ChatMessage } from "@/lib/types/chat";
 import AppointmentModal from "@/components/leads/AppointmentModal";
 import ScheduleModal from "@/components/leads/ScheduleModal";
-import { buildAppointmentDescription } from "@/lib/calendar/buildAppointmentDescription";
+import { formatLeadSource } from "@/lib/utils/leadSource";
 
 type LeadStatus = "new" | "contacted" | "booked" | "closed";
 
@@ -374,9 +375,11 @@ function CollapsibleSection({
 export default function LeadDetailClient({
   lead,
   activities,
+  messages,
 }: {
   lead: Lead;
   activities: LeadActivity[];
+  messages: ChatMessage[];
 }) {
   const [isEditing, setIsEditing] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
@@ -410,6 +413,7 @@ export default function LeadDetailClient({
   const [isNotesOpen, setIsNotesOpen] = useState(false);
   const [isCustomerUpdatesOpen, setIsCustomerUpdatesOpen] = useState(false);
   const [isImagesOpen, setIsImagesOpen] = useState(false);
+  const [isConversationOpen, setIsConversationOpen] = useState(false);
 
   const [aiSummary, setAiSummary] = useState<string | null>(
     lead.aiSummary || null
@@ -441,6 +445,9 @@ export default function LeadDetailClient({
 
   const appointmentMissing = !form.appointment.trim();
   const customerUpdateEntries = parseCustomerUpdates(form.customerUpdates);
+  const conversationMessages = messages.filter(
+    (message) => message.role !== "system"
+  );
 
   const visibleActivities = activities.filter(
     (activity) =>
@@ -561,6 +568,21 @@ export default function LeadDetailClient({
       setIsGeneratingInsights(false);
     }
   }
+
+  useEffect(() => {
+    const hasCachedCopilot =
+      Boolean(aiSummary?.trim()) ||
+      Boolean(suggestedReply?.trim()) ||
+      Boolean(suggestedNextStep?.trim());
+  
+    if (hasCachedCopilot) {
+      return;
+    }
+  
+    void loadLeadCopilot(false);
+    // Run only when this lead is opened.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [lead.id]);
 
   async function saveLead() {
     try {
@@ -754,10 +776,8 @@ export default function LeadDetailClient({
                 className="inline-flex items-center justify-center rounded-2xl bg-[#d35400] px-4 py-2.5 text-sm font-semibold text-white shadow-sm transition hover:bg-[#b84700] hover:shadow-md disabled:cursor-not-allowed disabled:opacity-50"
               >
                 {isGeneratingSummary || isGeneratingReply || isGeneratingInsights
-                  ? "Generating..."
-                  : aiSummary || suggestedReply || missingInfo.length > 0 || suggestedNextStep
-                  ? "Regenerate Lead Copilot"
-                  : "Generate Lead Copilot"}
+                  ? "Refreshing..."
+                  : "Refresh Insights"}
               </button>
 
               <button
@@ -785,7 +805,8 @@ export default function LeadDetailClient({
               </p>
             ) : (
               <p className="mt-2 text-sm text-gray-400">
-                No summary available.
+                Lead Intelligence has not been generated yet. Refresh the insights to try
+                again.
               </p>
             )}
           </div>
@@ -843,7 +864,7 @@ export default function LeadDetailClient({
                   </div>
                 ) : (
                   <p className="mt-2 text-sm text-gray-400">
-                    Generate a reply to help the contractor respond quickly.
+                    No suggested reply is available yet.
                   </p>
                 )}
               </div>
@@ -865,7 +886,7 @@ export default function LeadDetailClient({
                   </ul>
                 ) : (
                   <p className="mt-2 text-sm text-gray-400">
-                    Generate insights to see what information may still be missing.
+                    No missing information was identified.
                   </p>
                 )}
               </div>
@@ -885,7 +906,7 @@ export default function LeadDetailClient({
                   </p>
                 ) : (
                   <p className="mt-2 text-sm text-gray-400">
-                    Generate insights to see the recommended next move.
+                    No suggested next step is available yet.
                   </p>
                 )}
               </div>
@@ -986,13 +1007,7 @@ export default function LeadDetailClient({
 
             <CompactField
               label="Source"
-              value={
-                lead.campaignName
-                  ? "Campaign"
-                  : lead.leadSource
-                  ? lead.leadSource.replace(/_/g, " ")
-                  : "Unknown"
-              }
+              value={formatLeadSource(lead.leadSource)}
             />
 
               <CompactField
@@ -1200,6 +1215,77 @@ export default function LeadDetailClient({
                 </div>
               ) : (
                 <p className="mt-3 text-sm text-gray-900">Not provided</p>
+              )}
+            </CollapsibleSection>
+
+                        {/* FULL CONVERSATION */}
+                        <CollapsibleSection
+              title="Conversation"
+              isOpen={isConversationOpen}
+              onToggle={() =>
+                setIsConversationOpen((previous) => !previous)
+              }
+              rightLabel={`${conversationMessages.length} message${
+                conversationMessages.length === 1 ? "" : "s"
+              }`}
+            >
+              {conversationMessages.length > 0 ? (
+                <div className="max-h-[620px] space-y-4 overflow-y-auto rounded-2xl border border-stone-200/70 bg-stone-50/60 p-4">
+                  {conversationMessages.map((message) => {
+                    const isCustomer = message.role === "user";
+
+                    return (
+                      <div
+                        key={message.id}
+                        className={`flex ${
+                          isCustomer ? "justify-end" : "justify-start"
+                        }`}
+                      >
+                        <div
+                          className={`max-w-[88%] rounded-2xl px-4 py-3 shadow-sm ${
+                            isCustomer
+                              ? "bg-gray-900 text-white"
+                              : "border border-stone-200/70 bg-white text-gray-800"
+                          }`}
+                        >
+                          <div
+                            className={`mb-2 flex flex-wrap items-center gap-x-3 gap-y-1 text-xs ${
+                              isCustomer
+                                ? "text-white/70"
+                                : "text-gray-500"
+                            }`}
+                          >
+                            <span className="font-semibold">
+                              {isCustomer
+                                ? lead.customerName || "Customer"
+                                : "AI Receptionist"}
+                            </span>
+
+                            <span>
+                              {formatTimestampForDisplay(message.createdAt)}
+                            </span>
+                          </div>
+
+                          <p className="whitespace-pre-wrap text-sm leading-6">
+                            {message.content}
+                          </p>
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              ) : (
+                <div className="rounded-2xl border border-dashed border-stone-300 bg-stone-50 px-4 py-6 text-center">
+                  <p className="text-sm text-gray-500">
+                    No conversation is available for this lead.
+                  </p>
+
+                  {!lead.sessionId ? (
+                    <p className="mt-1 text-xs text-gray-400">
+                      This lead was not connected to a chat session.
+                    </p>
+                  ) : null}
+                </div>
               )}
             </CollapsibleSection>
 

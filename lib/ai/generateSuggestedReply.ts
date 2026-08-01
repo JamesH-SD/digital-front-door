@@ -58,7 +58,6 @@ Requirements:
 - keep it brief and practical
 - sound human, not robotic
 - acknowledge the project request
-- suggest a next step
 - do not make up facts
 - do not overpromise
 - do not use bullet points

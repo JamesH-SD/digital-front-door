@@ -24,6 +24,7 @@ type Props = {
   tenant: Tenant;
   leadSource: string;
   campaignId?: string;
+  campaignAssetId?: string;
   autoOpenChat?: boolean;
   isPreview?: boolean;
 };
@@ -165,6 +166,7 @@ export function TenantWebsite({
   tenant,
   leadSource,
   campaignId,
+  campaignAssetId,
   autoOpenChat = false,
   isPreview = false,
 }: Props) {
@@ -1005,13 +1007,14 @@ export function TenantWebsite({
             </button>
 
             <div className="min-h-0 flex-1">
-              <ChatWidget
-                tenant={tenant}
-                autoOpen
-                leadSource={leadSource}
-                campaignId={campaignId}
-                variant="embed"
-              />
+            <ChatWidget
+              tenant={tenant}
+              autoOpen
+              leadSource={leadSource}
+              campaignId={campaignId}
+              campaignAssetId={campaignAssetId}
+              variant="embed"
+            />
             </div>
 
             <div className="border-t border-stone-100 bg-white px-4 py-2 text-center">
