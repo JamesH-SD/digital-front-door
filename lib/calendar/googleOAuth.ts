@@ -65,15 +65,31 @@ export function buildGoogleOAuthUrl(input: {
 
   const state = Buffer.from(JSON.stringify(statePayload)).toString("base64url");
 
+  const scopes = [
+    "https://www.googleapis.com/auth/calendar.calendarlist.readonly",
+    "https://www.googleapis.com/auth/calendar.events",
+    "https://www.googleapis.com/auth/calendar.freebusy",
+  ];
+  
   const params = new URLSearchParams({
     client_id: clientId,
     redirect_uri: redirectUri,
     response_type: "code",
     access_type: "offline",
     prompt: "consent",
-    scope: "https://www.googleapis.com/auth/calendar",
+    scope: scopes.join(" "),
     state,
   });
+
+  // const params = new URLSearchParams({
+  //   client_id: clientId,
+  //   redirect_uri: redirectUri,
+  //   response_type: "code",
+  //   access_type: "offline",
+  //   prompt: "consent",
+  //   scope: "https://www.googleapis.com/auth/calendar",
+  //   state,
+  // });
 
   return `https://accounts.google.com/o/oauth2/v2/auth?${params.toString()}`;
 }
