@@ -11,6 +11,37 @@ export default function PrivacyPage() {
         </p>
       </LegalSection>
 
+      <LegalSection title="Google Workspace API Data and Limited Use">
+      <p>
+        Contactor allows users to connect certain Google Workspace services, including
+        Google Calendar, to provide scheduling and calendar-related functionality.
+        When a user connects a Google account, Contactor may access Google user data
+        only as necessary to provide the features requested by the user, such as
+        checking calendar availability, creating appointments, rescheduling
+        appointments, and canceling appointments.
+      </p>
+
+      <p>
+        Contactor's use and transfer of information received from Google APIs will
+        adhere to the Google API Services User Data Policy, including the Limited Use
+        requirements.
+      </p>
+
+      <p>
+        Google Workspace API user data is not used to develop, improve, or train
+        generalized or foundational artificial intelligence or machine learning
+        models. Contactor does not sell Google Workspace API user data or use it for
+        advertising purposes.
+      </p>
+
+      <p>
+        Contactor may use artificial intelligence to support customer-facing
+        functionality; however, Google Workspace API user data is used only to provide
+        the specific user-requested functionality and is not used for generalized AI
+        or machine learning model training.
+      </p>
+      </LegalSection>
+
       <LegalSection title="How We Use Information">
         <p>
           We use information to provide Contactor, operate AI receptionist

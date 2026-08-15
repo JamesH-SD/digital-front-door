@@ -1,8 +1,12 @@
 import type { Tenant } from "@/lib/types/tenant";
 import type { TenantConfig } from "@/lib/types/tenant-config";
+import { getBookingFlowConfig } from "@/lib/config/getBookingFlowConfig";
+
 
 export function getTenantConfig(tenant: Tenant): TenantConfig {
   const isContactorTenant = tenant.slug === "contactor";
+  const bookingFlow = getBookingFlowConfig(tenant);
+  const isLeadCaptureOnly = bookingFlow.bookingType === "lead_capture";
 
   if (isContactorTenant) {
     return {
@@ -92,17 +96,21 @@ export function getTenantConfig(tenant: Tenant): TenantConfig {
     requiredFields: [
       {
         id: "project_type",
-        label: "Project type",
-        required: true,
+        label: isLeadCaptureOnly ? "Customer interest" : "Project type",
+        required: !isLeadCaptureOnly,
         phase: "pre_lead",
-        promptHint: "Ask what kind of project they need help with.",
+        promptHint: isLeadCaptureOnly
+          ? "Capture what the customer is interested in naturally when it is relevant. Do not interrupt the conversation solely to collect this field."
+          : "Ask what kind of project they need help with.",
       },
       {
         id: "location",
-        label: "Project location",
-        required: true,
+        label: isLeadCaptureOnly ? "Location" : "Project location",
+        required: !isLeadCaptureOnly,
         phase: "pre_lead",
-        promptHint: "Ask what city or area the project is in.",
+        promptHint: isLeadCaptureOnly
+          ? "Capture the customer's location when it is naturally relevant to the business or conversation. Do not ask for location solely to complete lead capture."
+          : "Ask what city or area the project is in.",
       },
       {
         id: "timeline",

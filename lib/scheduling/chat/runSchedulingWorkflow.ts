@@ -1136,6 +1136,32 @@ export async function runSchedulingWorkflow({
   const bookingFlow = tenant ? getBookingFlowConfig(tenant) : null;
 
   /**
+ * HARD STOP: this tenant's booking flow does not support scheduling.
+ *
+ * Lead Capture Only, Manual Follow-up, and Product Signup must never
+ * enter the calendar workflow, even if a scheduling intent is detected
+ * elsewhere in the conversation stack.
+ *
+ * This is a workflow boundary, not merely an AI prompt preference.
+ */
+if (
+  !bookingFlow ||
+  !bookingFlow.requiresCalendar ||
+  !bookingFlow.requiresAppointment
+) {
+  console.log("🛑 Scheduling blocked by booking flow:", {
+    tenantSlug: session.tenantSlug,
+    bookingType: bookingFlow?.bookingType ?? "unknown",
+    requiresCalendar: bookingFlow?.requiresCalendar ?? false,
+    requiresAppointment: bookingFlow?.requiresAppointment ?? false,
+  });
+
+  return {
+    handled: false,
+  };
+}
+
+  /**
    * HARD STOP: actual cancel request.
    *
    * This must run before any active scheduling step like address collection.

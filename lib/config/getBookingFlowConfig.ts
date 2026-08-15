@@ -56,24 +56,49 @@ export function getBookingFlowConfig(tenant: Tenant): BookingFlowConfig {
           "You can create your account by clicking Get Started or visiting /signup. I’m here if you have questions before getting started.",
       };
 
-    case "lead_capture":
-      return {
-        bookingType,
-        shouldOfferSchedulingAfterLeadCreated: false,
-        defaultAppointmentType: null,
-        allowCustomerToChooseAppointmentType: false,
-        requiresAddressBeforeScheduling: false,
-        requiresCalendar: false,
-        requiresAppointment: false,
-        allowConversationAfterLead: true,
-        shouldCreateLeadAutomatically: true,
-        followUpLanguageAllowed: true,
-        showSignupLink: false,
-        leadCreatedReply: joinReply([
-          "Great, I have enough information for now.",
-          nextStepMessage,
-        ]),
-      };
+      case "lead_capture":
+        return {
+          bookingType,
+          shouldOfferSchedulingAfterLeadCreated: false,
+          defaultAppointmentType: null,
+          allowCustomerToChooseAppointmentType: false,
+          requiresAddressBeforeScheduling: false,
+          requiresCalendar: false,
+          requiresAppointment: false,
+          allowConversationAfterLead: true,
+          shouldCreateLeadAutomatically: true,
+          followUpLanguageAllowed: true,
+          showSignupLink: false,
+      
+          /**
+           * Lead Capture Only does not have a deterministic operational
+           * next step such as calendar scheduling.
+           *
+           * Tenant Next Step Message is guidance for the AI, not customer-facing
+           * copy that must be repeated verbatim.
+           */
+          leadCreatedReply:
+            "Great, I have enough information for now. Someone from the team will follow up with you about your request.",
+        };
+
+    // case "lead_capture":
+    //   return {
+    //     bookingType,
+    //     shouldOfferSchedulingAfterLeadCreated: false,
+    //     defaultAppointmentType: null,
+    //     allowCustomerToChooseAppointmentType: false,
+    //     requiresAddressBeforeScheduling: false,
+    //     requiresCalendar: false,
+    //     requiresAppointment: false,
+    //     allowConversationAfterLead: true,
+    //     shouldCreateLeadAutomatically: true,
+    //     followUpLanguageAllowed: true,
+    //     showSignupLink: false,
+    //     leadCreatedReply: joinReply([
+    //       "Great, I have enough information for now.",
+    //       nextStepMessage,
+    //     ]),
+    //   };
 
     case "manual_followup":
       return {

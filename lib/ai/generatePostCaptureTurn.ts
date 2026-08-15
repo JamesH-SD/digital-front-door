@@ -8,6 +8,7 @@ import {
   buildConversationContext,
   formatConversationContextForPrompt,
 } from "@/lib/chat/buildConversationContext";
+import { getBookingFlowConfig } from "@/lib/config/getBookingFlowConfig";
 
 type PostCaptureUpdates = {
   email?: string;
@@ -112,6 +113,40 @@ function buildLeadContext(lead: Lead) {
   ].join("\\n");
 }
 
+function buildBookingFlowPromptContext(tenant: Tenant) {
+  const bookingFlow = getBookingFlowConfig(tenant);
+
+  const schedulingAllowed =
+    bookingFlow.requiresCalendar && bookingFlow.requiresAppointment;
+
+  if (!schedulingAllowed) {
+    return `
+Booking Flow Rules:
+- Booking Type: ${bookingFlow.bookingType}
+- Scheduling is NOT part of this tenant's workflow.
+- Do not mention appointments, calendar booking, availability, scheduled calls, visits, or "no appointment is scheduled."
+- Do not offer to schedule anything.
+- Do not interpret "what happens next?" as a request to schedule.
+- The successful outcome is the configured non-scheduling action.
+- For lead_capture or manual_followup, explain that the customer's information has been captured and someone from the business will follow up.
+- For product_signup, guide the customer toward the configured signup action instead of scheduling.
+- Continue answering business questions naturally after the lead is captured.
+`.trim();
+  }
+
+  return `
+Booking Flow Rules:
+- Booking Type: ${bookingFlow.bookingType}
+- Scheduling IS supported for this tenant.
+- Calendar scheduling must still be customer-driven and must follow the configured booking flow.
+- Do not claim an appointment is confirmed unless the scheduling workflow actually confirms it.
+- Default Appointment Type: ${bookingFlow.defaultAppointmentType ?? "customer choice"}
+- Customer May Choose Appointment Type: ${
+    bookingFlow.allowCustomerToChooseAppointmentType ? "yes" : "no"
+  }
+`.trim();
+}
+
 /**
  * Keep recent conversation context intentionally small.
  *
@@ -126,7 +161,7 @@ function buildLeadContext(lead: Lead) {
  */
 function buildConversation(messages: ChatMessage[]) {
   return messages
-    .slice(-6)
+    .slice(-12)
     .map((message) => `${message.role.toUpperCase()}: ${message.content}`)
     .join("\\n");
 }
@@ -170,6 +205,8 @@ export async function generatePostCaptureReplyOnly(input: {
 
   const tenantKnowledgeContext = formatTenantKnowledgeForPrompt(tenantKnowledge);
 
+  const bookingFlowPromptContext = buildBookingFlowPromptContext(tenant);
+
   const conversationContext = buildConversationContext({
     tenant,
     lead,
@@ -197,6 +234,8 @@ You are the AI receptionist for this business.
 A lead has already been created. Your job is to answer the customer's latest
 business question clearly, warmly, and briefly.
 
+${bookingFlowPromptContext}
+
 Return STRICT JSON only:
 {
   "reply": "short natural response"
@@ -205,15 +244,24 @@ Return STRICT JSON only:
 Rules:
 - Use "we", "us", and "our" when speaking for the business.
 - Answer the customer's direct question first.
-- Do not ask for scheduling if an appointment is already present.
-- Current Lead includes an Appointment field.
-- If Current Lead Appointment is anything other than "Not provided", treat the appointment as already scheduled.
+- Follow the Booking Flow Rules above.
+- If scheduling is supported and Current Lead already contains an appointment, do not offer a second appointment unless the customer clearly asks to reschedule or schedule another one.
 - Do not say "the next step is usually..." when an appointment already exists.
 - Do not collect new lead details in this lightweight mode.
 - Do not generate summaries, urgency, budget, or sales signals.
 - If the answer is in Tenant Context, answer directly.
 - If the answer is in Additional Tenant Knowledge, answer directly.
-- If the answer is not known, do not guess. Say you can have someone follow up.
+- If the answer is not known, do not guess. Say you do not have that information available and, when useful, offer to have someone clarify it.
+- A lead has already been captured, but that does NOT mean the conversation is finished.
+- After lead capture, continue acting as the business's AI receptionist.
+- Do not repeatedly mention that someone will follow up.
+- Do not append handoff language such as "someone from our team will follow up soon" to ordinary answers.
+- Mention human follow-up only when:
+  - the customer explicitly asks what happens next or when someone will contact them,
+  - the requested information is genuinely unavailable and human help is needed, or
+  - the customer is explicitly ending the conversation and a handoff is relevant.
+- If the customer asks an ordinary business, product, service, policy, or informational question, answer that question naturally and stop.
+- Never make the customer feel that they should disconnect just because their lead has been captured.
 - Keep the reply short and natural.
 - Do not include markdown.
 - Do not include text outside JSON.
@@ -222,8 +270,7 @@ Conversation Context:
 ${conversationContextText}
 
 Photo / file behavior:
-- The scheduling workflow already gives the customer one proactive invitation to upload helpful photos or files after an appointment is confirmed.
-- Do not repeat that invitation during ordinary business questions.
+- Do not proactively ask for photos or files unless the tenant configuration and current workflow call for them.
 - Do not append upload guidance to unrelated answers.
 - Mention photos, files, or the + button only when:
   1. the customer directly asks about uploading,
@@ -318,12 +365,17 @@ export async function generatePostCaptureTurn(input: {
 
   const tenantKnowledgeContext = formatTenantKnowledgeForPrompt(tenantKnowledge);
 
+  const bookingFlow = getBookingFlowConfig(tenant);
+  const bookingFlowPromptContext = buildBookingFlowPromptContext(tenant);
+
   try {
     const client = getOpenAIClient();
 
     const nextStepMessage =
       tenant.nextStepMessage?.trim() ||
-      "The next step is usually a quick call to confirm details and coordinate scheduling.";
+      (bookingFlow.requiresAppointment
+        ? "The next step is coordinating the appropriate appointment."
+        : "Someone from our team will follow up with you.");
 
     const prompt = `
       You are the AI receptionist for this business.
@@ -418,6 +470,9 @@ export async function generatePostCaptureTurn(input: {
       - Do not repeat previously confirmed scheduling details unless needed for clarity.
 
       Timing / scheduling / quote rules:
+      - Follow the Booking Flow Rules above before applying any scheduling rule below.
+      - If the Booking Flow Rules say scheduling is NOT supported, do not mention appointments, booking, calendar availability, calls, visits, or scheduling as the next step.
+      - If scheduling is not supported, the preferred next-step wording should describe human follow-up, signup, or the tenant's configured non-scheduling action.
       - Never promise project completion dates.
       - Never promise quote turnaround as a guarantee.
       - Do not start calendar scheduling on your own.
@@ -431,8 +486,9 @@ export async function generatePostCaptureTurn(input: {
       - If the tenant's Booking Type is "reservation", frame next steps around confirming reservation details.
       - If the tenant's Booking Type is "direct_booking", frame next steps around selecting service and booking time.
       - If the tenant's Booking Type is "consultation" or "estimate", frame next steps around consultation, estimate, or review.
-      - Do not ask for email immediately after lead capture.
-      - Email is optional and should normally be collected during appointment scheduling.
+      - Email collection must follow tenant configuration.
+      - Do not assume email belongs only to appointment scheduling.
+      - If Ask for Email After Phone is enabled, email may be collected as part of lead capture even when scheduling is disabled.
       - If the customer voluntarily provides an email, extract it and acknowledge it.
       - If the customer has not provided email yet, do not ask for it unless it is needed for a specific next action.
       - Do not assume an on-site visit simply because the customer mentioned their home, address, remodel, bathroom, patio, kitchen, or project.
@@ -479,6 +535,15 @@ export async function generatePostCaptureTurn(input: {
       - Good wording:
         "Nothing else is required. If you think of any other questions before then, just send me a message here."
 
+      Post-capture conversation rules:
+      - Lead capture is a milestone, not the end of the conversation.
+      - Continue helping the customer normally after the lead has been created.
+      - Do not repeatedly remind the customer that someone will follow up.
+      - Do not append follow-up or handoff language to unrelated answers.
+      - Mention human follow-up only when it is directly relevant to the customer's latest message or when human assistance is actually required.
+      - If the customer continues asking questions, simply answer them.
+      - Do not make the customer feel dismissed, transferred, or encouraged to leave the conversation.
+      
       Closing rules:
       - When the customer indicates they are done, respond with a short recap instead of asking another question.
       - The recap should include:

@@ -187,11 +187,35 @@ function isSignupQuestion(message: string) {
   );
 }
 
-function buildConversationCloseReply(tenant: Tenant) {
+function buildConversationCloseReply(
+  tenant: Tenant,
+  previousAssistantMessage?: string | null
+) {
   const bookingFlow = getBookingFlowConfig(tenant);
+
+  const previousReply = previousAssistantMessage?.trim().toLowerCase() || "";
+
+  /**
+   * If the receptionist already gave a full conversational close,
+   * don't repeat the entire goodbye when the customer responds with
+   * "you too", "you as well", "thanks again", etc.
+   */
+  const alreadyClosed =
+    previousReply.includes("have a great day") ||
+    previousReply.includes("have a good day") ||
+    previousReply.includes("talk soon") ||
+    previousReply.includes("take care");
+
+  if (alreadyClosed) {
+    return "You too!";
+  }
 
   if (bookingFlow.showSignupLink) {
     return "Sounds great. Whenever you’re ready, just hit Get Started and we’ll walk you through everything. If you have questions along the way, I’m here to help.";
+  }
+
+  if (!bookingFlow.requiresAppointment) {
+    return "You’re very welcome! If anything else comes up, just send us a message here. Have a great day!";
   }
 
   return "You’re very welcome! If anything else comes up before your appointment, just send us a message here. Have a great day!";
@@ -276,8 +300,38 @@ function buildLeadCompletionAssistantReply(input: {
   latestUserMessage: string;
   generatedReply?: string;
 }) {
+  const bookingFlow = getBookingFlowConfig(input.tenant);
   const nextStepReply = buildLeadCreatedNextStepReply(input.tenant);
 
+  /**
+   * Lead Capture Only / Manual Follow-up:
+   *
+   * These flows do not have a deterministic scheduling action.
+   * Let the AI provide the natural conversational transition when
+   * possible. The tenant's Next Step Message is already available
+   * to the AI as guidance and should not be forced verbatim into
+   * the conversation.
+   */
+  if (
+    bookingFlow.bookingType === "lead_capture" ||
+    bookingFlow.bookingType === "manual_followup"
+  ) {
+    const naturalReply = removeLeadCompletionLanguage(input.generatedReply);
+
+    if (naturalReply) {
+      return naturalReply;
+    }
+
+    return nextStepReply;
+  }
+
+  /**
+   * Scheduling-enabled flows remain deterministic.
+   *
+   * Booking Flow owns the operational next step so consultation,
+   * estimate, reservation, direct booking, and phone-call tenants
+   * continue into the correct workflow.
+   */
   if (!containsDirectBusinessQuestion(input.latestUserMessage)) {
     return nextStepReply;
   }
@@ -549,6 +603,18 @@ async function safeRunLeadCopilot(
   }
 }
 
+function shouldAskForEmailAfterPhone(
+  session: ChatSession,
+  tenant: Tenant
+) {
+  return (
+    tenant.askForEmailAfterPhone === true &&
+    Boolean(session.intakeData?.contact?.trim()) &&
+    !session.intakeData?.email?.trim() &&
+    !session.intakeData?.emailAfterPhoneAsked
+  );
+}
+
 function buildIntentCustomerUpdate(intent: MessageIntentResult) {
   const data = intent.extractedData || {};
 
@@ -654,7 +720,7 @@ function buildKnowledgeRetrievalQuery(
   latestUserMessage: string
 ) {
   const recentContext = messages
-    .slice(-6)
+    .slice(-12)
     .map((message) => `${message.role}: ${message.content}`)
     .join("\n");
 
@@ -899,7 +965,7 @@ async function createLeadAndNotifyOnce(session: ChatSession) {
 
     customerName: intake.name || "Unknown",
     phone: intake.contact || "Unknown",
-    email: undefined,
+    email: intake.email || undefined,
     address: undefined,
     projectType: intake.projectType || "Unknown",
     location: intake.location || "Unknown",
@@ -1457,31 +1523,191 @@ export async function addUserMessage(sessionId: string, content: string) {
     };
   }
 
+  /**
+ * Validate phone only when the assistant actually asked for a phone/contact.
+ *
+ * Why:
+ * - currentStep represents the next missing required field.
+ * - It does NOT guarantee the assistant's most recent question asked for that field.
+ * - The AI may still be answering or discussing the customer's active objective.
+ *
+ * Example:
+ * currentStep may already be "contact", while the assistant asks:
+ * "How much coffee would you like each month?"
+ *
+ * The customer's answer must not be treated as an invalid phone number.
+ */
   if (
     session.currentStep === "contact" &&
     tenant.requirePhoneForLead !== false
   ) {
-    const normalizedPhone = normalizeUsPhone(trimmedContent);
+    const validationMessages = await getMessagesForSession(sessionId);
   
-    if (!normalizedPhone) {
+    const lastAssistantMessage = [...validationMessages]
+      .reverse()
+      .find((message) => message.role === "assistant");
+  
+    const requestedField = detectRequestedField(lastAssistantMessage?.content);
+  
+    if (requestedField === "contact") {
+      const normalizedPhone = normalizeUsPhone(trimmedContent);
+  
+      if (!normalizedPhone) {
+        const assistantReply = createMessageObject(
+          sessionId,
+          "assistant",
+          isAskingAboutUsingSomeoneElsesPhone(trimmedContent)
+            ? "Yes, that’s totally fine. What’s the best phone number to reach them?"
+            : "That phone number doesn’t look complete. Please send a 10-digit phone number, including the area code."
+        );
+  
+        await insertMessage(assistantReply);
+  
+        return {
+          sessionId,
+          messages: await getMessagesForSession(sessionId),
+          session,
+        };
+      }
+    }
+  }
+  
+  /**
+   * Handle the optional "Ask for Email after Phone" follow-up.
+   *
+   * Important:
+   * - The lead already exists at this point.
+   * - Email is not required to create the lead.
+   * - This handler only runs after we explicitly asked for email.
+   * - Scheduling/non-scheduling continuation is handled separately below.
+   */
+  /**
+ * Handle the optional "Ask for Email after Phone" follow-up.
+ *
+ * Important:
+ * - The lead already exists at this point.
+ * - Email is optional and is not required to create the lead.
+ * - This is a temporary sub-step inside the tenant's Booking Flow.
+ * - Once email is supplied or skipped, resume the Booking Flow explicitly.
+ */
+if (
+  session.currentStep === "complete" &&
+  session.leadCaptured &&
+  session.leadId &&
+  session.intakeData?.awaitingEmailAfterPhone
+) {
+  const normalizedEmailResponse = trimmedContent.trim().toLowerCase();
+
+  const wantsToSkipEmail =
+    normalizedEmailResponse === "skip" ||
+    normalizedEmailResponse === "no" ||
+    normalizedEmailResponse === "no thanks" ||
+    normalizedEmailResponse === "no thank you" ||
+    normalizedEmailResponse === "rather not" ||
+    normalizedEmailResponse === "prefer not to";
+
+  if (!wantsToSkipEmail) {
+    const normalizedEmail = normalizeEmail(trimmedContent);
+
+    if (!normalizedEmail) {
       const assistantReply = createMessageObject(
         sessionId,
         "assistant",
-        isAskingAboutUsingSomeoneElsesPhone(trimmedContent)
-          ? "Yes, that’s totally fine. What’s the best phone number to reach them?"
-          : "That phone number doesn’t look complete. Please send a 10-digit phone number, including the area code."
+        "That doesn’t look like a complete email address. Please send the email you’d like us to use, or say “skip.”"
       );
-  
+
       await insertMessage(assistantReply);
-  
+
       return {
         sessionId,
         messages: await getMessagesForSession(sessionId),
         session,
       };
     }
+
+    session.intakeData = {
+      ...session.intakeData,
+      email: normalizedEmail,
+      awaitingEmailAfterPhone: false,
+    };
+
+    await updateSession(session);
+
+    await updateLead(session.leadId, {
+      email: normalizedEmail,
+    });
+
+    await safeCreateLeadActivity({
+      leadId: session.leadId,
+      tenantSlug: session.tenantSlug,
+      eventType: "lead.email_added",
+      eventSource: "customer",
+      metadata: {
+        fieldName: "email",
+        previousValue: null,
+        newValue: normalizedEmail,
+      },
+    });
+  } else {
+    session.intakeData = {
+      ...session.intakeData,
+      awaitingEmailAfterPhone: false,
+    };
+
+    await updateSession(session);
   }
 
+  /**
+   * Email collection is complete.
+   *
+   * Resume the tenant's Booking Flow here instead of allowing the email
+   * response ("skip" or an email address) to fall through as a new
+   * conversational message.
+   */
+  const bookingFlow = getBookingFlowConfig(tenant);
+
+  if (bookingFlow.shouldOfferSchedulingAfterLeadCreated) {
+    session.intakeData = {
+      ...session.intakeData,
+      awaitingSchedulingConfirmation: true,
+    };
+
+    await updateSession(session);
+
+    const assistantReply = createMessageObject(
+      sessionId,
+      "assistant",
+      buildLeadCreatedNextStepReply(tenant)
+    );
+
+    await insertMessage(assistantReply);
+
+    return {
+      sessionId,
+      messages: await getMessagesForSession(sessionId),
+      session,
+    };
+  }
+
+  /**
+   * Non-scheduling flows such as Lead Capture Only and Manual Follow-up
+   * should complete their handoff without entering scheduling.
+   */
+  const assistantReply = createMessageObject(
+    sessionId,
+    "assistant",
+    buildLeadCreatedNextStepReply(tenant)
+  );
+
+  await insertMessage(assistantReply);
+
+  return {
+    sessionId,
+    messages: await getMessagesForSession(sessionId),
+    session,
+  };
+}
+  
   /**
    * Handle hypothetical cancel/reschedule questions before scheduling intent.
    *
@@ -1489,7 +1715,7 @@ export async function addUserMessage(sessionId: string, content: string) {
    * This prevents the scheduler from incorrectly restarting or canceling appointments.
    */
   const normalizedForPolicy = trimmedContent.trim().toLowerCase();
-
+  
   const isCancelReschedulePolicyQuestion =
     (
       normalizedForPolicy.includes("what happens if") ||
@@ -1503,7 +1729,7 @@ export async function addUserMessage(sessionId: string, content: string) {
       normalizedForPolicy.includes("move") ||
       normalizedForPolicy.includes("change")
     );
-
+  
   if (
     session.currentStep === "complete" &&
     session.leadCaptured &&
@@ -1515,16 +1741,16 @@ export async function addUserMessage(sessionId: string, content: string) {
       "assistant",
       "No problem — if you need to cancel or reschedule, just let us know as soon as possible and we’ll help adjust the appointment."
     );
-
+  
     await insertMessage(assistantReply);
-
+  
     return {
       sessionId,
       messages: await getMessagesForSession(sessionId),
       session,
     };
   }
-
+  
   const pendingAction = session.intakeData?.pendingAction;
 
 if (
@@ -1651,26 +1877,35 @@ if (
   }
 }
 
-  if (
-    session.currentStep === "complete" &&
-    session.leadCaptured &&
-    session.leadId &&
-    detectConversationClose(trimmedContent)
-  ) {
-    const assistantMessage = createMessageObject(
-      sessionId,
-      "assistant",
-      buildConversationCloseReply(tenant)
-    );
+if (
+  session.currentStep === "complete" &&
+  session.leadCaptured &&
+  session.leadId &&
+  detectConversationClose(trimmedContent)
+) {
+  const closeMessages = await getMessagesForSession(sessionId);
 
-    await insertMessage(assistantMessage);
+  const previousAssistantMessage = [...closeMessages]
+    .reverse()
+    .find((message) => message.role === "assistant");
 
-    return {
-      sessionId,
-      messages: await getMessagesForSession(sessionId),
-      session,
-    };
-  }
+  const assistantMessage = createMessageObject(
+    sessionId,
+    "assistant",
+    buildConversationCloseReply(
+      tenant,
+      previousAssistantMessage?.content
+    )
+  );
+
+  await insertMessage(assistantMessage);
+
+  return {
+    sessionId,
+    messages: await getMessagesForSession(sessionId),
+    session,
+  };
+}
 
   /**
  * AI INTENT INTERPRETER — post-capture only.
@@ -1767,15 +2002,22 @@ if (
  * - RAG/vector search will improve knowledge retrieval speed and accuracy,
  *   but simple closing messages should still bypass expensive AI/retrieval work.
  */
-if (
-  messageIntent.confidence === "high" &&
-  workflowDecision.action === "handle_conversation_close"
-) {
-  const assistantMessage = createMessageObject(
-    sessionId,
-    "assistant",
-    buildConversationCloseReply(tenant)
-  );
+  if (
+    messageIntent.confidence === "high" &&
+    workflowDecision.action === "handle_conversation_close"
+  ) {
+    const previousAssistantMessage = [...messages]
+      .reverse()
+      .find((message) => message.role === "assistant");
+  
+    const assistantMessage = createMessageObject(
+      sessionId,
+      "assistant",
+      buildConversationCloseReply(
+        tenant,
+        previousAssistantMessage?.content
+      )
+    );
 
   await insertMessage(assistantMessage);
 
@@ -1846,7 +2088,6 @@ if (
     [
       "update_contact_info",
       "add_appointment_note",
-      "add_customer_detail",
     ].includes(workflowDecision.action)
   ) {
     const customerUpdate = buildIntentCustomerUpdate(messageIntent);
@@ -2614,6 +2855,30 @@ updatedSession = applyFallbackStepCapture({
     const leadCreateStart = Date.now();
 
     updatedSession = await createLeadAndNotifyOnce(updatedSession);
+
+    if (shouldAskForEmailAfterPhone(updatedSession, tenant)) {
+      updatedSession.intakeData = {
+        ...updatedSession.intakeData,
+        emailAfterPhoneAsked: true,
+        awaitingEmailAfterPhone: true,
+      };
+    
+      await updateSession(updatedSession);
+    
+      const assistantReply = createMessageObject(
+        sessionId,
+        "assistant",
+        "Thanks. What’s the best email address for follow-up? You can also say “skip.”"
+      );
+    
+      await insertMessage(assistantReply);
+    
+      return {
+        sessionId,
+        messages: await getMessagesForSession(sessionId),
+        session: updatedSession,
+      };
+    }
 
     console.log("⏱️ createLeadAndNotifyOnce ms:", Date.now() - leadCreateStart);
   
