@@ -304,13 +304,9 @@ export default function AiChatSettingsPanel({ tenant }: Props) {
                   className="w-full rounded-xl border border-stone-200 px-3 py-2 text-sm"
                 >
                   <option value="consultation">Consultation / estimate</option>
-                  <option value="reservation">Reservation / rental</option>
-                  <option value="direct_booking">Direct service booking</option>
                   <option value="phone_call">Phone call follow-up</option>
                   <option value="estimate">Quote / estimate request</option>
-
                   <option value="lead_capture">Lead capture only</option>
-                  <option value="manual_followup">Manual follow-up</option>
                   <option value="product_signup">Product signup</option>
                 </select>
               </label>

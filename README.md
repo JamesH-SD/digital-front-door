@@ -1,36 +1,21 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# Contactor Project Memory
 
-## Getting Started
+This folder is the durable project context for Contactor. It is intended to live in the repository so ChatGPT, Cursor, and future coding agents can work from the same source of truth instead of relying on a long chat history.
 
-First, run the development server:
+## Start here
 
-```bash
-npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
-```
+1. Read `AGENTS.md` before making code changes.
+2. Read `docs/CURRENT_STATE.md` for the latest project status.
+3. Read `docs/ARCHITECTURE.md` before changing workflow, scheduling, tenancy, auth, billing, or AI behavior.
+4. Read `docs/DECISIONS.md` before changing a previously settled product or architecture choice.
+5. Use `docs/ROADMAP.md` and `docs/LAUNCH_PLAN.md` to choose work; do not treat the parking lot as implementation authorization.
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+## Maintenance rule
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+When a code change materially changes product behavior, architecture, workflow, UI standards, or project status, update the relevant document in the same commit.
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+## Source snapshot
 
-## Learn More
+Initial version created from the uploaded `app`, `components`, `lib`, and `docs` code snapshot plus the 2026-08-29 AI Receptionist Workflow Handoff and current owner direction as of 2026-09-02.
 
-To learn more about Next.js, take a look at the following resources:
-
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
-
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
-
-## Deploy on Vercel
-
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
-
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+This snapshot did **not** include the full repository root, database migrations/schema, package manifest, deployment configuration, or test suite. Statements about those areas are intentionally limited.
