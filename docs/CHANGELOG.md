@@ -2,6 +2,11 @@
 
 This is a lightweight context changelog, not a substitute for Git history.
 
+## 2026-09-22 — Onboarding Wizard V2 Phase B2 deferred setup UX
+
+- Optional onboarding steps (Hours, Calendar when applicable, Training) support Skip for now with Admin destination toasts; no skip persistence fields.
+- Training step copy during onboarding; Knowledge Base admin naming unchanged.
+
 ## 2026-09-22 — Onboarding Wizard V2 Phase B1 foundation
 
 - Added `tenants.deployment_mode` (`existing_site` | `hosted`, nullable for legacy tenants).

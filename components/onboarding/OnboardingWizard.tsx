@@ -15,6 +15,11 @@ import {
   isTenantFacingBookingType,
   type TenantFacingBookingType,
 } from "@/lib/onboarding/customerHelpOptions";
+import {
+  getOnboardingSkipToastMessage,
+  isSkippableOnboardingStep,
+} from "@/lib/onboarding/onboardingDeferredSetupMessages";
+import ToastMessage from "@/components/ui/ToastMessage";
 
 type StepKey = OnboardingWizardStepKey;
 
@@ -106,14 +111,14 @@ const STEP_HELP: Record<
     description: "",
   },
   knowledge: {
-    eyebrow: "Knowledge Base",
-    title: "Help the AI answer better.",
+    eyebrow: "Train your AI receptionist",
+    title: "Help your receptionist learn your business.",
     description:
-      "Upload FAQs, service details, pricing guidance, or business documents so the AI can answer more accurately.",
+      "Just like a new employee, your receptionist gets better when it knows more about your business. Add the information customers commonly ask about—policies, products, services, pricing guidance, FAQs, and other useful details. Information you add here is saved to your Knowledge Base and can be updated anytime.",
     examples: [
       "FAQ document",
-      "About us document",
       "Service descriptions",
+      "Pricing guidance",
       "Quote or appointment policies",
     ],
   },
@@ -242,6 +247,7 @@ export default function OnboardingWizard({ tenant }: { tenant: Tenant }) {
   const [returnToReview, setReturnToReview] = useState(false);
   const [message, setMessage] = useState("");
   const [isSaving, setIsSaving] = useState(false);
+  const [skipToastMessage, setSkipToastMessage] = useState<string | null>(null);
 
   const [customerHelpChoice, setCustomerHelpChoice] =
     useState<TenantFacingBookingType | null>(() =>
@@ -319,8 +325,7 @@ export default function OnboardingWizard({ tenant }: { tenant: Tenant }) {
     });
   }
 
-  function skipStep() {
-    setMessage("");
+  function advanceToNextStep() {
     setCurrentStepKey((prev) => {
       const index = steps.findIndex((step) => step.key === prev);
       if (index < 0 || index >= steps.length - 1) {
@@ -328,6 +333,18 @@ export default function OnboardingWizard({ tenant }: { tenant: Tenant }) {
       }
       return steps[index + 1].key;
     });
+  }
+
+  function skipOptionalStep() {
+    if (!isSkippableOnboardingStep(currentStep.key)) {
+      return;
+    }
+
+    setMessage("");
+    setSkipToastMessage(
+      getOnboardingSkipToastMessage(currentStep.key)
+    );
+    advanceToNextStep();
   }
 
   function updateHoursDay(day: DayKey, updates: Partial<DayHours>) {
@@ -514,7 +531,7 @@ export default function OnboardingWizard({ tenant }: { tenant: Tenant }) {
         return;
       }
 
-      skipStep();
+      advanceToNextStep();
     } catch (error) {
       setMessage(
         error instanceof Error ? error.message : "Failed to save onboarding."
@@ -524,6 +541,15 @@ export default function OnboardingWizard({ tenant }: { tenant: Tenant }) {
 
   return (
     <div className="w-full">
+      {skipToastMessage ? (
+        <ToastMessage
+          message={skipToastMessage}
+          variant="success"
+          durationMs={7000}
+          onClose={() => setSkipToastMessage(null)}
+        />
+      ) : null}
+
       <div className="w-full">
         <div className="w-full">
           <div className="rounded-3xl border border-stone-200 bg-white p-5">
@@ -1177,11 +1203,11 @@ export default function OnboardingWizard({ tenant }: { tenant: Tenant }) {
               </button>
 
               <div className="flex gap-3">
-                {!currentStep.required && currentStep.key !== "finish" ? (
+                {isSkippableOnboardingStep(currentStep.key) ? (
                   <button
                     type="button"
-                    onClick={skipStep}
-                    className="saas-button-secondary px-4 py-2 text-sm font-semibold"
+                    onClick={skipOptionalStep}
+                    className="px-2 py-2 text-sm font-semibold text-gray-600 underline-offset-2 hover:text-orange-700 hover:underline"
                   >
                     Skip for now
                   </button>

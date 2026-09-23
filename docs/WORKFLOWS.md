@@ -143,6 +143,10 @@ Do not solve this by merely inserting hidden natural-language text into UI witho
 
 ## Onboarding — planned direction
 
-Onboarding Wizard V2 Phase B1 (in progress): adaptive step list with explicit `deployment_mode` (`existing_site` | `hosted`, not inferred from `websiteUrl`), services separated from a five-choice “How should Contactor help customers?” step (`bookingType` persistence unchanged; `getBookingFlowConfig()` remains authority), and Calendar shown only when `requiresCalendar` is true. Deployment onboarding step, shared readiness, real AI assistance, and Dashboard checklist evolution are not part of B1.
+Onboarding Wizard V2 Phase B1: adaptive step list with explicit `deployment_mode` (`existing_site` | `hosted`, not inferred from `websiteUrl`), services separated from a five-choice “How should Contactor help customers?” step (`bookingType` persistence unchanged; `getBookingFlowConfig()` remains authority), and Calendar shown only when `requiresCalendar` is true.
+
+Phase B2: optional Hours, Calendar (when shown), and Training/Knowledge steps support **Skip for now** without persisting skip flags or altering existing configuration; a toast points to Admin (`/settings/hours`, `/settings/calendar`, `/knowledge`). Training step uses onboarding “Train your AI receptionist” language; Admin nav remains **Knowledge Base**.
+
+Deployment onboarding step, shared readiness, real AI assistance, and Dashboard checklist evolution remain future work.
 
 The prior seven-step wizard exposed legacy Booking Flow choices on the Services step; that path is being replaced incrementally.

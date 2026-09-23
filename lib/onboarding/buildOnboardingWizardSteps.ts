@@ -27,7 +27,7 @@ const BASE_STEPS: OnboardingWizardStep[] = [
 
 const KNOWLEDGE_STEP: OnboardingWizardStep = {
   key: "knowledge",
-  label: "Knowledge",
+  label: "Training",
   required: false,
 };
 
