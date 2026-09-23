@@ -561,3 +561,35 @@ Customer-facing deployment is stored as `tenants.deployment_mode`:
 The value may be **NULL** for legacy tenants until set in onboarding or admin. The application must **not** infer deployment mode from `website_url` alone.
 
 `website_url` and `deployment_mode` are independent: a hosted deployment does not require clearing a stored website URL, and deployment behavior must not be inferred from `website_url`.
+
+---
+
+## D-029 — Tenant Setup Readiness model (C1a)
+
+**Status:** Active as of 2026-09-22 (Phase C1a library)
+
+Tenant Setup Readiness answers: **“Can this part of Contactor do its job?”** It is distinct from polish/optimization checklists (for example the Website Builder’s detailed 8-item setup percentage).
+
+**Scope**
+
+- Deterministic, pure evaluators under `lib/readiness/`; no persisted readiness state, skip flags, AI scoring, or wizard state as truth.
+- Not included: billing/trial, existing-site widget installation (not verifiable), platform customer health score (`lib/db/platform-customer.ts` unchanged in C1).
+
+**Categories**
+
+1. **Business Profile** — Always applicable. Required: business name, primary phone, email, service area summary, at least one service, explicit `deployment_mode` (`existing_site` or `hosted`; NULL is incomplete), and `website_url` when `existing_site`. Recommended: hours, tagline, about, address/service cities, license or insured flag.
+2. **AI Receptionist** — Always applicable. Required: `booking_type` is one of the five tenant-facing flows (`consultation`, `phone_call`, `estimate`, `lead_capture`, `product_signup`). Legacy (`reservation`, `direct_booking`, `manual_followup`) and NULL are incomplete; do not silently remap. `getBookingFlowConfig()` remains scheduling authority.
+3. **Knowledge Base** — Always applicable (`contributesToOverall: false`). Single **recommended** item: tenant-wide/global knowledge (caller supplies count excluding campaign-only items). Category status/percent reflect that recommendation for UI (“Train your receptionist”) but **do not** reduce operational `overallPercent`. No invented required knowledge items.
+4. **Calendar** — Applicable only when `isTenantFacingBookingType(tenant.booking_type)` **and** `getBookingFlowConfig(tenant).requiresCalendar === true`. NULL, legacy, and non-scheduling tenant-facing flows (`estimate`, `lead_capture`, `product_signup`) → `not_applicable`. Scheduling tenant-facing flows (`consultation`, `phone_call`) → applicable when calendar required. Does **not** change runtime `getBookingFlowConfig()` normalization. Complete when an active primary calendar connection exists (caller supplies boolean).
+5. **Website** — Applicable only when `deployment_mode === hosted` (`contributesToOverall: true` when applicable). Required when applicable: published website, services from `services_offered` or website service configuration, customer phone on profile. Does not require logo, hero, FAQs, gallery, or other presentation polish. Existing-site and NULL deployment mode: `not_applicable` (NULL deployment gap is Business Profile).
+
+**Status and percentages (operational vs polish)**
+
+- For categories with **required** items: category **status** and **percent** use **required items only**. Recommended items remain in `items` for future UI; incomplete recommended items do not lower percent or block `status: complete`.
+- **Overall percent:** equal average of applicable categories where `contributesToOverall === true`. Excludes `not_applicable` categories and Knowledge Base.
+- Recommended-only display categories score from their display items (Knowledge: 0% or 100% on the single recommendation).
+- No weighted 0.5/required-vs-recommended scoring.
+
+**Integration (future)**
+
+C1a is library-only. Dashboard, Wizard Review, Website UI, and APIs are not wired in C1a.
