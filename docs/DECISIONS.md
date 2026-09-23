@@ -590,6 +590,7 @@ Tenant Setup Readiness answers: **“Can this part of Contactor do its job?”**
 - Recommended-only display categories score from their display items (Knowledge: 0% or 100% on the single recommendation).
 - No weighted 0.5/required-vs-recommended scoring.
 
-**Integration (future)**
+**Integration**
 
-C1a is library-only. Dashboard, Wizard Review, Website UI, and APIs are not wired in C1a.
+- **C1b (Website admin):** Operational hosted-website status uses the shared Website category (`getHostedWebsiteOperationalReadiness()`). Website Builder 8-item progress remains a separate polish checklist (`getWebsiteBuilderProgress()`). No single combined percentage.
+- **Future:** Dashboard, Wizard Review, and APIs may use `loadTenantSetupReadinessDependencies()` + `getTenantSetupReadiness()`.

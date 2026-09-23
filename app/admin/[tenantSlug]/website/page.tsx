@@ -2,67 +2,20 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import { getTenantBySlug } from "@/lib/db/tenants";
 import WebsitePublishControls from "@/components/admin/website/WebsitePublishControls";
+import WebsiteOperationalStatus from "@/components/admin/website/WebsiteOperationalStatus";
 import { getSubscriptionState } from "@/lib/billing/getSubscriptionState";
 import TrialExpiredPage from "@/components/admin/billing/TrialExpiredPage";
-
+import { getHostedWebsiteOperationalReadiness } from "@/lib/readiness/getHostedWebsiteOperationalReadiness";
+import {
+  getWebsiteBuilderProgress,
+  getWebsiteBuilderProgressPercent,
+} from "@/lib/website/getWebsiteBuilderProgress";
 
 type PageProps = {
   params: Promise<{
     tenantSlug: string;
   }>;
 };
-
-function getReadinessItems(tenant: Awaited<ReturnType<typeof getTenantBySlug>>) {
-  const settings = tenant?.websiteSettings || {};
-
-  return [
-    {
-      label: "Logo added",
-      complete: Boolean(settings.logoUrl),
-      href: "brand",
-    },
-    
-    {
-      label: "Browser tab icon",
-      complete: Boolean(settings.faviconUrl),
-      href: "brand",
-    },
-    {
-      label: "Home page headline",
-      complete: Boolean(settings.heroHeadline),
-      href: "hero",
-    },
-    {
-      label: "Why Us section",
-      complete: Boolean(settings.whyUsTitle),
-      href: "why-us",
-    },
-    {
-      label: "Services added",
-      complete: Boolean(
-        (settings.services && settings.services.length > 0) ||
-          (tenant?.servicesOffered && tenant.servicesOffered.length > 0)
-      ),
-      href: "services",
-    },
-    
-    {
-      label: "About section",
-      complete: Boolean(settings.aboutBody),
-      href: "about",
-    },
-    {
-      label: "FAQs added",
-      complete: Boolean(settings.faqs && settings.faqs.length > 0),
-      href: "faqs",
-    },
-    {
-      label: "Business contact complete",
-      complete: Boolean(tenant?.primaryPhone && tenant?.email),
-      href: "../settings",
-    },
-  ];
-}
 
 export default async function WebsitePage({ params }: PageProps) {
   const { tenantSlug } = await params;
@@ -74,18 +27,20 @@ export default async function WebsitePage({ params }: PageProps) {
 
   const subscriptionState = await getSubscriptionState(tenantSlug);
 
-if (subscriptionState.isExpired) {
-  return (
-    <TrialExpiredPage
-      tenantSlug={tenantSlug}
-      title="Website Builder"
-      description="Continue editing your branding, homepage, services, gallery, FAQs, social links, and publishing settings."
-    />
-  );
-}
+  if (subscriptionState.isExpired) {
+    return (
+      <TrialExpiredPage
+        tenantSlug={tenantSlug}
+        title="Website Builder"
+        description="Continue editing your branding, homepage, services, gallery, FAQs, social links, and publishing settings."
+      />
+    );
+  }
 
-  const readinessItems = getReadinessItems(tenant);
-  const completedCount = readinessItems.filter((item) => item.complete).length;
+  const websiteReadiness = getHostedWebsiteOperationalReadiness(tenant);
+  const readinessItems = getWebsiteBuilderProgress(tenant);
+  const { completedCount, totalCount, percent } =
+    getWebsiteBuilderProgressPercent(tenant);
 
   return (
     <div className="space-y-6">
@@ -109,17 +64,23 @@ if (subscriptionState.isExpired) {
         initialPublishedAt={tenant.websitePublishedAt}
       />
 
+      <WebsiteOperationalStatus
+        tenantSlug={tenant.slug}
+        deploymentMode={tenant.deploymentMode ?? null}
+        websiteReadiness={websiteReadiness}
+      />
+
       <section className="rounded-3xl border border-stone-200/60 bg-white/90 p-6 shadow-[0_10px_30px_rgba(17,24,39,0.05)]">
         <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
           <div>
             <h2 className="text-lg font-bold text-gray-950">Website setup</h2>
             <p className="mt-1 text-sm text-gray-500">
-              {completedCount} of {readinessItems.length} essentials complete. Review each section below.
+              {completedCount} of {totalCount} essentials complete. Review each section below.
             </p>
           </div>
 
           <span className="w-fit rounded-full bg-orange-50 px-3 py-1 text-xs font-bold text-orange-700">
-            {Math.round((completedCount / readinessItems.length) * 100)}%
+            {percent}%
           </span>
         </div>
 
