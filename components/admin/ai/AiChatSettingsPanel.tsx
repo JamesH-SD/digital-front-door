@@ -209,6 +209,10 @@ export default function AiChatSettingsPanel({ tenant }: Props) {
 
   const tenantHasWebsite = hasWebsiteUrl(tenant.websiteUrl);
 
+  const widgetScriptUrl = origin ? `${origin}/widget.js` : "/widget.js";
+
+  const embedSnippet = `<script src="${widgetScriptUrl}" data-tenant="${tenant.slug}"></script>`;
+
   async function saveAiChatSettings() {
     try {
       setIsSaving(true);
@@ -452,16 +456,15 @@ export default function AiChatSettingsPanel({ tenant }: Props) {
                   </p>
 
                   <p className="mt-1 text-xs text-gray-500">
-                    Add this snippet to an existing website once the Contactor
-                    widget script is active.
+                    Add this snippet before the closing body tag on pages where
+                    customers should reach your AI receptionist.
                   </p>
                 </div>
 
                 <button
                   type="button"
                   onClick={() => {
-                    const snippet = `<script src="https://app.contactor.ai/widget.js" data-tenant="${tenant.slug}"></script>`;
-                    void navigator.clipboard.writeText(snippet);
+                    void navigator.clipboard.writeText(embedSnippet);
                   }}
                   className="saas-button-secondary px-3 py-1 text-xs font-medium"
                 >
@@ -470,12 +473,8 @@ export default function AiChatSettingsPanel({ tenant }: Props) {
               </div>
 
               <pre className="mt-3 overflow-x-auto rounded-lg bg-gray-950 p-3 text-xs text-gray-100">
-{`<script src="https://app.contactor.ai/widget.js" data-tenant="${tenant.slug}"></script>`}
+                {embedSnippet}
               </pre>
-
-              <p className="mt-2 text-xs text-amber-700">
-                Widget script is not active yet. This is the planned embed format.
-              </p>
             </div>
           </div>
         </section>

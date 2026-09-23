@@ -65,25 +65,7 @@ export default async function TenantPage({ params, searchParams }: PageProps) {
   // Normal website visitors see the trust page first with a visible AI launcher.
   const autoOpenChat = query.openChat === "1";
 
-  if (
-    tenant.websiteStatus !== "published" &&
-    !isPreview
-  ) {
-    return (
-      <main className="flex min-h-screen items-center justify-center bg-stone-50 px-6">
-        <div className="max-w-lg rounded-3xl border border-stone-200 bg-white p-8 text-center shadow-sm">
-          <h1 className="text-2xl font-bold text-gray-950">
-            Website Coming Soon
-          </h1>
-  
-          <p className="mt-3 text-sm leading-7 text-gray-600">
-            This business website has not been published yet.
-          </p>
-        </div>
-      </main>
-    );
-  }
-
+  // Embedded receptionist is independent of Contactor-hosted website publication.
   if (isEmbed) {
     return (
       <main className="h-screen w-screen overflow-hidden bg-white p-3">
@@ -95,6 +77,22 @@ export default async function TenantPage({ params, searchParams }: PageProps) {
           campaignAssetId={campaignAssetId}
           variant="embed"
         />
+      </main>
+    );
+  }
+
+  if (tenant.websiteStatus !== "published" && !isPreview) {
+    return (
+      <main className="flex min-h-screen items-center justify-center bg-stone-50 px-6">
+        <div className="max-w-lg rounded-3xl border border-stone-200 bg-white p-8 text-center shadow-sm">
+          <h1 className="text-2xl font-bold text-gray-950">
+            Website Coming Soon
+          </h1>
+
+          <p className="mt-3 text-sm leading-7 text-gray-600">
+            This business website has not been published yet.
+          </p>
+        </div>
       </main>
     );
   }

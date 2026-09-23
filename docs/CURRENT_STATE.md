@@ -53,6 +53,10 @@ Planned direction:
 
 The tenant can keep the existing website and install the Contactor AI receptionist using the provided JavaScript embed/snippet.
 
+`?embed=1` serves the AI receptionist regardless of Contactor-hosted website publication status. Unpublished hosted pages still show “Website Coming Soon” for normal visits and preview (`?preview=true`) unchanged.
+
+The admin embed snippet uses the current app origin for `/widget.js` (for example localhost in development, production host in production).
+
 The Contactor backend remains responsible for:
 
 - AI receptionist behavior
@@ -413,7 +417,7 @@ When an actual business conflict cannot be deterministically resolved, defer to 
 
 ## Launch-risk items requiring verification
 
-- Admin API tenant authorization
+- Admin API tenant authorization (partial: `PATCH /api/admin/tenants/[tenantSlug]` now requires signed-in tenant membership; other tenant-scoped routes still need audit)
 - Direct API access to tenant-scoped routes
 - Routes using admin/service-role Supabase clients
 - End-to-end signup → tenant creation → onboarding → admin → website/embed → AI → lead → scheduling → billing journey

@@ -2,6 +2,12 @@
 
 This is a lightweight context changelog, not a substitute for Git history.
 
+## 2026-09-22 — Embed access, widget snippet UI, tenant PATCH auth (Phase A)
+
+- `?embed=1` no longer blocked by unpublished Contactor-hosted website status.
+- AI Receptionist admin embed snippet uses current app origin for `/widget.js`; removed stale “widget not active” copy.
+- `PATCH /api/admin/tenants/[tenantSlug]` requires authenticated tenant membership.
+
 ## 2026-09-22 — Lead Copilot workflow-awareness stabilization
 
 - Unified Lead Copilot now generates from fresh DB lead via `leadId` (not authoritative browser Lead).

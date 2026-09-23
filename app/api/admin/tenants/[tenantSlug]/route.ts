@@ -1,4 +1,6 @@
 import { NextResponse } from "next/server";
+import { getCurrentUser } from "@/lib/auth/getCurrentUser";
+import { getUserTenantMembership } from "@/lib/auth/tenantAccess";
 import { createClient } from "@/lib/supabase/server";
 
 type RouteContext = {
@@ -10,6 +12,22 @@ type RouteContext = {
 export async function PATCH(request: Request, context: RouteContext) {
   try {
     const { tenantSlug } = await context.params;
+
+    const user = await getCurrentUser();
+
+    if (!user) {
+      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    }
+
+    const membership = await getUserTenantMembership({
+      userId: user.id,
+      tenantSlug,
+    });
+
+    if (!membership) {
+      return NextResponse.json({ error: "Unauthorized" }, { status: 403 });
+    }
+
     const body = await request.json();
 
     const supabase = await createClient();
