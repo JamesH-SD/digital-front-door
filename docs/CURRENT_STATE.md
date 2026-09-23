@@ -1,6 +1,6 @@
 # Contactor Current State
 
-Last reconstructed: 2026-09-02
+Last reconstructed: 2026-09-22
 
 ## Working / substantially present in current code
 
@@ -108,7 +108,7 @@ The 2026-08-29 handoff records successful critical behavior for:
 - Hughes General: contractor/consultation regression baseline
 - Isla Cafe: lead-capture-only conversational baseline
 
-The handoff also identified Estimate behavior that exposed hardcoded consultation/call/site-visit assumptions.
+Estimate (`bookingType === "estimate"`) was stabilized as an intentionally **non-scheduling** flow via `getBookingFlowConfig()`. Consultation behavior was not changed.
 
 Regression testing remains required after workflow changes.
 
@@ -152,6 +152,42 @@ Current production authority remains:
 `tenant.bookingType → getBookingFlowConfig() → chat/workflow behavior`
 
 `getTenantConfig()` remains an emerging capability/configuration layer and is not yet the replacement authority.
+
+### Estimate flow — current production behavior (2026-09-22)
+
+For `bookingType === "estimate"`, `getBookingFlowConfig()` currently sets:
+
+- `requiresAppointment: false`
+- `requiresCalendar: false`
+- `shouldOfferSchedulingAfterLeadCreated: false`
+- `allowCustomerToChooseAppointmentType: false`
+- `allowConversationAfterLead: true`
+- `shouldCreateLeadAutomatically: true`
+
+After lead capture, Estimate continues the conversation but does **not** automatically enter call/site-visit scheduling. The lead-created reply starts the estimate request and uses `tenant.nextStepMessage` when present; otherwise it uses human follow-up guidance. The previous hardcoded Estimate append about scheduling a “quick call or on-site visit” was removed.
+
+### Post-capture customer updates — current production behavior (2026-09-22)
+
+Explicit customer details after lead capture are persisted through deterministic workflow paths before the assistant confirms they were added:
+
+- High-confidence `provide_extra_detail` → `add_customer_detail` uses `appendCustomerUpdateToLead()` and `lead.customer_update_added` activity events.
+- When high-confidence scheduling intent (`start_scheduling`) cannot run because the Booking Flow does not require an appointment, the customer’s preference/correction is persisted as a customer update instead of falling through to free-form post-capture AI.
+- Persist-before-confirm applies: the assistant must not claim information was saved, added, updated, or changed unless the durable write succeeded.
+- `generatePostCaptureTurn()` includes presentation guardrails so it does not claim system persistence on its own. Broad automatic persistence of every post-capture AI `customerUpdateSummary` / `summaryText` block remains **disabled**.
+
+**Manual regression (Christian's Trailer Rentals, Estimate):** lead capture, continued conversation, natural post-capture detail persistence, Customer Updates display, Activity Timeline events, delivery→pickup correction after the non-scheduling fallback, and post-capture knowledge Q&A were manually verified. Estimate did not enter appointment scheduling.
+
+### Next known stabilization item — Lead Copilot (not fixed)
+
+Lead Copilot still needs workflow-awareness work. Current behavior:
+
+- Inputs are primarily the `Lead` object (including `customerUpdates`), not the full chat transcript.
+- Does not receive `getBookingFlowConfig()` / tenant Booking Flow contract today.
+- Can incorrectly treat appointment time as missing for non-scheduling Estimate leads.
+- Can recommend appointment confirmation steps inappropriate for Estimate.
+- Cached Summary / Missing Info / Suggested Next Step may stay stale until regenerated after new customer updates.
+
+This is the **next** AI receptionist stabilization task. It is not part of the 2026-09-22 checkpoint.
 
 ---
 

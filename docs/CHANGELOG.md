@@ -2,6 +2,16 @@
 
 This is a lightweight context changelog, not a substitute for Git history.
 
+## 2026-09-22 — Estimate flow and post-capture customer update stabilization
+
+- Stabilized `bookingType === "estimate"` as intentionally non-scheduling via `getBookingFlowConfig()` (no auto call/site-visit scheduling path; tenant Next Step / human follow-up lead-created reply).
+- Wired high-confidence `add_customer_detail` post-capture persistence with persist-before-confirm and activity timeline events.
+- Added non-scheduling fallback when `start_scheduling` cannot run (`requiresAppointment === false`): persist customer preference/correction as `customer_updates` instead of false AI confirmation.
+- Added `generatePostCaptureTurn()` presentation guardrails (acknowledge customer wording without claiming durable persistence).
+- Manually regression-tested Christian's Trailer Rentals (Estimate): lead capture, continued conversation, persisted updates including delivery→pickup correction, knowledge Q&A after capture.
+- Recorded Lead Copilot Booking Flow / transcript awareness as the next stabilization item (not fixed in this checkpoint).
+- Documented D-024 (Estimate non-scheduling) and D-025 (post-capture persist-before-confirm).
+
 ## 2026-09-02 — Project memory bootstrap
 
 - Created durable AI/project context structure.

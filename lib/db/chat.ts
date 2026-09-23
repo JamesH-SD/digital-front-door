@@ -709,10 +709,27 @@ function buildIntentAssistantReply(intent: MessageIntentResult) {
   }
 
   if (intent.intent === "provide_extra_detail") {
-    return "Got it — I’ll add that detail to your request.";
+    return "Got it — I’ve added that detail to your request.";
   }
 
   return "Got it — I’ll make a note of that.";
+}
+
+function buildIntentPersistenceFailureReply(
+  action:
+    | "update_contact_info"
+    | "add_appointment_note"
+    | "add_customer_detail"
+) {
+  if (action === "add_customer_detail") {
+    return "I’m sorry — I wasn’t able to save that detail just now. Could you send it again?";
+  }
+
+  if (action === "add_appointment_note") {
+    return "I’m sorry — I wasn’t able to save that note just now. Could you send it again?";
+  }
+
+  return "I’m sorry — I wasn’t able to save that update just now. Could you try again?";
 }
 
 function buildKnowledgeRetrievalQuery(
@@ -2081,6 +2098,61 @@ if (
     if (schedulingResult.handled && schedulingResult.response) {
       return schedulingResult.response;
     }
+
+    const bookingFlowForSchedulingFallback = getBookingFlowConfig(tenant);
+
+    if (
+      session.leadId &&
+      !bookingFlowForSchedulingFallback.requiresAppointment &&
+      trimmedContent.trim()
+    ) {
+      const customerUpdate =
+        messageIntent.extractedData?.customerUpdate?.trim() ||
+        trimmedContent.trim();
+
+      let customerUpdatePersisted = false;
+
+      try {
+        await appendCustomerUpdateToLead(session.leadId, customerUpdate);
+
+        await safeCreateLeadActivity({
+          leadId: session.leadId,
+          tenantSlug: session.tenantSlug,
+          eventType: "lead.customer_update_added",
+          eventSource: "customer",
+          metadata: {
+            message: customerUpdate,
+            intent: messageIntent.intent,
+            reason: messageIntent.reason,
+          },
+        });
+
+        customerUpdatePersisted = true;
+      } catch (error) {
+        console.error(
+          "Failed to persist customer update after non-scheduling scheduling intent:",
+          error
+        );
+      }
+
+      const assistantReplyText = customerUpdatePersisted
+        ? "Got it — I’ve added that detail to your request."
+        : buildIntentPersistenceFailureReply("add_customer_detail");
+
+      const assistantMessage = createMessageObject(
+        sessionId,
+        "assistant",
+        assistantReplyText
+      );
+
+      await insertMessage(assistantMessage);
+
+      return {
+        sessionId,
+        messages: await getMessagesForSession(sessionId),
+        session,
+      };
+    }
   }
 
   if (
@@ -2088,9 +2160,17 @@ if (
     [
       "update_contact_info",
       "add_appointment_note",
+      "add_customer_detail",
     ].includes(workflowDecision.action)
   ) {
-    const customerUpdate = buildIntentCustomerUpdate(messageIntent);
+    let customerUpdate = buildIntentCustomerUpdate(messageIntent);
+
+    if (workflowDecision.action === "add_customer_detail") {
+      customerUpdate =
+        messageIntent.extractedData?.customerUpdate?.trim() ||
+        trimmedContent.trim() ||
+        customerUpdate;
+    }
 
     if (
       workflowDecision.action === "update_contact_info" &&
@@ -2102,20 +2182,29 @@ if (
       });
     }
 
-    if (customerUpdate) {
-      await appendCustomerUpdateToLead(session.leadId, customerUpdate);
+    let customerUpdatePersisted = !customerUpdate;
 
-      await safeCreateLeadActivity({
-        leadId: session.leadId,
-        tenantSlug: session.tenantSlug,
-        eventType: "lead.customer_update_added",
-        eventSource: "customer",
-        metadata: {
-          message: customerUpdate,
-          intent: messageIntent.intent,
-          reason: messageIntent.reason,
-        },
-      });
+    if (customerUpdate && session.leadId) {
+      try {
+        await appendCustomerUpdateToLead(session.leadId, customerUpdate);
+
+        await safeCreateLeadActivity({
+          leadId: session.leadId,
+          tenantSlug: session.tenantSlug,
+          eventType: "lead.customer_update_added",
+          eventSource: "customer",
+          metadata: {
+            message: customerUpdate,
+            intent: messageIntent.intent,
+            reason: messageIntent.reason,
+          },
+        });
+
+        customerUpdatePersisted = true;
+      } catch (error) {
+        console.error("Failed to persist customer update:", error);
+        customerUpdatePersisted = false;
+      }
     }
 
     if (
@@ -2137,10 +2226,20 @@ if (
       await updateSession(session);
     }
 
+    const persistedIntentAction = workflowDecision.action as
+      | "update_contact_info"
+      | "add_appointment_note"
+      | "add_customer_detail";
+
+    const assistantReplyText =
+      customerUpdate && !customerUpdatePersisted
+        ? buildIntentPersistenceFailureReply(persistedIntentAction)
+        : buildIntentAssistantReply(messageIntent);
+
     const assistantMessage = createMessageObject(
       sessionId,
       "assistant",
-      buildIntentAssistantReply(messageIntent)
+      assistantReplyText
     );
 
     await insertMessage(assistantMessage);

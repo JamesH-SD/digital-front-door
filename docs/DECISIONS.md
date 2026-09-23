@@ -481,3 +481,36 @@ Relevant files include:
 - `docs/SOURCES.md`
 
 Code and materially affected project-memory documentation should be updated together when practical.
+
+---
+
+## D-024 — Estimate is intentionally non-scheduling (current production)
+
+**Status:** Active stabilization behavior as of 2026-09-22
+
+For `bookingType === "estimate"`, production behavior is defined by `getBookingFlowConfig()`:
+
+- No required appointment or calendar for the flow itself.
+- No automatic scheduling offer immediately after lead creation.
+- Conversation continues after lead capture with tenant Next Step guidance.
+
+Estimate must not automatically append consultation-style “quick call or on-site visit” scheduling language. Consultation and other scheduling-enabled flows are separate and must not be regressed during Estimate fixes.
+
+Do not migrate this behavior to `TenantConfig.conversionGoal` during stabilization.
+
+---
+
+## D-025 — Post-capture customer updates persist before confirmation
+
+**Status:** Active stabilization behavior as of 2026-09-22
+
+When a customer provides an explicit additional detail or useful correction after lead capture, durable lead context must be written before the assistant confirms it was saved.
+
+Requirements:
+
+- Use deterministic workflow persistence (`appendCustomerUpdateToLead`, activity events) where the orchestration selects a customer-update path.
+- On non-scheduling Booking Flows, high-confidence scheduling-adjacent messages that cannot enter `runSchedulingWorkflow()` must fall back to customer-update persistence rather than free-form AI that falsely claims an update.
+- If persistence fails, use cautious failure wording; do not claim the detail was added.
+- Free-form `generatePostCaptureTurn()` must not claim durable saves/updates/adds/notes/records on its own.
+
+Re-enabling broad automatic persistence of every post-capture AI summary block is not authorized without a separate approved task.

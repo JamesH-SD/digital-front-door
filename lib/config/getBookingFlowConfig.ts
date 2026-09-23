@@ -182,20 +182,20 @@ export function getBookingFlowConfig(tenant: Tenant): BookingFlowConfig {
     case "estimate":
       return {
         bookingType,
-        shouldOfferSchedulingAfterLeadCreated: true,
+        shouldOfferSchedulingAfterLeadCreated: false,
         defaultAppointmentType: null,
-        allowCustomerToChooseAppointmentType: true,
+        allowCustomerToChooseAppointmentType: false,
         requiresAddressBeforeScheduling: false,
-        requiresCalendar: true,
-        requiresAppointment: true,
+        requiresCalendar: false,
+        requiresAppointment: false,
         allowConversationAfterLead: true,
         shouldCreateLeadAutomatically: true,
         followUpLanguageAllowed: true,
         showSignupLink: false,
         leadCreatedReply: joinReply([
           "Great, I have enough information to get your estimate request started.",
-          nextStepMessage,
-          "The next step is usually scheduling a quick call or an on-site visit so we can better understand what you need. Is that something you’d be interested in?",
+          nextStepMessage ||
+            "Someone from the team will follow up with you about your request.",
         ]),
       };
 
