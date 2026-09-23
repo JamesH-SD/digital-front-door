@@ -1,7 +1,13 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
+import { useRouter } from "next/navigation";
 import type { Tenant, TenantDeploymentMode } from "@/lib/types/tenant";
+import { buildWizardTenantSnapshot } from "@/lib/onboarding/buildWizardTenantSnapshot";
+import { getTenantSetupReadiness } from "@/lib/readiness/getTenantSetupReadiness";
+import type { TenantSetupReadiness } from "@/lib/readiness/types";
+import type { TenantSetupReadinessDependencies } from "@/lib/readiness/loadTenantSetupReadinessDependencies";
+import TenantSetupProgress from "@/components/admin/readiness/TenantSetupProgress";
 import TenantKnowledgeManager from "@/components/admin/settings/TenantKnowledgeManager";
 import {
   buildOnboardingWizardSteps,
@@ -157,14 +163,6 @@ function formatDayLabel(day: string) {
   return day.charAt(0).toUpperCase() + day.slice(1);
 }
 
-function formatHours(hours: HoursState, day: DayKey) {
-  const value = hours[day];
-
-  if (!value || value.closed) return "Closed";
-
-  return `${value.open} - ${value.close}`;
-}
-
 function normalizeHours(value: unknown): HoursState {
   if (!value || typeof value !== "object") return DEFAULT_HOURS;
 
@@ -172,33 +170,6 @@ function normalizeHours(value: unknown): HoursState {
     ...DEFAULT_HOURS,
     ...(value as Partial<HoursState>),
   };
-}
-
-function formatHourForDisplay(value?: string) {
-  if (!value) return "";
-
-  const [hourValue, minuteValue] = value.split(":");
-  const hour = Number(hourValue);
-  const minute = minuteValue || "00";
-
-  if (Number.isNaN(hour)) return value;
-
-  const period = hour >= 12 ? "PM" : "AM";
-  const displayHour = hour % 12 || 12;
-
-  return `${displayHour}:${minute} ${period}`;
-}
-
-function formatHoursForReview(hours: HoursState) {
-  const monday = hours.monday;
-
-  if (!monday || monday.closed) {
-    return "Monday: Closed";
-  }
-
-  return `Monday: ${formatHourForDisplay(monday.open)} - ${formatHourForDisplay(
-    monday.close
-  )}`;
 }
 
 function SummaryRow({
@@ -248,7 +219,19 @@ function SummaryRow({
 /** Step layout only when customer help is not chosen yet (avoids legacy types affecting Calendar visibility). */
 const WIZARD_STEP_PLACEHOLDER_BOOKING_TYPE: TenantFacingBookingType = "lead_capture";
 
-export default function OnboardingWizard({ tenant }: { tenant: Tenant }) {
+type OnboardingWizardProps = {
+  tenant: Tenant;
+  setupReadiness: TenantSetupReadiness;
+  readinessDependencies: TenantSetupReadinessDependencies;
+};
+
+export default function OnboardingWizard({
+  tenant,
+  setupReadiness,
+  readinessDependencies,
+}: OnboardingWizardProps) {
+  const router = useRouter();
+  const priorStepRef = useRef<StepKey | null>(null);
   const [currentStepKey, setCurrentStepKey] = useState<StepKey>("business");
   const [returnToReview, setReturnToReview] = useState(false);
   const [message, setMessage] = useState("");
@@ -310,6 +293,26 @@ export default function OnboardingWizard({ tenant }: { tenant: Tenant }) {
       setCurrentStepKey(fallbackKey);
     }
   }, [steps, currentStepKey, safeStepIndex]);
+
+  const reviewReadiness = useMemo(() => {
+    if (currentStepKey !== "finish") {
+      return setupReadiness;
+    }
+
+    const snapshot = buildWizardTenantSnapshot(tenant, form, customerHelpChoice);
+
+    return getTenantSetupReadiness({
+      tenant: snapshot,
+      ...readinessDependencies,
+    });
+  }, [
+    currentStepKey,
+    setupReadiness,
+    tenant,
+    form,
+    customerHelpChoice,
+    readinessDependencies,
+  ]);
 
   function editFromReview(stepKey: StepKey) {
     setReturnToReview(true);
@@ -486,6 +489,29 @@ export default function OnboardingWizard({ tenant }: { tenant: Tenant }) {
     }
   }
 
+  useEffect(() => {
+    if (currentStepKey !== "finish") {
+      priorStepRef.current = currentStepKey;
+      return;
+    }
+
+    if (priorStepRef.current === "finish") {
+      return;
+    }
+
+    priorStepRef.current = "finish";
+
+    void (async () => {
+      try {
+        await saveProgress();
+        router.refresh();
+      } catch {
+        // goNext surfaces save errors when advancing steps
+      }
+    })();
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- refresh once when entering Review
+  }, [currentStepKey]);
+
   async function goNext() {
     try {
       if (currentStep.key === "business") {
@@ -529,7 +555,7 @@ export default function OnboardingWizard({ tenant }: { tenant: Tenant }) {
       await saveProgress();
 
       if (currentStep.key === "finish") {
-        window.location.href = `/admin/${tenant.slug}/settings`;
+        window.location.href = `/admin/${tenant.slug}`;
         return;
       }
 
@@ -1113,123 +1139,101 @@ export default function OnboardingWizard({ tenant }: { tenant: Tenant }) {
 
             {currentStep.key === "finish" ? (
               <div className="space-y-5">
-                <div className="rounded-2xl border border-emerald-200 bg-emerald-50 px-4 py-4 text-sm text-emerald-800">
-                  <p className="font-semibold">Review your setup before launching.</p>
+                <div
+                  className={
+                    reviewReadiness.overallPercent === 100
+                      ? "rounded-2xl border border-emerald-200 bg-emerald-50 px-4 py-4 text-sm text-emerald-800"
+                      : "rounded-2xl border border-amber-200 bg-amber-50 px-4 py-4 text-sm text-amber-900"
+                  }
+                >
+                  <p className="font-semibold">
+                    {reviewReadiness.overallPercent === 100
+                      ? "Your core Contactor setup is operationally ready."
+                      : "Some operational items still need attention."}
+                  </p>
                   <p className="mt-1 leading-6">
-                    This is your launch checklist. You can edit any section now or refine it
-                    later from Admin Settings.
+                    You can finish onboarding and continue in the Dashboard. Suggested
+                    improvements below are optional and do not block launch.
                   </p>
                 </div>
 
-                <div className="grid gap-3 md:grid-cols-2">
-                  <SummaryRow
-                    label="Business"
-                    value={form.businessName || "Not provided"}
-                    detail={form.primaryCategory || "No business category added yet"}
-                    onEdit={() => editFromReview("business")}
-                  />
+                <TenantSetupProgress
+                  tenantSlug={tenant.slug}
+                  readiness={reviewReadiness}
+                  variant="review"
+                />
 
-                  <SummaryRow
-                    label="Contact"
-                    value={form.primaryPhone || "No phone added yet"}
-                    detail={form.email || "No business email added yet"}
-                    onEdit={() => editFromReview("business")}
-                  />
+                <div>
+                  <h3 className="text-sm font-bold text-gray-950">
+                    Confirm what you entered
+                  </h3>
+                  <p className="mt-1 text-xs text-gray-500">
+                    Quick factual summary — edit any section before you finish.
+                  </p>
 
-                  <SummaryRow
-                    label="Website setup"
-                    value={
-                      form.deploymentMode === "existing_site"
-                        ? "Existing website"
-                        : form.deploymentMode === "hosted"
-                        ? "Contactor-hosted website"
-                        : "Not selected yet"
-                    }
-                    detail={
-                      form.deploymentMode === "existing_site"
-                        ? form.websiteUrl || "Website URL not added yet"
-                        : "Website builder available in Admin after setup"
-                    }
-                    onEdit={() => editFromReview("business")}
-                  />
-
-                  <SummaryRow
-                    label="Service Area"
-                    value={form.serviceAreaSummary || "Not provided"}
-                    detail={
-                      parseListInput(form.serviceCities).length
-                        ? parseListInput(form.serviceCities).slice(0, 4).join(", ")
-                        : "No specific service cities added yet"
-                    }
-                    onEdit={() => editFromReview("serviceArea")}
-                  />
-
-                  <SummaryRow
-                    label="Services"
-                    value={`${parseListInput(form.servicesOffered).length} service(s) added`}
-                    detail={
-                      parseListInput(form.servicesOffered).length
-                        ? parseListInput(form.servicesOffered).slice(0, 5).join(", ")
-                        : "No services added yet"
-                    }
-                    onEdit={() => editFromReview("services")}
-                  />
-
-                  <SummaryRow
-                    label="How Contactor helps"
-                    value={
-                      getCustomerHelpLabel(customerHelpChoice) ||
-                      (customerHelpChoice
-                        ? customerHelpChoice.replaceAll("_", " ")
-                        : isLegacyBookingType(form.bookingType)
-                        ? "Legacy configuration — choose a supported option"
-                        : "Not selected yet")
-                    }
-                    detail="Adjust advanced AI messaging later from AI Receptionist settings."
-                    onEdit={() => editFromReview("customerHelp")}
-                  />
-
-                  <SummaryRow
-                    label="Hours"
-                    value={formatHoursForReview(form.hours)}
-                    detail="You can adjust detailed hours later from Settings."
-                    onEdit={() => editFromReview("hours")}
-                  />
-
-                  {steps.some((step) => step.key === "calendar") ? (
+                  <div className="mt-3 grid gap-3 md:grid-cols-2">
                     <SummaryRow
-                      label="Calendar"
-                      value="Optional"
-                      detail="Google Calendar can be connected now or later."
-                      onEdit={() => editFromReview("calendar")}
+                      label="Business"
+                      value={form.businessName || "Not provided"}
+                      detail={form.primaryCategory || "No business category added yet"}
+                      onEdit={() => editFromReview("business")}
                     />
-                  ) : null}
 
-                  <SummaryRow
-                    label="Customer experience"
-                    value={
-                      form.deploymentMode === "existing_site"
-                        ? "Existing website installation"
-                        : form.deploymentMode === "hosted"
-                        ? "Contactor-hosted website"
-                        : "Not selected yet"
-                    }
-                    detail={
-                      form.deploymentMode === "existing_site"
-                        ? "Install the widget snippet and customer QR from onboarding or AI Receptionist."
-                        : form.deploymentMode === "hosted"
-                        ? "Preview and publish from Website when ready."
-                        : "Complete the Business step to choose your path."
-                    }
-                    onEdit={() => editFromReview("customerExperience")}
-                  />
+                    <SummaryRow
+                      label="Contact"
+                      value={form.primaryPhone || "No phone added yet"}
+                      detail={form.email || "No business email added yet"}
+                      onEdit={() => editFromReview("business")}
+                    />
 
-                  <SummaryRow
-                    label="Knowledge Base"
-                    value="Optional"
-                    detail="Upload documents or add FAQs so the AI can answer more accurately."
-                    onEdit={() => editFromReview("knowledge")}
-                  />
+                    <SummaryRow
+                      label="Customer website"
+                      value={
+                        form.deploymentMode === "existing_site"
+                          ? "Existing website"
+                          : form.deploymentMode === "hosted"
+                          ? "Contactor-hosted website"
+                          : "Not selected yet"
+                      }
+                      detail={
+                        form.deploymentMode === "existing_site"
+                          ? form.websiteUrl || "Website URL not added yet"
+                          : "Publish from Website in Admin when ready"
+                      }
+                      onEdit={() => editFromReview("business")}
+                    />
+
+                    <SummaryRow
+                      label="How Contactor helps"
+                      value={
+                        getCustomerHelpLabel(customerHelpChoice) ||
+                        (customerHelpChoice
+                          ? customerHelpChoice.replaceAll("_", " ")
+                          : isLegacyBookingType(form.bookingType)
+                          ? "Legacy configuration — choose a supported option"
+                          : "Not selected yet")
+                      }
+                      detail="Advanced AI messaging is editable in AI Receptionist settings."
+                      onEdit={() => editFromReview("customerHelp")}
+                    />
+
+                    <SummaryRow
+                      label="Services"
+                      value={`${parseListInput(form.servicesOffered).length} service(s) added`}
+                      detail={
+                        parseListInput(form.servicesOffered).length
+                          ? parseListInput(form.servicesOffered).slice(0, 5).join(", ")
+                          : "No services added yet"
+                      }
+                      onEdit={() => editFromReview("services")}
+                    />
+
+                    <SummaryRow
+                      label="Service area"
+                      value={form.serviceAreaSummary || "Not provided"}
+                      onEdit={() => editFromReview("serviceArea")}
+                    />
+                  </div>
                 </div>
               </div>
             ) : null}

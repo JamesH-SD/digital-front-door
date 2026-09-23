@@ -5,6 +5,8 @@ import { getLeadsByTenantSlug } from "@/lib/db/leads";
 import AdminBreadcrumbsSetter from "@/components/admin/AdminBreadcrumbsSetter";
 import { getDashboardAnalytics } from "@/lib/db/dashboard-analytics";
 import { formatLeadSource } from "@/lib/utils/leadSource";
+import { loadTenantSetupReadiness } from "@/lib/readiness/loadTenantSetupReadiness";
+import TenantSetupProgress from "@/components/admin/readiness/TenantSetupProgress";
 
 type PageProps = {
   params: Promise<{
@@ -21,9 +23,10 @@ export default async function AdminDashboardPage({ params }: PageProps) {
     notFound();
   }
 
-  const [leads, analytics] = await Promise.all([
+  const [leads, analytics, setupReadiness] = await Promise.all([
     getLeadsByTenantSlug(tenantSlug),
     getDashboardAnalytics(tenantSlug),
+    loadTenantSetupReadiness(tenant),
   ]);
 
   const recentLeads = [...leads]
@@ -374,39 +377,11 @@ export default async function AdminDashboardPage({ params }: PageProps) {
           </div>
         </div>
 
-        <div className="rounded-3xl border border-stone-200/60 bg-white/90 p-5 shadow-[0_10px_30px_rgba(17,24,39,0.05)]">
-          <h3 className="text-base font-bold text-gray-950">Launch checklist</h3>
-
-          <div className="mt-4 space-y-3 text-sm">
-            <Link
-              href={`/admin/${tenantSlug}/website`}
-              className="block rounded-2xl border border-stone-200 bg-white px-4 py-3 hover:border-orange-200 hover:bg-orange-50/40"
-            >
-              Customize your website
-            </Link>
-
-            <Link
-              href={`/admin/${tenantSlug}/knowledge`}
-              className="block rounded-2xl border border-stone-200 bg-white px-4 py-3 hover:border-orange-200 hover:bg-orange-50/40"
-            >
-              Upload FAQs and business information
-            </Link>
-
-            <Link
-              href={`/admin/${tenantSlug}/settings/calendar`}
-              className="block rounded-2xl border border-stone-200 bg-white px-4 py-3 hover:border-orange-200 hover:bg-orange-50/40"
-            >
-              Connect Google Calendar
-            </Link>
-
-            <Link
-              href={`/admin/${tenantSlug}/billing`}
-              className="block rounded-2xl border border-stone-200 bg-white px-4 py-3 hover:border-orange-200 hover:bg-orange-50/40"
-            >
-              Manage billing
-            </Link>
-          </div>
-        </div>
+        <TenantSetupProgress
+          tenantSlug={tenantSlug}
+          readiness={setupReadiness}
+          variant="dashboard"
+        />
       </section>
     </div>
   );

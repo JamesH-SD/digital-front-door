@@ -593,4 +593,5 @@ Tenant Setup Readiness answers: **“Can this part of Contactor do its job?”**
 **Integration**
 
 - **C1b (Website admin):** Operational hosted-website status uses the shared Website category (`getHostedWebsiteOperationalReadiness()`). Website Builder 8-item progress remains a separate polish checklist (`getWebsiteBuilderProgress()`). No single combined percentage.
-- **Future:** Dashboard, Wizard Review, and APIs may use `loadTenantSetupReadinessDependencies()` + `getTenantSetupReadiness()`.
+- **C2 (Dashboard + Wizard Review):** `loadTenantSetupReadiness()` + shared `TenantSetupProgress` UI. Wizard Review merges in-progress form into a tenant snapshot for readiness, saves on Review entry, and refreshes server dependencies (knowledge count, calendar). Finish does not require 100% operational readiness.
+- **Future:** Readiness API if a client-only surface needs it later.

@@ -147,6 +147,8 @@ Onboarding Wizard V2 Phase B1: adaptive step list with explicit `deployment_mode
 
 Phase B2: optional Hours, Calendar (when shown), and Training/Knowledge steps support **Skip for now** without persisting skip flags or altering existing configuration; a toast points to Admin (`/settings/hours`, `/settings/calendar`, `/knowledge`). Training step uses onboarding “Train your AI receptionist” language; Admin nav remains **Knowledge Base**.
 
-Phase B3: **Customer Experience** step after Training (before Review), branching on `deployment_mode` (`existing_site`: embed snippet + customer QR on tenant website URL; `hosted`: preview + Website Builder links, customer QR only when published). Skip toasts point to AI Receptionist or Website. Shared readiness, real AI assistance, and Dashboard checklist evolution remain future work.
+Phase B3: **Customer Experience** step after Training (before Review), branching on `deployment_mode` (`existing_site`: embed snippet + customer QR on tenant website URL; `hosted`: preview + Website Builder links, customer QR only when published). Skip toasts point to AI Receptionist or Website.
+
+Phase C2: **Tenant Setup Readiness** (`lib/readiness/`, D-029) drives the admin Dashboard setup section and onboarding **Review** step via `loadTenantSetupReadiness()` / `loadTenantSetupReadinessDependencies()`. Operational percent excludes Knowledge recommendations. Wizard Review merges saved wizard form fields into a tenant snapshot for readiness display, persists on entry to Review, then `router.refresh()` reloads knowledge/calendar dependencies from the server. **Finish** goes to `/admin/{tenantSlug}` without requiring 100% readiness. Website Builder polish checklist remains separate (C1b).
 
 The prior seven-step wizard exposed legacy Booking Flow choices on the Services step; that path is being replaced incrementally.

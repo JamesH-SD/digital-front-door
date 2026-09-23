@@ -4,6 +4,8 @@ import { getUserTenantMembership } from "@/lib/auth/tenantAccess";
 import { getTenantBySlug } from "@/lib/db/tenants";
 import OnboardingWizard from "@/components/onboarding/OnboardingWizard";
 import AuthExperienceShell from "@/components/auth/AuthExperienceShell";
+import { getTenantSetupReadiness } from "@/lib/readiness/getTenantSetupReadiness";
+import { loadTenantSetupReadinessDependencies } from "@/lib/readiness/loadTenantSetupReadinessDependencies";
 
 type PageProps = {
   params: Promise<{
@@ -35,9 +37,21 @@ export default async function OnboardingPage({ params }: PageProps) {
     redirect("/unauthorized");
   }
 
+  const readinessDependencies = await loadTenantSetupReadinessDependencies(
+    tenant.slug
+  );
+  const setupReadiness = getTenantSetupReadiness({
+    tenant,
+    ...readinessDependencies,
+  });
+
   return (
     <AuthExperienceShell maxWidth="max-w-6xl">
-      <OnboardingWizard tenant={tenant} />
+      <OnboardingWizard
+        tenant={tenant}
+        setupReadiness={setupReadiness}
+        readinessDependencies={readinessDependencies}
+      />
     </AuthExperienceShell>
   );
 }
