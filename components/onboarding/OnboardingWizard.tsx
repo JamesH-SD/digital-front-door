@@ -20,6 +20,7 @@ import {
   isSkippableOnboardingStep,
 } from "@/lib/onboarding/onboardingDeferredSetupMessages";
 import ToastMessage from "@/components/ui/ToastMessage";
+import OnboardingCustomerExperienceStep from "@/components/onboarding/OnboardingCustomerExperienceStep";
 
 type StepKey = OnboardingWizardStepKey;
 
@@ -121,6 +122,11 @@ const STEP_HELP: Record<
       "Pricing guidance",
       "Quote or appointment policies",
     ],
+  },
+  customerExperience: {
+    eyebrow: "Customer experience",
+    title: "Prepare how customers reach you.",
+    description: "",
   },
   finish: {
     eyebrow: "Review",
@@ -342,7 +348,9 @@ export default function OnboardingWizard({ tenant }: { tenant: Tenant }) {
 
     setMessage("");
     setSkipToastMessage(
-      getOnboardingSkipToastMessage(currentStep.key)
+      getOnboardingSkipToastMessage(currentStep.key, {
+        deploymentMode: form.deploymentMode,
+      })
     );
     advanceToNextStep();
   }
@@ -615,7 +623,13 @@ export default function OnboardingWizard({ tenant }: { tenant: Tenant }) {
               </p>
 
               <h2 className="mt-1 text-xl font-bold text-gray-950">
-                {STEP_HELP[currentStep.key].title}
+                {currentStep.key === "customerExperience"
+                  ? form.deploymentMode === "existing_site"
+                    ? "Add Contactor to your website"
+                    : form.deploymentMode === "hosted"
+                    ? "Your Contactor website"
+                    : STEP_HELP.customerExperience.title
+                  : STEP_HELP[currentStep.key].title}
               </h2>
 
               <p className="mt-2 max-w-3xl text-sm leading-6 text-gray-600">
@@ -623,6 +637,12 @@ export default function OnboardingWizard({ tenant }: { tenant: Tenant }) {
                   ? getCalendarStepExplanation(
                       customerHelpChoice ?? form.bookingType
                     )
+                  : currentStep.key === "customerExperience"
+                  ? form.deploymentMode === "existing_site"
+                    ? "Install the Contactor snippet on your website so visitors can open your AI receptionist."
+                    : form.deploymentMode === "hosted"
+                    ? "Preview and finish your Contactor-hosted website when you are ready for customers to visit."
+                    : "Choose your website setup on the Business step to continue."
                   : STEP_HELP[currentStep.key].description}
               </p>
 
@@ -1082,6 +1102,15 @@ export default function OnboardingWizard({ tenant }: { tenant: Tenant }) {
               </div>
             ) : null}
 
+            {currentStep.key === "customerExperience" ? (
+              <OnboardingCustomerExperienceStep
+                tenantSlug={tenant.slug}
+                deploymentMode={form.deploymentMode}
+                websiteUrl={form.websiteUrl}
+                websiteStatus={tenant.websiteStatus}
+              />
+            ) : null}
+
             {currentStep.key === "finish" ? (
               <div className="space-y-5">
                 <div className="rounded-2xl border border-emerald-200 bg-emerald-50 px-4 py-4 text-sm text-emerald-800">
@@ -1175,6 +1204,25 @@ export default function OnboardingWizard({ tenant }: { tenant: Tenant }) {
                       onEdit={() => editFromReview("calendar")}
                     />
                   ) : null}
+
+                  <SummaryRow
+                    label="Customer experience"
+                    value={
+                      form.deploymentMode === "existing_site"
+                        ? "Existing website installation"
+                        : form.deploymentMode === "hosted"
+                        ? "Contactor-hosted website"
+                        : "Not selected yet"
+                    }
+                    detail={
+                      form.deploymentMode === "existing_site"
+                        ? "Install the widget snippet and customer QR from onboarding or AI Receptionist."
+                        : form.deploymentMode === "hosted"
+                        ? "Preview and publish from Website when ready."
+                        : "Complete the Business step to choose your path."
+                    }
+                    onEdit={() => editFromReview("customerExperience")}
+                  />
 
                   <SummaryRow
                     label="Knowledge Base"

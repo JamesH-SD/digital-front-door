@@ -1,9 +1,15 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import QRCode from "qrcode";
 import type { Tenant } from "@/lib/types/tenant";
 import ToastMessage from "@/components/ui/ToastMessage";
+import CopyableLinkRow from "@/components/admin/customer-entry/CopyableLinkRow";
+import WidgetEmbedSnippetCard from "@/components/admin/customer-entry/WidgetEmbedSnippetCard";
+import {
+  buildExistingWebsiteConversationQrUrl,
+  buildHostedBrowseUrl,
+  buildHostedConversationQrUrl,
+} from "@/lib/customer-entry/buildCustomerEntryUrls";
 
 type Props = {
   tenant: Tenant;
@@ -18,163 +24,8 @@ function displayValue(value?: string | null) {
   return value && value.trim() ? value : "Not provided";
 }
 
-function buildExistingWebsiteQrUrl(websiteUrl?: string | null) {
-  if (!websiteUrl?.trim()) return "";
-
-  const normalized = websiteUrl.startsWith("http")
-    ? websiteUrl
-    : `https://${websiteUrl}`;
-
-  const separator = normalized.includes("?") ? "&" : "?";
-
-  return `${normalized}${separator}source=qr&openChat=1`;
-}
-
 function hasWebsiteUrl(value?: string | null) {
   return Boolean(value && value.trim());
-}
-
-function CopyableLinkRow({
-  label,
-  description,
-  value,
-  disabledMessage,
-  fileName,
-}: {
-  label: string;
-  description: string;
-  value: string;
-  disabledMessage?: string;
-  fileName: string;
-}) {
-  const [copied, setCopied] = useState(false);
-  const [isGeneratingQr, setIsGeneratingQr] = useState(false);
-  const [qrPreviewUrl, setQrPreviewUrl] = useState("");
-
-  async function handleCopy() {
-    if (!value) return;
-
-    await navigator.clipboard.writeText(value);
-    setCopied(true);
-
-    window.setTimeout(() => {
-      setCopied(false);
-    }, 1500);
-  }
-
-  async function handleDownloadQr() {
-    if (!value) return;
-
-    try {
-      setIsGeneratingQr(true);
-
-      const dataUrl = await QRCode.toDataURL(value, {
-        width: 1024,
-        margin: 2,
-        errorCorrectionLevel: "H",
-      });
-
-      const link = document.createElement("a");
-      link.href = dataUrl;
-      link.download = fileName.endsWith(".png") ? fileName : `${fileName}.png`;
-      document.body.appendChild(link);
-      link.click();
-      link.remove();
-    } catch (error) {
-      console.error("Failed to generate QR code:", error);
-      alert("Could not generate QR code. Please try again.");
-    } finally {
-      setIsGeneratingQr(false);
-    }
-  }
-
-  useEffect(() => {
-    let isMounted = true;
-  
-    async function generatePreview() {
-      if (!value) {
-        setQrPreviewUrl("");
-        return;
-      }
-  
-      try {
-        const dataUrl = await QRCode.toDataURL(value, {
-          width: 320,
-          margin: 2,
-          errorCorrectionLevel: "H",
-        });
-  
-        if (isMounted) {
-          setQrPreviewUrl(dataUrl);
-        }
-      } catch (error) {
-        console.error("Failed generating QR preview:", error);
-      }
-    }
-  
-    void generatePreview();
-  
-    return () => {
-      isMounted = false;
-    };
-  }, [value]);
-
-  return (
-    <div className="w-full min-w-0 max-w-full overflow-hidden rounded-2xl border border-stone-200 bg-white p-4 shadow-sm">
-      <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
-        <div className="min-w-0">
-          <p className="text-sm font-semibold text-gray-900">{label}</p>
-          <p className="mt-1 text-xs leading-5 text-gray-500">{description}</p>
-        </div>
-
-        {qrPreviewUrl ? (
-          <img
-            src={qrPreviewUrl}
-            alt={`${label} QR`}
-            className="h-20 w-20 shrink-0 rounded-xl border border-stone-200 bg-white p-1"
-          />
-        ) : null}
-      </div>
-
-      <div className="mt-4 flex min-h-[56px] min-w-0 items-center rounded-xl border border-stone-200 bg-gray-50 px-3 py-2">
-        <p className="line-clamp-2 break-all text-xs text-gray-700">
-          {value || disabledMessage || "Not available"}
-        </p>
-      </div>
-
-      <div className="mt-4 grid w-full min-w-0 grid-cols-1 gap-2 sm:grid-cols-3">
-        <button
-          type="button"
-          onClick={() => {
-            if (!value) return;
-            window.open(value, "_blank", "noopener,noreferrer");
-          }}
-          disabled={!value}
-          className="saas-button-secondary w-full min-w-0 px-3 py-2 text-xs font-semibold"
-        >
-          Open
-        </button>
-
-        <button
-          type="button"
-          onClick={handleCopy}
-          disabled={!value}
-          className="saas-button-secondary w-full min-w-0 px-3 py-2 text-xs font-semibold"
-        >
-          {copied ? "Copied" : "Copy"}
-        </button>
-
-        <button
-          type="button"
-          onClick={handleDownloadQr}
-          disabled={!value || isGeneratingQr}
-          className="saas-button-secondary w-full min-w-0 px-3 py-2 text-xs font-semibold"
-        >
-          {isGeneratingQr ? "Generating..." : "Download"}
-        </button>
-      </div>
-    </div>
-  );
 }
 
 export default function AiChatSettingsPanel({ tenant }: Props) {
@@ -198,20 +49,18 @@ export default function AiChatSettingsPanel({ tenant }: Props) {
   }, []);
 
   const hostedPageUrl = origin
-    ? `${origin}/${tenant.slug}`
+    ? buildHostedBrowseUrl(origin, tenant.slug)
     : `/${tenant.slug}`;
 
   const qrAutoOpenUrl = origin
-    ? `${origin}/${tenant.slug}?source=qr&openChat=1`
+    ? buildHostedConversationQrUrl(origin, tenant.slug)
     : `/${tenant.slug}?source=qr&openChat=1`;
 
-  const existingWebsiteQrUrl = buildExistingWebsiteQrUrl(tenant.websiteUrl);
+  const existingWebsiteQrUrl = buildExistingWebsiteConversationQrUrl(
+    tenant.websiteUrl
+  );
 
   const tenantHasWebsite = hasWebsiteUrl(tenant.websiteUrl);
-
-  const widgetScriptUrl = origin ? `${origin}/widget.js` : "/widget.js";
-
-  const embedSnippet = `<script src="${widgetScriptUrl}" data-tenant="${tenant.slug}"></script>`;
 
   async function saveAiChatSettings() {
     try {
@@ -448,33 +297,12 @@ export default function AiChatSettingsPanel({ tenant }: Props) {
               </div>
             )}
 
-            <div className="rounded-xl border border-dashed border-stone-200 bg-white p-4 lg:col-span-3">
-              <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
-                <div>
-                  <p className="text-sm font-semibold text-gray-900">
-                    Embed Snippet
-                  </p>
-
-                  <p className="mt-1 text-xs text-gray-500">
-                    Add this snippet before the closing body tag on pages where
-                    customers should reach your AI receptionist.
-                  </p>
-                </div>
-
-                <button
-                  type="button"
-                  onClick={() => {
-                    void navigator.clipboard.writeText(embedSnippet);
-                  }}
-                  className="saas-button-secondary px-3 py-1 text-xs font-medium"
-                >
-                  Copy Snippet
-                </button>
-              </div>
-
-              <pre className="mt-3 overflow-x-auto rounded-lg bg-gray-950 p-3 text-xs text-gray-100">
-                {embedSnippet}
-              </pre>
+            <div className="lg:col-span-3">
+              <WidgetEmbedSnippetCard
+                origin={origin || "http://localhost:3000"}
+                tenantSlug={tenant.slug}
+                copyButtonLabel="Copy Snippet"
+              />
             </div>
           </div>
         </section>

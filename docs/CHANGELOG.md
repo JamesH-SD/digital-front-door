@@ -2,6 +2,10 @@
 
 This is a lightweight context changelog, not a substitute for Git history.
 
+## 2026-09-22 — Onboarding Wizard V2 Phase B3 customer experience / deployment
+
+- Customer Experience onboarding step (existing-site embed/QR vs hosted preview/builder); shared customer-entry URL/QR/embed helpers extracted for Admin reuse.
+
 ## 2026-09-22 — Onboarding Wizard V2 Phase B2 deferred setup UX
 
 - Optional onboarding steps (Hours, Calendar when applicable, Training) support Skip for now with Admin destination toasts; no skip persistence fields.

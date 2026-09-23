@@ -9,6 +9,7 @@ export type OnboardingWizardStepKey =
   | "hours"
   | "calendar"
   | "knowledge"
+  | "customerExperience"
   | "finish";
 
 export type OnboardingWizardStep = {
@@ -28,6 +29,12 @@ const BASE_STEPS: OnboardingWizardStep[] = [
 const KNOWLEDGE_STEP: OnboardingWizardStep = {
   key: "knowledge",
   label: "Training",
+  required: false,
+};
+
+const CUSTOMER_EXPERIENCE_STEP: OnboardingWizardStep = {
+  key: "customerExperience",
+  label: "Customer Experience",
   required: false,
 };
 
@@ -56,7 +63,7 @@ export function buildOnboardingWizardSteps(
     steps.push(CALENDAR_STEP);
   }
 
-  steps.push(KNOWLEDGE_STEP, FINISH_STEP);
+  steps.push(KNOWLEDGE_STEP, CUSTOMER_EXPERIENCE_STEP, FINISH_STEP);
 
   return steps;
 }

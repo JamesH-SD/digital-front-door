@@ -1,4 +1,5 @@
 import type { OnboardingWizardStepKey } from "@/lib/onboarding/buildOnboardingWizardSteps";
+import type { TenantDeploymentMode } from "@/lib/types/tenant";
 
 export function getAdminDeferredSetupPath(
   tenantSlug: string,
@@ -14,8 +15,14 @@ export function getAdminDeferredSetupPath(
   }
 }
 
+type SkippableOnboardingStepKey = Extract<
+  OnboardingWizardStepKey,
+  "hours" | "calendar" | "knowledge" | "customerExperience"
+>;
+
 export function getOnboardingSkipToastMessage(
-  stepKey: Extract<OnboardingWizardStepKey, "hours" | "calendar" | "knowledge">
+  stepKey: SkippableOnboardingStepKey,
+  context?: { deploymentMode?: TenantDeploymentMode | null }
 ) {
   switch (stepKey) {
     case "hours":
@@ -24,9 +31,21 @@ export function getOnboardingSkipToastMessage(
       return "You can connect your calendar later under Settings → Calendar. Until a calendar is connected, your receptionist won't offer appointment times.";
     case "knowledge":
       return "Training skipped for now. You can continue training your receptionist anytime from Knowledge Base.";
+    case "customerExperience":
+      if (context?.deploymentMode === "hosted") {
+        return "Website setup skipped for now. You can continue building your website anytime from Website.";
+      }
+      return "Website installation skipped. You can install your receptionist anytime from AI Receptionist.";
   }
 }
 
-export function isSkippableOnboardingStep(stepKey: OnboardingWizardStepKey) {
-  return stepKey === "hours" || stepKey === "calendar" || stepKey === "knowledge";
+export function isSkippableOnboardingStep(
+  stepKey: OnboardingWizardStepKey
+): stepKey is SkippableOnboardingStepKey {
+  return (
+    stepKey === "hours" ||
+    stepKey === "calendar" ||
+    stepKey === "knowledge" ||
+    stepKey === "customerExperience"
+  );
 }

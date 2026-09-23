@@ -147,6 +147,6 @@ Onboarding Wizard V2 Phase B1: adaptive step list with explicit `deployment_mode
 
 Phase B2: optional Hours, Calendar (when shown), and Training/Knowledge steps support **Skip for now** without persisting skip flags or altering existing configuration; a toast points to Admin (`/settings/hours`, `/settings/calendar`, `/knowledge`). Training step uses onboarding “Train your AI receptionist” language; Admin nav remains **Knowledge Base**.
 
-Deployment onboarding step, shared readiness, real AI assistance, and Dashboard checklist evolution remain future work.
+Phase B3: **Customer Experience** step after Training (before Review), branching on `deployment_mode` (`existing_site`: embed snippet + customer QR on tenant website URL; `hosted`: preview + Website Builder links, customer QR only when published). Skip toasts point to AI Receptionist or Website. Shared readiness, real AI assistance, and Dashboard checklist evolution remain future work.
 
 The prior seven-step wizard exposed legacy Booking Flow choices on the Services step; that path is being replaced incrementally.
