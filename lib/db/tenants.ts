@@ -36,6 +36,7 @@ export async function getTenantBySlug(
     bookingType: data.booking_type ?? null,
     nextStepMessage: data.next_step_message ?? null,
     websiteUrl: data.website_url,
+    deploymentMode: data.deployment_mode ?? null,
     primaryCategory: data.primary_category,
     isServiceAreaBusiness: data.is_service_area_business,
     addressLine1: data.address_line1,

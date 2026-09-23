@@ -546,3 +546,18 @@ structured lead + Customer Updates + Booking Flow + appointment facts.
 Copilot must not auto-regenerate on every Customer Update (no chat-path OpenAI for Copilot, no stale-flag/hash invalidation system in V1). Admins refresh via **Refresh Insights** when they need updated Copilot output.
 
 Legacy individual AI endpoints may retain their older context path until separately migrated.
+
+---
+
+## D-028 — Explicit tenant deployment mode
+
+**Status:** Active as of 2026-09-22 (Wizard V2 Phase B1)
+
+Customer-facing deployment is stored as `tenants.deployment_mode`:
+
+- `existing_site` — Contactor widget/embed on the tenant’s own website
+- `hosted` — Contactor-hosted website path
+
+The value may be **NULL** for legacy tenants until set in onboarding or admin. The application must **not** infer deployment mode from `website_url` alone.
+
+`website_url` and `deployment_mode` are independent: a hosted deployment does not require clearing a stored website URL, and deployment behavior must not be inferred from `website_url`.

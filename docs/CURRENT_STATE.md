@@ -57,6 +57,8 @@ The tenant can keep the existing website and install the Contactor AI receptioni
 
 The admin embed snippet uses the current app origin for `/widget.js` (for example localhost in development, production host in production).
 
+Tenants may store `deployment_mode`: `existing_site` or `hosted`. The value is explicit (nullable for legacy rows); the app must not infer deployment mode from `website_url`. Onboarding Wizard B1 collects this on the Business step.
+
 The Contactor backend remains responsible for:
 
 - AI receptionist behavior

@@ -1,17 +1,22 @@
 "use client";
 
-import { useState } from "react";
-import type { Tenant } from "@/lib/types/tenant";
+import { useEffect, useMemo, useState } from "react";
+import type { Tenant, TenantDeploymentMode } from "@/lib/types/tenant";
 import TenantKnowledgeManager from "@/components/admin/settings/TenantKnowledgeManager";
+import {
+  buildOnboardingWizardSteps,
+  getCalendarStepExplanation,
+  type OnboardingWizardStepKey,
+} from "@/lib/onboarding/buildOnboardingWizardSteps";
+import {
+  CUSTOMER_HELP_OPTIONS,
+  getCustomerHelpLabel,
+  isLegacyBookingType,
+  isTenantFacingBookingType,
+  type TenantFacingBookingType,
+} from "@/lib/onboarding/customerHelpOptions";
 
-type StepKey =
-  | "business"
-  | "serviceArea"
-  | "services"
-  | "hours"
-  | "calendar"
-  | "knowledge"
-  | "finish";
+type StepKey = OnboardingWizardStepKey;
 
 type DayKey =
   | "monday"
@@ -38,16 +43,6 @@ const DAYS: DayKey[] = [
   "friday",
   "saturday",
   "sunday",
-];
-
-const STEPS: { key: StepKey; label: string; required: boolean }[] = [
-  { key: "business", label: "Business", required: true },
-  { key: "serviceArea", label: "Service Area", required: true },
-  { key: "services", label: "Services", required: true },
-  { key: "hours", label: "Hours", required: false },
-  { key: "calendar", label: "Calendar", required: false },
-  { key: "knowledge", label: "Knowledge", required: false },
-  { key: "finish", label: "Review", required: false },
 ];
 
 const STEP_HELP: Record<
@@ -82,16 +77,22 @@ const STEP_HELP: Record<
     ],
   },
   services: {
-    eyebrow: "Services & Next Step",
-    title: "What can customers ask about?",
+    eyebrow: "Services",
+    title: "What do you offer?",
     description:
       "List the services you want the AI receptionist to understand. Keep it simple — you can improve this later.",
     examples: [
       "Kitchen remodels",
       "Bathroom remodels",
       "Flooring installation",
-      "The next step is usually a quick call or site visit.",
+      "Emergency plumbing repairs",
     ],
+  },
+  customerHelp: {
+    eyebrow: "Customer experience",
+    title: "How should Contactor help customers?",
+    description:
+      "Choose what happens after a customer shares their request. You can adjust advanced messaging later in Admin.",
   },
   hours: {
     eyebrow: "Business Hours",
@@ -102,8 +103,7 @@ const STEP_HELP: Record<
   calendar: {
     eyebrow: "Scheduling",
     title: "Connect your calendar.",
-    description:
-      "This lets Contactor check availability and help guide customers toward appointments.",
+    description: "",
   },
   knowledge: {
     eyebrow: "Knowledge Base",
@@ -234,17 +234,26 @@ function SummaryRow({
   );
 }
 
+/** Step layout only when customer help is not chosen yet (avoids legacy types affecting Calendar visibility). */
+const WIZARD_STEP_PLACEHOLDER_BOOKING_TYPE: TenantFacingBookingType = "lead_capture";
+
 export default function OnboardingWizard({ tenant }: { tenant: Tenant }) {
-  const [stepIndex, setStepIndex] = useState(0);
+  const [currentStepKey, setCurrentStepKey] = useState<StepKey>("business");
   const [returnToReview, setReturnToReview] = useState(false);
   const [message, setMessage] = useState("");
   const [isSaving, setIsSaving] = useState(false);
+
+  const [customerHelpChoice, setCustomerHelpChoice] =
+    useState<TenantFacingBookingType | null>(() =>
+      isTenantFacingBookingType(tenant.bookingType) ? tenant.bookingType : null
+    );
 
   const [form, setForm] = useState({
     businessName: tenant.businessName || "",
     primaryPhone: tenant.primaryPhone || "",
     email: tenant.email || "",
     websiteUrl: tenant.websiteUrl || "",
+    deploymentMode: (tenant.deploymentMode ?? null) as TenantDeploymentMode | null,
     primaryCategory: tenant.primaryCategory || "",
     tagline: tenant.tagline || "",
     aboutUs: tenant.aboutUs || "",
@@ -260,28 +269,65 @@ export default function OnboardingWizard({ tenant }: { tenant: Tenant }) {
     serviceCities: (tenant.serviceCities || []).join(", "),
 
     servicesOffered: (tenant.servicesOffered || []).join("\n"),
-    bookingType: tenant.bookingType || "consultation",
+    bookingType: tenant.bookingType ?? "",
     nextStepMessage: tenant.nextStepMessage || "",
 
     hours: normalizeHours(tenant.hours),
   });
 
-  const currentStep = STEPS[stepIndex];
-  const progressPercent = Math.round(((stepIndex + 1) / STEPS.length) * 100);
+  const steps = useMemo(
+    () =>
+      buildOnboardingWizardSteps(
+        customerHelpChoice ?? WIZARD_STEP_PLACEHOLDER_BOOKING_TYPE
+      ),
+    [customerHelpChoice]
+  );
 
-  function editFromReview(index: number) {
+  const stepIndex = steps.findIndex((step) => step.key === currentStepKey);
+  const safeStepIndex = stepIndex >= 0 ? stepIndex : 0;
+  const currentStep = steps[safeStepIndex] ?? steps[0];
+  const progressPercent = Math.round(((safeStepIndex + 1) / steps.length) * 100);
+
+  useEffect(() => {
+    if (steps.some((step) => step.key === currentStepKey)) {
+      return;
+    }
+
+    const fallbackKey = steps[Math.min(safeStepIndex, steps.length - 1)]?.key;
+    if (fallbackKey) {
+      setCurrentStepKey(fallbackKey);
+    }
+  }, [steps, currentStepKey, safeStepIndex]);
+
+  function editFromReview(stepKey: StepKey) {
     setReturnToReview(true);
-    setStepIndex(index);
+    setCurrentStepKey(stepKey);
   }
-  
+
+  function goToStepKey(stepKey: StepKey) {
+    if (steps.some((step) => step.key === stepKey)) {
+      setCurrentStepKey(stepKey);
+    }
+  }
+
   function goBack() {
     setMessage("");
-    setStepIndex((prev) => Math.max(0, prev - 1));
+    setCurrentStepKey((prev) => {
+      const index = steps.findIndex((step) => step.key === prev);
+      if (index <= 0) return prev;
+      return steps[index - 1].key;
+    });
   }
 
   function skipStep() {
     setMessage("");
-    setStepIndex((prev) => Math.min(STEPS.length - 1, prev + 1));
+    setCurrentStepKey((prev) => {
+      const index = steps.findIndex((step) => step.key === prev);
+      if (index < 0 || index >= steps.length - 1) {
+        return steps[steps.length - 1]?.key ?? prev;
+      }
+      return steps[index + 1].key;
+    });
   }
 
   function updateHoursDay(day: DayKey, updates: Partial<DayHours>) {
@@ -349,14 +395,6 @@ export default function OnboardingWizard({ tenant }: { tenant: Tenant }) {
     }));
   }
 
-  function generateNextStepMessage() {
-    setForm((prev) => ({
-      ...prev,
-      nextStepMessage:
-        "The next step is usually a quick conversation so we can better understand the request and recommend the best path forward.",
-    }));
-  }
-
   function generateServices() {
     const category = form.primaryCategory || "service business";
   
@@ -385,7 +423,8 @@ export default function OnboardingWizard({ tenant }: { tenant: Tenant }) {
           businessName: form.businessName,
           primaryPhone: form.primaryPhone,
           email: form.email,
-          websiteUrl: form.websiteUrl,
+          websiteUrl: form.websiteUrl.trim(),
+          deploymentMode: form.deploymentMode,
           primaryCategory: form.primaryCategory,
           tagline: form.tagline,
           aboutUs: form.aboutUs,
@@ -401,7 +440,11 @@ export default function OnboardingWizard({ tenant }: { tenant: Tenant }) {
           serviceCities: parseListInput(form.serviceCities),
 
           servicesOffered: parseListInput(form.servicesOffered),
-          bookingType: form.bookingType,
+          ...(customerHelpChoice
+            ? { bookingType: customerHelpChoice }
+            : form.bookingType
+            ? { bookingType: form.bookingType }
+            : {}),
           nextStepMessage: form.nextStepMessage,
 
           hours: form.hours,
@@ -425,6 +468,16 @@ export default function OnboardingWizard({ tenant }: { tenant: Tenant }) {
           setMessage("Business name and primary phone are required.");
           return;
         }
+
+        if (!form.deploymentMode) {
+          setMessage("Please tell us whether you already have a business website.");
+          return;
+        }
+
+        if (form.deploymentMode === "existing_site" && !form.websiteUrl.trim()) {
+          setMessage("Website URL is required when you already have a business website.");
+          return;
+        }
       }
 
       if (currentStep.key === "serviceArea") {
@@ -441,6 +494,13 @@ export default function OnboardingWizard({ tenant }: { tenant: Tenant }) {
         }
       }
 
+      if (currentStep.key === "customerHelp") {
+        if (!customerHelpChoice) {
+          setMessage("Please choose how Contactor should help customers.");
+          return;
+        }
+      }
+
       await saveProgress();
 
       if (currentStep.key === "finish") {
@@ -450,11 +510,11 @@ export default function OnboardingWizard({ tenant }: { tenant: Tenant }) {
 
       if (returnToReview) {
         setReturnToReview(false);
-        setStepIndex(STEPS.length - 1);
+        setCurrentStepKey("finish");
         return;
       }
-      
-      setStepIndex((prev) => Math.min(STEPS.length - 1, prev + 1));
+
+      skipStep();
     } catch (error) {
       setMessage(
         error instanceof Error ? error.message : "Failed to save onboarding."
@@ -483,7 +543,7 @@ export default function OnboardingWizard({ tenant }: { tenant: Tenant }) {
             <div className="mt-6">
               <div className="mb-2 flex items-center justify-between text-xs font-semibold text-gray-500">
                 <span>
-                  Step {stepIndex + 1} of {STEPS.length}: {currentStep.label}
+                  Step {safeStepIndex + 1} of {steps.length}: {currentStep.label}
                 </span>
                 <span>{progressPercent}%</span>
               </div>
@@ -495,16 +555,21 @@ export default function OnboardingWizard({ tenant }: { tenant: Tenant }) {
                 />
               </div>
 
-              <div className="mt-4 hidden grid-cols-7 gap-2 text-xs font-semibold text-gray-500 md:grid">
-                {STEPS.map((step, index) => (
+              <div
+                className="mt-4 hidden gap-2 text-xs font-semibold text-gray-500 md:grid"
+                style={{
+                  gridTemplateColumns: `repeat(${steps.length}, minmax(0, 1fr))`,
+                }}
+              >
+                {steps.map((step, index) => (
                   <button
                     key={step.key}
                     type="button"
-                    onClick={() => setStepIndex(index)}
+                    onClick={() => goToStepKey(step.key)}
                     className={`rounded-xl px-2 py-2 text-left transition ${
-                      index === stepIndex
+                      index === safeStepIndex
                         ? "bg-emerald-50 text-emerald-800 ring-1 ring-emerald-200"
-                        : index < stepIndex
+                        : index < safeStepIndex
                         ? "bg-orange-50 text-orange-800"
                         : "bg-white text-gray-500"
                     }`}
@@ -528,7 +593,11 @@ export default function OnboardingWizard({ tenant }: { tenant: Tenant }) {
               </h2>
 
               <p className="mt-2 max-w-3xl text-sm leading-6 text-gray-600">
-                {STEP_HELP[currentStep.key].description}
+                {currentStep.key === "calendar"
+                  ? getCalendarStepExplanation(
+                      customerHelpChoice ?? form.bookingType
+                    )
+                  : STEP_HELP[currentStep.key].description}
               </p>
 
               {STEP_HELP[currentStep.key].examples ? (
@@ -574,16 +643,7 @@ export default function OnboardingWizard({ tenant }: { tenant: Tenant }) {
                       setForm((prev) => ({ ...prev, email: e.target.value }))
                     }
                     placeholder="Business email"
-                    className="saas-input w-full px-3 py-2 text-sm"
-                  />
-
-                  <input
-                    value={form.websiteUrl}
-                    onChange={(e) =>
-                      setForm((prev) => ({ ...prev, websiteUrl: e.target.value }))
-                    }
-                    placeholder="Website URL"
-                    className="saas-input w-full px-3 py-2 text-sm"
+                    className="saas-input w-full px-3 py-2 text-sm md:col-span-2"
                   />
 
                   <input
@@ -643,6 +703,79 @@ export default function OnboardingWizard({ tenant }: { tenant: Tenant }) {
                     />
                     Insured
                   </label>
+                </div>
+
+                <div className="rounded-2xl border border-stone-200 bg-stone-50/80 p-4">
+                  <p className="text-sm font-semibold text-gray-900">
+                    Do you already have a business website?
+                  </p>
+
+                  <div className="mt-3 flex flex-col gap-2 sm:flex-row">
+                    <label className="flex flex-1 cursor-pointer items-start gap-2 rounded-xl border border-stone-200 bg-white px-3 py-3 text-sm text-gray-800">
+                      <input
+                        type="radio"
+                        name="deploymentMode"
+                        checked={form.deploymentMode === "existing_site"}
+                        onChange={() =>
+                          setForm((prev) => ({
+                            ...prev,
+                            deploymentMode: "existing_site",
+                          }))
+                        }
+                        className="mt-1"
+                      />
+                      <span>
+                        <span className="font-semibold">Yes</span>
+                        <span className="mt-0.5 block text-xs text-gray-500">
+                          I will add Contactor to my existing website.
+                        </span>
+                      </span>
+                    </label>
+
+                    <label className="flex flex-1 cursor-pointer items-start gap-2 rounded-xl border border-stone-200 bg-white px-3 py-3 text-sm text-gray-800">
+                      <input
+                        type="radio"
+                        name="deploymentMode"
+                        checked={form.deploymentMode === "hosted"}
+                        onChange={() =>
+                          setForm((prev) => ({
+                            ...prev,
+                            deploymentMode: "hosted",
+                          }))
+                        }
+                        className="mt-1"
+                      />
+                      <span>
+                        <span className="font-semibold">No</span>
+                        <span className="mt-0.5 block text-xs text-gray-500">
+                          Contactor can provide a customer-facing website for my
+                          business.
+                        </span>
+                      </span>
+                    </label>
+                  </div>
+
+                  {form.deploymentMode === "existing_site" ? (
+                    <input
+                      value={form.websiteUrl}
+                      onChange={(e) =>
+                        setForm((prev) => ({
+                          ...prev,
+                          websiteUrl: e.target.value,
+                        }))
+                      }
+                      placeholder="Website URL *"
+                      className="saas-input mt-3 w-full px-3 py-2 text-sm"
+                    />
+                  ) : null}
+
+                  {form.deploymentMode === "hosted" ? (
+                    <p className="mt-3 text-xs leading-5 text-gray-600">
+                      You can customize and publish your Contactor website from
+                      Admin after setup. Your deployment choice is saved
+                      separately from any marketing links you add later.
+                    </p>
+                  ) : null}
                 </div>
 
                 <div className="relative">
@@ -756,36 +889,6 @@ export default function OnboardingWizard({ tenant }: { tenant: Tenant }) {
 
             {currentStep.key === "services" ? (
               <div className="space-y-4">
-                <select
-                  value={form.bookingType}
-                  onChange={(e) =>
-                    setForm((prev) => ({ ...prev, bookingType: e.target.value }))
-                  }
-                  className="saas-input w-full px-3 py-2 text-sm"
-                >
-                  <option value="consultation">Consultation / estimate</option>
-                  <option value="reservation">Reservation / rental</option>
-                  <option value="direct_booking">Direct service booking</option>
-                  <option value="phone_call">Phone call follow-up</option>
-                  <option value="estimate">Quote / estimate request</option>
-                  <option value="lead_capture">Lead capture only</option>
-                  <option value="manual_followup">Manual follow-up</option>
-                  <option value="product_signup">Product signup</option>
-                </select>
-
-                <textarea
-                  value={form.nextStepMessage}
-                  onChange={(e) =>
-                    setForm((prev) => ({
-                      ...prev,
-                      nextStepMessage: e.target.value,
-                    }))
-                  }
-                  rows={3}
-                  placeholder="AI next step message"
-                  className="saas-input w-full px-3 py-2 text-sm"
-                />
-
                 <div className="relative">
                   <textarea
                     value={form.servicesOffered}
@@ -809,6 +912,52 @@ export default function OnboardingWizard({ tenant }: { tenant: Tenant }) {
                     ✨
                   </button>
                 </div>
+              </div>
+            ) : null}
+
+            {currentStep.key === "customerHelp" ? (
+              <div className="space-y-3">
+                {!customerHelpChoice && isLegacyBookingType(form.bookingType) ? (
+                  <p className="rounded-xl border border-amber-200 bg-amber-50 px-3 py-2 text-sm text-amber-900">
+                    Please choose one of the supported options below to continue
+                    setup. Your previous configuration is not shown here.
+                  </p>
+                ) : null}
+
+                {CUSTOMER_HELP_OPTIONS.map((option) => (
+                  <label
+                    key={option.value}
+                    className={`flex cursor-pointer items-start gap-3 rounded-2xl border px-4 py-4 transition ${
+                      customerHelpChoice === option.value
+                        ? "border-orange-300 bg-orange-50/60 ring-1 ring-orange-200"
+                        : "border-stone-200 bg-white hover:border-orange-200"
+                    }`}
+                  >
+                    <input
+                      type="radio"
+                      name="customerHelp"
+                      value={option.value}
+                      checked={customerHelpChoice === option.value}
+                      onChange={() => {
+                        setCustomerHelpChoice(option.value);
+                        setForm((prev) => ({
+                          ...prev,
+                          bookingType: option.value,
+                        }));
+                      }}
+                      className="mt-1"
+                    />
+
+                    <span>
+                      <span className="text-sm font-semibold text-gray-950">
+                        {option.label}
+                      </span>
+                      <span className="mt-1 block text-sm leading-6 text-gray-600">
+                        {option.description}
+                      </span>
+                    </span>
+                  </label>
+                ))}
               </div>
             ) : null}
 
@@ -922,14 +1071,31 @@ export default function OnboardingWizard({ tenant }: { tenant: Tenant }) {
                     label="Business"
                     value={form.businessName || "Not provided"}
                     detail={form.primaryCategory || "No business category added yet"}
-                    onEdit={() => editFromReview(0)}
+                    onEdit={() => editFromReview("business")}
                   />
 
                   <SummaryRow
                     label="Contact"
                     value={form.primaryPhone || "No phone added yet"}
                     detail={form.email || "No business email added yet"}
-                    onEdit={() => editFromReview(0)}
+                    onEdit={() => editFromReview("business")}
+                  />
+
+                  <SummaryRow
+                    label="Website setup"
+                    value={
+                      form.deploymentMode === "existing_site"
+                        ? "Existing website"
+                        : form.deploymentMode === "hosted"
+                        ? "Contactor-hosted website"
+                        : "Not selected yet"
+                    }
+                    detail={
+                      form.deploymentMode === "existing_site"
+                        ? form.websiteUrl || "Website URL not added yet"
+                        : "Website builder available in Admin after setup"
+                    }
+                    onEdit={() => editFromReview("business")}
                   />
 
                   <SummaryRow
@@ -940,7 +1106,7 @@ export default function OnboardingWizard({ tenant }: { tenant: Tenant }) {
                         ? parseListInput(form.serviceCities).slice(0, 4).join(", ")
                         : "No specific service cities added yet"
                     }
-                    onEdit={() => editFromReview(1)}
+                    onEdit={() => editFromReview("serviceArea")}
                   />
 
                   <SummaryRow
@@ -951,38 +1117,44 @@ export default function OnboardingWizard({ tenant }: { tenant: Tenant }) {
                         ? parseListInput(form.servicesOffered).slice(0, 5).join(", ")
                         : "No services added yet"
                     }
-                    onEdit={() => editFromReview(2)}
+                    onEdit={() => editFromReview("services")}
                   />
 
                   <SummaryRow
-                    label="Booking Flow"
-                    value={form.bookingType.replaceAll("_", " ")}
-                    detail={
-                      form.nextStepMessage ||
-                      "No custom AI next-step message added yet"
+                    label="How Contactor helps"
+                    value={
+                      getCustomerHelpLabel(customerHelpChoice) ||
+                      (customerHelpChoice
+                        ? customerHelpChoice.replaceAll("_", " ")
+                        : isLegacyBookingType(form.bookingType)
+                        ? "Legacy configuration — choose a supported option"
+                        : "Not selected yet")
                     }
-                    onEdit={() => editFromReview(2)}
+                    detail="Adjust advanced AI messaging later from AI Receptionist settings."
+                    onEdit={() => editFromReview("customerHelp")}
                   />
 
                   <SummaryRow
                     label="Hours"
                     value={formatHoursForReview(form.hours)}
                     detail="You can adjust detailed hours later from Settings."
-                    onEdit={() => editFromReview(3)}
+                    onEdit={() => editFromReview("hours")}
                   />
 
-                  <SummaryRow
-                    label="Calendar"
-                    value="Optional"
-                    detail="Google Calendar can be connected now or later."
-                    onEdit={() => editFromReview(4)}
-                  />
+                  {steps.some((step) => step.key === "calendar") ? (
+                    <SummaryRow
+                      label="Calendar"
+                      value="Optional"
+                      detail="Google Calendar can be connected now or later."
+                      onEdit={() => editFromReview("calendar")}
+                    />
+                  ) : null}
 
                   <SummaryRow
                     label="Knowledge Base"
                     value="Optional"
                     detail="Upload documents or add FAQs so the AI can answer more accurately."
-                    onEdit={() => editFromReview(5)}
+                    onEdit={() => editFromReview("knowledge")}
                   />
                 </div>
               </div>
@@ -998,7 +1170,7 @@ export default function OnboardingWizard({ tenant }: { tenant: Tenant }) {
               <button
                 type="button"
                 onClick={goBack}
-                disabled={stepIndex === 0}
+                disabled={safeStepIndex === 0}
                 className="saas-button-secondary px-4 py-2 text-sm font-semibold disabled:cursor-not-allowed disabled:opacity-50"
               >
                 Back

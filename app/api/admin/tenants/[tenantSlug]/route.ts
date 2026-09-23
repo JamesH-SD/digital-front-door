@@ -42,6 +42,10 @@ export async function PATCH(request: Request, context: RouteContext) {
         primary_phone: body.primaryPhone,
         email: body.email,
         website_url: body.websiteUrl,
+        ...(body.deploymentMode === "existing_site" ||
+        body.deploymentMode === "hosted"
+          ? { deployment_mode: body.deploymentMode }
+          : {}),
         primary_category: body.primaryCategory,
 
         // ===============================

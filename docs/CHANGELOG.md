@@ -2,6 +2,11 @@
 
 This is a lightweight context changelog, not a substitute for Git history.
 
+## 2026-09-22 — Onboarding Wizard V2 Phase B1 foundation
+
+- Added `tenants.deployment_mode` (`existing_site` | `hosted`, nullable for legacy tenants).
+- Onboarding: website YES/NO, separated Services vs five customer-help choices, adaptive Calendar step via `getBookingFlowConfig().requiresCalendar`, adaptive progress bar.
+
 ## 2026-09-22 — Embed access, widget snippet UI, tenant PATCH auth (Phase A)
 
 - `?embed=1` no longer blocked by unpublished Contactor-hosted website status.

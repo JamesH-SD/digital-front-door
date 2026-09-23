@@ -14,6 +14,8 @@ export type TenantProjectGalleryItem = {
   enabled?: boolean;
 };
 
+export type TenantDeploymentMode = "existing_site" | "hosted";
+
 export type TenantWebsiteSettings = {
   template?: "ai_trust_v1";
   primaryColor?: string;
@@ -104,6 +106,8 @@ export type Tenant = {
   primaryPhone?: string;
   email?: string;
   websiteUrl?: string;
+  /** Where customers find the business online; not inferred from websiteUrl. */
+  deploymentMode?: TenantDeploymentMode | null;
   primaryCategory?: string;
   addressLine2?: string | null;
   country?: string | null;
