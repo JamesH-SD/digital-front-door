@@ -543,7 +543,7 @@ export default function LeadDetailClient({
           "Content-Type": "application/json",
         },
         body: JSON.stringify({
-          lead,
+          leadId: lead.id,
           forceRegenerate,
         }),
       });

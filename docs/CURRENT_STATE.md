@@ -28,7 +28,7 @@ Last reconstructed: 2026-09-22
 - Business-hours settings
 - Account/team/notification UI
 - Stripe billing/trial UI and billing routes
-- Lead Copilot-related summary/insight/suggested-reply code
+- Lead Copilot (workflow-aware unified generation via `runLeadCopilot`)
 - Main Contactor marketing page
 
 ---
@@ -177,17 +177,38 @@ Explicit customer details after lead capture are persisted through deterministic
 
 **Manual regression (Christian's Trailer Rentals, Estimate):** lead capture, continued conversation, natural post-capture detail persistence, Customer Updates display, Activity Timeline events, delivery→pickup correction after the non-scheduling fallback, and post-capture knowledge Q&A were manually verified. Estimate did not enter appointment scheduling.
 
-### Next known stabilization item — Lead Copilot (not fixed)
+### Lead Copilot — current production behavior (2026-09-22)
 
-Lead Copilot still needs workflow-awareness work. Current behavior:
+Unified Lead Copilot (`runLeadCopilot`, `/api/ai/lead-copilot`) generates Summary, Missing Info, Suggested Next Step, and Suggested Reply from **current system truth**, not a stale browser Lead object.
 
-- Inputs are primarily the `Lead` object (including `customerUpdates`), not the full chat transcript.
-- Does not receive `getBookingFlowConfig()` / tenant Booking Flow contract today.
-- Can incorrectly treat appointment time as missing for non-scheduling Estimate leads.
-- Can recommend appointment confirmation steps inappropriate for Estimate.
-- Cached Summary / Missing Info / Suggested Next Step may stay stale until regenerated after new customer updates.
+Generation/regeneration path:
 
-This is the **next** AI receptionist stabilization task. It is not part of the 2026-09-22 checkpoint.
+- API operates primarily from **`leadId`**
+- Fetches the **fresh Lead row** from the database (authoritative structured fields and persisted `customer_updates`)
+- Loads tenant → **`getBookingFlowConfig(tenant)`** (production Booking Flow authority; no `TenantConfig.conversionGoal` migration)
+- Loads **actual calendar appointment records** when present
+- Builds shared context via `lib/ai/buildLeadCopilotContext.ts` (structured lead facts, Customer Updates, Booking Flow rules, appointment facts)
+- **No chat transcript** in V1 Copilot context
+
+Appointment semantics in Copilot:
+
+- Distinguishes **Lead Appointment Preference Field**, **calendar appointment record**, and **whether the Booking Flow requires an appointment**
+- For `requiresAppointment === false` (e.g. Estimate): empty appointment fields are **not** automatically treated as missing; Copilot must not push scheduling merely because no appointment exists
+- For `requiresAppointment === true` (e.g. Consultation): appointment-aware guidance remains; an existing booked appointment can satisfy the scheduling requirement
+
+Cache behavior (accepted V1):
+
+- Complete `ai_*` cache may still be returned until **Refresh Insights** (`forceRegenerate=true`)
+- Regeneration always uses fresh DB lead data
+- **Not implemented:** auto-regeneration after Customer Updates, stale flags/hashes, background jobs, chat-path OpenAI for Copilot
+
+Unified Copilot prompts are **industry-neutral** (not contractor-only). Legacy individual AI endpoints (`/api/ai/lead-summary`, etc.) remain on their legacy context path.
+
+**Manual regression — Christian's Trailer Rentals (Estimate):** After Refresh Insights, Copilot did not list appointment time as missing, did not push scheduling in Next Step or Suggested Reply, and reflected current delivery preference from structured/persisted context. Customer later changed from pickup to delivery; Copilot delivery preference was correct. F-150 sufficiency asked as a business question was accepted behavior (not forced into Customer Updates in this checkpoint).
+
+**Manual regression — Hughes General (Consultation):** Booked consultation call recognized in Summary; appointment time not listed as missing when calendar appointment exists; Next Step appropriately used scheduled call; Missing Info focused on budget/scope/address; backup contact in Customer Updates appeared in summary.
+
+**Known deferred (Lead Copilot):** Cached output may remain stale until Refresh after later Customer Updates; transcript context intentionally excluded for V1 evaluation; legacy per-endpoint Copilot helpers unchanged.
 
 ---
 
@@ -304,7 +325,7 @@ Google Calendar OAuth approval does not need to be revisited for GBP work.
 Current:
 
 - Customer AI receptionist exists.
-- Lead Copilot-related AI features exist.
+- Workflow-aware Lead Copilot (Summary, Missing Info, Suggested Next Step, Suggested Reply) exists for Lead Detail.
 
 Not implemented:
 

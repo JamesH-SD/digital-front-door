@@ -514,3 +514,35 @@ Requirements:
 - Free-form `generatePostCaptureTurn()` must not claim durable saves/updates/adds/notes/records on its own.
 
 Re-enabling broad automatic persistence of every post-capture AI summary block is not authorized without a separate approved task.
+
+---
+
+## D-026 — Lead Copilot uses fresh server-side lead state and Booking Flow
+
+**Status:** Active stabilization behavior as of 2026-09-22
+
+Unified Lead Copilot generation must use the **current database Lead** (via `leadId`), not a stale browser-supplied Lead object, when generating or force-regenerating outputs.
+
+Copilot must incorporate, at minimum:
+
+- Structured lead fields and persisted Customer Updates
+- Current **`getBookingFlowConfig(tenant)`** contract (production authority)
+- Actual calendar appointment records when present
+
+Copilot must distinguish appointment preference fields, calendar appointments, and whether the Booking Flow requires an appointment. Non-scheduling flows must not treat an empty appointment as an automatic deficiency.
+
+Do not migrate Copilot workflow rules to `TenantConfig.conversionGoal` during stabilization.
+
+---
+
+## D-027 — Lead Copilot V1 excludes transcript and auto-regeneration
+
+**Status:** Active stabilization behavior as of 2026-09-22
+
+Lead Copilot V1 intentionally does **not** ingest chat transcripts. V1 context is:
+
+structured lead + Customer Updates + Booking Flow + appointment facts.
+
+Copilot must not auto-regenerate on every Customer Update (no chat-path OpenAI for Copilot, no stale-flag/hash invalidation system in V1). Admins refresh via **Refresh Insights** when they need updated Copilot output.
+
+Legacy individual AI endpoints may retain their older context path until separately migrated.

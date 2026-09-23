@@ -12,27 +12,21 @@ export async function POST(request: NextRequest) {
   try {
     const body = await request.json();
 
+    const leadIdFromBody =
+      typeof body?.leadId === "string" ? body.leadId.trim() : "";
+
     const lead = body?.lead as Lead | undefined;
+    const leadId = leadIdFromBody || lead?.id;
     const forceRegenerate = body?.forceRegenerate === true;
 
-    if (!lead || typeof lead !== "object") {
+    if (!leadId) {
       return NextResponse.json(
-        { error: "lead is required" },
+        { error: "leadId or lead.id is required" },
         { status: 400 }
       );
     }
 
-    if (!lead.id || typeof lead.id !== "string") {
-      return NextResponse.json(
-        { error: "lead.id is required" },
-        { status: 400 }
-      );
-    }
-
-    const result = await runLeadCopilot(
-      lead,
-      forceRegenerate
-    );
+    const result = await runLeadCopilot(leadId, forceRegenerate);
 
     return NextResponse.json(result, { status: 200 });
   } catch (error) {

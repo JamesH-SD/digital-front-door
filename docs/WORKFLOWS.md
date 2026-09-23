@@ -45,9 +45,10 @@ Contractor/consultation baseline: qualification, lead capture, email collection,
 Lead-capture-only baseline: lead creation, continued conversation, knowledge Q&A, and reduced repetitive follow-up/disconnect language were reported working.
 
 ### Christian's Trailer Rentals / Estimate
-Estimate stabilization (2026-09-22): `bookingType === "estimate"` is intentionally non-scheduling via `getBookingFlowConfig()`. After lead capture, conversation continues; scheduling is not auto-offered. Post-capture customer details and scheduling-adjacent corrections on non-scheduling flows persist to `customer_updates` before confirmation. Manual regression on this tenant verified lead capture, continued conversation, persisted updates (including delivery→pickup correction), knowledge Q&A after capture, and no Estimate appointment scheduling. Consultation semantics elsewhere (e.g. Hughes General) remain unchanged.
+Estimate stabilization (2026-09-22): non-scheduling Booking Flow, post-capture persist-before-confirm, and **Lead Copilot workflow awareness** manually verified. After Refresh Insights on Estimate leads: Copilot does not treat absent appointments as missing, does not push scheduling in Next Step/Suggested Reply, and uses structured lead data plus persisted Customer Updates (including final delivery preference after customer changed mind from pickup). Business questions (e.g. tow-vehicle sufficiency) may remain conversational rather than automatic Customer Updates — accepted for V1.
 
-**Next workflow stabilization:** Lead Copilot workflow awareness for Estimate and other Booking Flows (not fixed in this checkpoint).
+### Hughes General / Consultation
+Consultation baseline includes scheduling when the flow requires it. Lead Copilot regression (2026-09-22): with `requiresAppointment === true` and an actual booked consultation call, Copilot recognizes the appointment, does not list appointment time as missing, and may use the scheduled call in Suggested Next Step while Missing Info focuses on legitimate qualification gaps (budget, scope, address). Post-lead backup contact persisted in Customer Updates can appear in Copilot summary. Preserve this behavior when changing Copilot.
 
 ### Contactor tenant
 `product_signup` is a special flow and should remain isolated during stabilization.
@@ -76,6 +77,37 @@ with presentation guardrails — no false save claims)
 ```
 
 Broad automatic persistence of every post-capture AI summary block remains disabled.
+
+## Lead Copilot workflow (current)
+
+```text
+Lead Detail (admin)
+        ↓
+leadId → POST /api/ai/lead-copilot
+        ↓
+Fresh DB Lead (authoritative)
+        +
+Persisted Customer Updates
+        +
+getTenantBySlug → getBookingFlowConfig()
+        +
+Actual appointment records (calendar)
+        ↓
+buildLeadCopilotContext()
+        ↓
+generateLeadSummary / generateLeadInsights / generateSuggestedReply
+        ↓
+Summary | Missing Info | Suggested Next Step | Suggested Reply
+        ↓
+Cached on lead until Refresh Insights (forceRegenerate)
+```
+
+Regression expectations:
+
+- **Estimate (`requiresAppointment === false`):** no missing appointment time solely due to empty fields; no default “confirm/schedule appointment” next step.
+- **Consultation (`requiresAppointment === true`) + booked appointment:** appointment satisfied; Copilot may reference the scheduled interaction appropriately.
+
+Chat transcript is **not** part of V1 Copilot context.
 
 ## Campaign workflow
 

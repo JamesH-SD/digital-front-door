@@ -2,6 +2,16 @@
 
 This is a lightweight context changelog, not a substitute for Git history.
 
+## 2026-09-22 — Lead Copilot workflow-awareness stabilization
+
+- Unified Lead Copilot now generates from fresh DB lead via `leadId` (not authoritative browser Lead).
+- Added `buildLeadCopilotContext` with structured lead facts, Customer Updates, `getBookingFlowConfig()` rules, and calendar appointment facts.
+- Industry-neutral unified Copilot prompts; non-scheduling flows no longer default to missing appointment time / scheduling next steps.
+- Consultation/Hughes regression: booked appointment recognized; legitimate qualification gaps still surfaced.
+- Estimate/Christian's regression: no appointment-required Copilot pressure; delivery preference reflected after Refresh Insights.
+- V1 excludes chat transcript and auto-regeneration after Customer Updates; Refresh Insights uses fresh DB state.
+- Documented D-026 and D-027.
+
 ## 2026-09-22 — Estimate flow and post-capture customer update stabilization
 
 - Stabilized `bookingType === "estimate"` as intentionally non-scheduling via `getBookingFlowConfig()` (no auto call/site-visit scheduling path; tenant Next Step / human follow-up lead-created reply).

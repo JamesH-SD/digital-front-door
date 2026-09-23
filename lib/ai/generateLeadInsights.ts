@@ -1,5 +1,9 @@
 import { getOpenAIClient } from "@/lib/ai/openaiClient";
 import type { Lead } from "@/lib/types/lead";
+import {
+  buildLegacyLeadContext,
+  type LeadCopilotPromptContext,
+} from "@/lib/ai/buildLeadCopilotContext";
 
 export type GenerateLeadInsightsResult =
   | {
@@ -14,26 +18,9 @@ export type GenerateLeadInsightsResult =
       nextStep?: string;
     };
 
-function buildLeadContext(lead: Lead): string {
-  const sections = [
-    `Lead Number: ${lead.leadNumber || "Unknown"}`,
-    `Customer Name: ${lead.customerName || "Unknown"}`,
-    `Phone: ${lead.phone || "Not provided"}`,
-    `Email: ${lead.email || "Not provided"}`,
-    `Project Type: ${lead.projectType || "Not provided"}`,
-    `Location: ${lead.location || "Not provided"}`,
-    `Timeline: ${lead.timeline || "Not provided"}`,
-    `Appointment: ${lead.appointment || "Not provided"}`,
-    `Notes: ${lead.notes || "Not provided"}`,
-    `Customer Updates: ${lead.customerUpdates || "Not provided"}`,
-    `Status: ${lead.status || "new"}`,
-  ];
-
-  return sections.join("\n");
-}
-
 export async function generateLeadInsights(
-  lead: Lead
+  lead: Lead,
+  copilotContext?: LeadCopilotPromptContext
 ): Promise<GenerateLeadInsightsResult> {
   if (!lead) {
     return {
@@ -52,8 +39,23 @@ export async function generateLeadInsights(
   try {
     const client = getOpenAIClient();
 
+    const leadDetails = copilotContext
+      ? copilotContext.combinedContextText
+      : buildLegacyLeadContext(lead);
+
+    const workflowGuidance = copilotContext
+      ? `
+- Follow the Booking Flow rules in the context below exactly.
+- Only list information that is genuinely missing from structured lead data and persisted Customer Updates.
+- If Requires Appointment is "no", never list appointment time or scheduling confirmation as missing merely because no appointment exists.
+- If Requires Appointment is "no", the next step must not tell staff to confirm, schedule, or book an appointment unless an actual calendar appointment exists or persisted customer updates clearly show the customer requested scheduling.
+- When Requires Appointment is "no", prefer practical follow-up, clarification, or tenant next-step guidance aligned with the booking type.
+- When Requires Appointment is "yes", appointment/scheduling gaps may be included when genuinely helpful.
+`.trim()
+      : "";
+
     const prompt = `
-      You are helping a small contractor understand what is still missing from a lead and what they should do next.
+      You are helping a business understand what is still missing from a lead and what the team should do next.
 
       Return strict JSON in this shape:
       {
@@ -63,14 +65,15 @@ export async function generateLeadInsights(
 
       Rules:
       - missingInfo should contain 0 to 4 short phrases
-      - only include information that is genuinely missing or would reasonably help qualify the job
-      - nextStep should be practical and specific
+      - only include information that is genuinely missing or would reasonably help qualify or fulfill the request
+      - nextStep should be practical and specific for the business operator
       - do not invent facts
       - do not include markdown
       - do not include any text outside the JSON
+      ${workflowGuidance ? `\n${workflowGuidance}` : ""}
 
-      Lead Details:
-      ${buildLeadContext(lead)}
+      Lead Context:
+      ${leadDetails}
       `.trim();
 
     const response = await client.responses.create({

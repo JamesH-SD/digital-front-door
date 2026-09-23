@@ -1,5 +1,9 @@
 import { getOpenAIClient } from "@/lib/ai/openaiClient";
 import type { Lead } from "@/lib/types/lead";
+import {
+  buildLegacyLeadContext,
+  type LeadCopilotPromptContext,
+} from "@/lib/ai/buildLeadCopilotContext";
 
 export type GenerateLeadSummaryResult =
   | {
@@ -12,47 +16,9 @@ export type GenerateLeadSummaryResult =
       summary?: string;
     };
 
-/**
- * Build a compact, structured text block from the lead.
- *
- * Why this exists:
- * - keeps the prompt cleaner and more predictable
- * - limits the amount of noisy or missing data passed to the model
- * - makes future prompt tuning easier
- */
-function buildLeadContext(lead: Lead): string {
-  const sections = [
-    `Lead Number: ${lead.leadNumber || "Unknown"}`,
-    `Customer Name: ${lead.customerName || "Unknown"}`,
-    `Phone: ${lead.phone || "Not provided"}`,
-    `Email: ${lead.email || "Not provided"}`,
-    `Project Type: ${lead.projectType || "Not provided"}`,
-    `Location: ${lead.location || "Not provided"}`,
-    `Timeline: ${lead.timeline || "Not provided"}`,
-    `Appointment: ${lead.appointment || "Not provided"}`,
-    `Notes: ${lead.notes || "Not provided"}`,
-    `Customer Updates: ${lead.customerUpdates || "Not provided"}`,
-    `Status: ${lead.status || "new"}`,
-  ];
-
-  return sections.join("\n");
-}
-
-/**
- * Generate a short contractor-friendly lead summary.
- *
- * Behavior:
- * - returns a concise summary for quick scanning
- * - does not throw for normal AI/provider failures
- * - safely skips when required input is missing
- *
- * Notes for future devs:
- * - this helper is intentionally non-blocking
- * - if AI fails, the rest of the lead workflow should still work
- * - keep summaries brief and practical for busy contractors
- */
 export async function generateLeadSummary(
-  lead: Lead
+  lead: Lead,
+  copilotContext?: LeadCopilotPromptContext
 ): Promise<GenerateLeadSummaryResult> {
   if (!lead) {
     return {
@@ -71,21 +37,34 @@ export async function generateLeadSummary(
   try {
     const client = getOpenAIClient();
 
+    const leadDetails = copilotContext
+      ? copilotContext.combinedContextText
+      : buildLegacyLeadContext(lead);
+
+    const workflowGuidance = copilotContext
+      ? `
+- Respect the Booking Flow rules in the context below.
+- Summarize persisted Customer Updates when they add important detail.
+- If the workflow does not require an appointment, do not describe missing appointment time as a key fact unless an actual calendar appointment exists or the customer explicitly requested scheduling in persisted updates.
+`.trim()
+      : "";
+
     const prompt = `
-You are an assistant helping a busy small contractor quickly understand a new lead.
+You are an assistant helping a business team quickly understand a lead.
 
 Your job:
 - write a short, practical summary of the lead
 - keep it to 2-3 sentences maximum
-- mention the project, location, timeline, and any notable context
+- mention the project/request, location, timeline, and any notable persisted customer updates
 - do not make up facts
 - do not use bullet points
 - do not greet the user
 - do not use hype or marketing language
-- write clearly for a contractor who wants the key facts fast
+- write clearly for an operator who wants the key facts fast
+${workflowGuidance ? `\n${workflowGuidance}` : ""}
 
-Lead Details:
-${buildLeadContext(lead)}
+Lead Context:
+${leadDetails}
 `.trim();
 
     const response = await client.responses.create({

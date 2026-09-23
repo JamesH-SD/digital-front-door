@@ -4,6 +4,13 @@ import { generateLeadInsights } from "@/lib/ai/generateLeadInsights";
 import { generateSuggestedReply } from "@/lib/ai/generateSuggestedReply";
 import type { Lead } from "@/lib/types/lead";
 import { getAppointmentsByLeadId } from "@/lib/scheduling/appointmentService";
+import { mapLead } from "@/lib/db/leads";
+import { getTenantBySlug } from "@/lib/db/tenants";
+import { getBookingFlowConfig } from "@/lib/config/getBookingFlowConfig";
+import {
+  buildLeadCopilotAppointmentFacts,
+  buildLeadCopilotPromptContext,
+} from "@/lib/ai/buildLeadCopilotContext";
 
 export type LeadCopilotResult = {
   status: "generated";
@@ -15,6 +22,31 @@ export type LeadCopilotResult = {
   updatedAt: string | null;
 };
 
+function resolveLeadId(input: Lead | { id: string } | string): string {
+  if (typeof input === "string") {
+    return input;
+  }
+
+  return input.id;
+}
+
+async function fetchFreshLeadById(leadId: string): Promise<Lead | null> {
+  const supabase = createAdminClient();
+
+  const { data, error } = await supabase
+    .from("leads")
+    .select("*")
+    .eq("id", leadId)
+    .single();
+
+  if (error) {
+    console.error("Error fetching fresh lead for Lead Copilot:", error.message);
+    return null;
+  }
+
+  return data ? mapLead(data) : null;
+}
+
 /**
  * Generate and persist Lead Copilot intelligence.
  *
@@ -25,10 +57,12 @@ export type LeadCopilotResult = {
  * - persists all Copilot fields in one database update
  */
 export async function runLeadCopilot(
-  lead: Lead,
+  leadOrLeadId: Lead | { id: string } | string,
   forceRegenerate = false
 ): Promise<LeadCopilotResult> {
-  if (!lead?.id) {
+  const leadId = resolveLeadId(leadOrLeadId);
+
+  if (!leadId) {
     throw new Error("lead.id is required");
   }
 
@@ -37,9 +71,9 @@ export async function runLeadCopilot(
   const { data: existingLead, error: fetchError } = await supabase
     .from("leads")
     .select(
-        "id, ai_summary, ai_missing_info, ai_next_step, ai_suggested_reply, ai_copilot_updated_at"
+      "id, ai_summary, ai_missing_info, ai_next_step, ai_suggested_reply, ai_copilot_updated_at"
     )
-    .eq("id", lead.id)
+    .eq("id", leadId)
     .single();
 
   if (fetchError) {
@@ -71,36 +105,51 @@ export async function runLeadCopilot(
     };
   }
 
-  const appointments = await getAppointmentsByLeadId(lead.id);
+  const freshLead = await fetchFreshLeadById(leadId);
 
+  if (!freshLead) {
+    throw new Error("Lead not found for Lead Copilot generation.");
+  }
+
+  const tenant = await getTenantBySlug(freshLead.tenantSlug);
+
+  if (!tenant) {
+    throw new Error("Tenant not found for Lead Copilot generation.");
+  }
+
+  const bookingFlow = getBookingFlowConfig(tenant);
+  const appointments = await getAppointmentsByLeadId(freshLead.id);
   const currentAppointment = appointments[0] ?? null;
 
+  const appointmentFacts = buildLeadCopilotAppointmentFacts({
+    lead: freshLead,
+    calendarAppointment: currentAppointment,
+  });
+
   const leadForAI: Lead = {
-    ...lead,
-
-    appointment:
-      currentAppointment?.confirmedStartAt ??
-      currentAppointment?.proposedStartAt ??
-      lead.appointment,
-
+    ...freshLead,
+    appointment: appointmentFacts.appointmentStart ?? freshLead.appointment,
     notes: [
-      lead.notes,
-      currentAppointment?.appointmentType
-        ? `Appointment Type: ${currentAppointment.appointmentType}`
+      freshLead.notes,
+      appointmentFacts.hasCalendarAppointment && appointmentFacts.appointmentType
+        ? `Appointment Type: ${appointmentFacts.appointmentType}`
         : null,
     ]
       .filter(Boolean)
       .join("\n"),
   };
 
-  /*
-   * These remain three OpenAI requests for now, but they execute concurrently.
-   * Later, we can replace them with one structured AI request.
-   */
+  const copilotContext = buildLeadCopilotPromptContext({
+    lead: leadForAI,
+    tenant,
+    bookingFlow,
+    appointmentFacts,
+  });
+
   const [summaryResult, insightsResult, replyResult] = await Promise.all([
-    generateLeadSummary(leadForAI),
-    generateLeadInsights(leadForAI),
-    generateSuggestedReply(leadForAI),
+    generateLeadSummary(leadForAI, copilotContext),
+    generateLeadInsights(leadForAI, copilotContext),
+    generateSuggestedReply(leadForAI, copilotContext),
   ]);
 
   const summary =
@@ -136,7 +185,7 @@ export async function runLeadCopilot(
       ai_suggested_reply: suggestedReply,
       ai_copilot_updated_at: updatedAt,
     })
-    .eq("id", lead.id);
+    .eq("id", leadId);
 
   if (updateError) {
     console.error(

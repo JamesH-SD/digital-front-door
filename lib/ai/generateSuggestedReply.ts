@@ -1,5 +1,9 @@
 import { getOpenAIClient } from "@/lib/ai/openaiClient";
 import type { Lead } from "@/lib/types/lead";
+import {
+  buildLegacyLeadContext,
+  type LeadCopilotPromptContext,
+} from "@/lib/ai/buildLeadCopilotContext";
 
 export type GenerateSuggestedReplyResult =
   | {
@@ -12,26 +16,9 @@ export type GenerateSuggestedReplyResult =
       reply?: string;
     };
 
-function buildLeadContext(lead: Lead): string {
-  const sections = [
-    `Lead Number: ${lead.leadNumber || "Unknown"}`,
-    `Customer Name: ${lead.customerName || "Unknown"}`,
-    `Phone: ${lead.phone || "Not provided"}`,
-    `Email: ${lead.email || "Not provided"}`,
-    `Project Type: ${lead.projectType || "Not provided"}`,
-    `Location: ${lead.location || "Not provided"}`,
-    `Timeline: ${lead.timeline || "Not provided"}`,
-    `Appointment: ${lead.appointment || "Not provided"}`,
-    `Notes: ${lead.notes || "Not provided"}`,
-    `Customer Updates: ${lead.customerUpdates || "Not provided"}`,
-    `Status: ${lead.status || "new"}`,
-  ];
-
-  return sections.join("\n");
-}
-
 export async function generateSuggestedReply(
-  lead: Lead
+  lead: Lead,
+  copilotContext?: LeadCopilotPromptContext
 ): Promise<GenerateSuggestedReplyResult> {
   if (!lead) {
     return {
@@ -50,21 +37,36 @@ export async function generateSuggestedReply(
   try {
     const client = getOpenAIClient();
 
-    const prompt = `
-You are helping a small contractor respond to a new lead.
+    const leadDetails = copilotContext
+      ? copilotContext.combinedContextText
+      : buildLegacyLeadContext(lead);
 
-Write a short, professional, friendly reply the contractor could send back.
+    const workflowGuidance = copilotContext
+      ? `
+- Follow the Booking Flow rules in the context below.
+- Use persisted Customer Updates and structured lead facts accurately.
+- If Requires Appointment is "no", do not imply that scheduling or confirming an appointment is required.
+- If an actual calendar appointment exists, you may reference it accurately.
+- Do not invent facts or overpromise.
+`.trim()
+      : "";
+
+    const prompt = `
+You are helping a business respond to a lead.
+
+Write a short, professional, friendly reply the team could send back.
 Requirements:
 - keep it brief and practical
 - sound human, not robotic
-- acknowledge the project request
+- acknowledge the request using known lead facts and persisted Customer Updates
 - do not make up facts
 - do not overpromise
 - do not use bullet points
 - do not include placeholders like [Name]
+${workflowGuidance ? `\n${workflowGuidance}` : ""}
 
-Lead Details:
-${buildLeadContext(lead)}
+Lead Context:
+${leadDetails}
 `.trim();
 
     const response = await client.responses.create({

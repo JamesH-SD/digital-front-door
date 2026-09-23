@@ -1,7 +1,7 @@
 import { createClient } from "@/lib/supabase/server";
 import type { Lead, LeadImage, LeadStatus } from "@/lib/types/lead";
 
-function mapLead(row: any): Lead {
+export function mapLead(row: any): Lead {
   return {
     id: row.id,
     leadNumber: row.lead_number ?? "",
