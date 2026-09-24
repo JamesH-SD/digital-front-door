@@ -5,6 +5,7 @@ import { proposeWizardSetupContent } from "@/lib/ai/wizard/proposeWizardSetupCon
 import type {
   WizardAiAboutContext,
   WizardAiProposeAction,
+  WizardAiServicesContext,
   WizardAiTaglineContext,
 } from "@/lib/ai/wizard/types";
 
@@ -14,7 +15,11 @@ type RouteContext = {
   }>;
 };
 
-const ALLOWED_ACTIONS: WizardAiProposeAction[] = ["tagline", "about"];
+const ALLOWED_ACTIONS: WizardAiProposeAction[] = [
+  "tagline",
+  "about",
+  "services",
+];
 
 function isAllowedAction(value: unknown): value is WizardAiProposeAction {
   return (
@@ -62,6 +67,27 @@ function parseTaglineContext(body: Record<string, unknown>): WizardAiTaglineCont
     primaryCategory: sanitizeString(context.primaryCategory, 200),
     serviceAreaSummary: sanitizeString(context.serviceAreaSummary, 500),
     existingTagline: sanitizeString(context.existingTagline, 120),
+  };
+}
+
+function parseServicesContext(
+  body: Record<string, unknown>
+): WizardAiServicesContext {
+  const context =
+    body.context && typeof body.context === "object"
+      ? (body.context as Record<string, unknown>)
+      : {};
+
+  return {
+    businessName: sanitizeString(context.businessName, 200),
+    primaryCategory: sanitizeString(context.primaryCategory, 200),
+    serviceAreaSummary: sanitizeString(context.serviceAreaSummary, 500),
+    ownerProvidedBusinessDescription: sanitizeString(
+      context.ownerProvidedBusinessDescription ??
+        context.existingAbout,
+      800
+    ),
+    existingServicesOffered: sanitizeStringArray(context.existingServicesOffered),
   };
 }
 
@@ -113,7 +139,7 @@ export async function POST(request: Request, context: RouteContext) {
 
     if (!isAllowedAction(body?.action)) {
       return NextResponse.json(
-        { error: "action must be tagline or about" },
+        { error: "action must be tagline, about, or services" },
         { status: 400 }
       );
     }
@@ -122,7 +148,9 @@ export async function POST(request: Request, context: RouteContext) {
     const parsedContext =
       action === "tagline"
         ? parseTaglineContext(body)
-        : parseAboutContext(body);
+        : action === "about"
+          ? parseAboutContext(body)
+          : parseServicesContext(body);
 
     const result = await proposeWizardSetupContent({
       action,

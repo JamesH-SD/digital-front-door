@@ -31,6 +31,7 @@ import OnboardingCustomerExperienceStep from "@/components/onboarding/Onboarding
 import WizardAiProposalPanel from "@/components/onboarding/WizardAiProposalPanel";
 import {
   buildWizardAiAboutContext,
+  buildWizardAiServicesContext,
   buildWizardAiTaglineContext,
 } from "@/lib/onboarding/buildWizardAiRequestContext";
 import type { WizardAiProposeAction } from "@/lib/ai/wizard/types";
@@ -99,13 +100,7 @@ const STEP_HELP: Record<
     eyebrow: "Services",
     title: "What do you offer?",
     description:
-      "List the services you want the AI receptionist to understand. Keep it simple — you can improve this later.",
-    examples: [
-      "Kitchen remodels",
-      "Bathroom remodels",
-      "Flooring installation",
-      "Emergency plumbing repairs",
-    ],
+      "List the main services customers can ask you about — what your business actually does. Customer Experience (later in the wizard) covers how your AI receptionist helps when someone wants assistance.",
   },
   customerHelp: {
     eyebrow: "Customer experience",
@@ -268,9 +263,13 @@ export default function OnboardingWizard({
   const priorStepRef = useRef<StepKey | null>(null);
   const taglineInputRef = useRef<HTMLInputElement>(null);
   const aboutTextareaRef = useRef<HTMLTextAreaElement>(null);
+  const servicesTextareaRef = useRef<HTMLTextAreaElement>(null);
   const [currentStepKey, setCurrentStepKey] = useState<StepKey>("business");
   const [taglineAi, setTaglineAi] = useState<WizardAiFieldState>(INITIAL_WIZARD_AI_FIELD);
   const [aboutAi, setAboutAi] = useState<WizardAiFieldState>(INITIAL_WIZARD_AI_FIELD);
+  const [servicesAi, setServicesAi] = useState<WizardAiFieldState>(
+    INITIAL_WIZARD_AI_FIELD
+  );
   const [returnToReview, setReturnToReview] = useState(false);
   const [message, setMessage] = useState("");
   const [isSaving, setIsSaving] = useState(false);
@@ -541,11 +540,22 @@ export default function OnboardingWizard({
       return;
     }
 
-    setAboutAi(INITIAL_WIZARD_AI_FIELD);
+    if (action === "about") {
+      setAboutAi(INITIAL_WIZARD_AI_FIELD);
+      return;
+    }
+
+    setServicesAi(INITIAL_WIZARD_AI_FIELD);
   }
 
   function applyWizardAiProposal(action: WizardAiProposeAction, focusField: boolean) {
-    const state = action === "tagline" ? taglineAi : aboutAi;
+    const state =
+      action === "tagline"
+        ? taglineAi
+        : action === "about"
+          ? aboutAi
+          : servicesAi;
+
     if (!state.proposal) {
       return;
     }
@@ -559,19 +569,36 @@ export default function OnboardingWizard({
       return;
     }
 
-    setForm((prev) => ({ ...prev, aboutUs: state.proposal! }));
-    closeWizardAiField("about");
+    if (action === "about") {
+      setForm((prev) => ({ ...prev, aboutUs: state.proposal! }));
+      closeWizardAiField("about");
+      if (focusField) {
+        aboutTextareaRef.current?.focus();
+      }
+      return;
+    }
+
+    setForm((prev) => ({ ...prev, servicesOffered: state.proposal! }));
+    closeWizardAiField("services");
     if (focusField) {
-      aboutTextareaRef.current?.focus();
+      servicesTextareaRef.current?.focus();
     }
   }
 
   async function requestWizardAiProposal(action: WizardAiProposeAction) {
-    const setState = action === "tagline" ? setTaglineAi : setAboutAi;
+    const setState =
+      action === "tagline"
+        ? setTaglineAi
+        : action === "about"
+          ? setAboutAi
+          : setServicesAi;
+
     const context =
       action === "tagline"
         ? buildWizardAiTaglineContext(form)
-        : buildWizardAiAboutContext(form);
+        : action === "about"
+          ? buildWizardAiAboutContext(form)
+          : buildWizardAiServicesContext(form);
 
     setState({
       visible: true,
@@ -622,20 +649,6 @@ export default function OnboardingWizard({
           "Could not generate a suggestion right now. You can continue typing manually.",
       });
     }
-  }
-
-  function generateServices() {
-    const category = form.primaryCategory || "service business";
-  
-    setForm((prev) => ({
-      ...prev,
-      servicesOffered: [
-        `${category} consultations`,
-        `${category} estimates`,
-        `${category} repairs`,
-        `${category} maintenance`,
-      ].join("\n"),
-    }));
   }
 
   async function saveProgress() {
@@ -1198,6 +1211,7 @@ export default function OnboardingWizard({
               <div className="space-y-4">
                 <div className="relative">
                   <textarea
+                    ref={servicesTextareaRef}
                     value={form.servicesOffered}
                     onChange={(e) =>
                       setForm((prev) => ({
@@ -1206,19 +1220,32 @@ export default function OnboardingWizard({
                       }))
                     }
                     rows={8}
-                    placeholder="Add one service per line. Example: Bathroom remodel, Kitchen remodel, Flooring"
+                    placeholder="Enter one service per line"
                     className="saas-input w-full px-3 py-2 pr-10 text-sm"
                   />
 
                   <button
                     type="button"
-                    onClick={generateServices}
+                    onClick={() => void requestWizardAiProposal("services")}
                     title="Let AI help"
                     className="absolute right-2 top-2 rounded-full px-2 text-sm hover:bg-orange-50"
                   >
                     ✨
                   </button>
                 </div>
+
+                {servicesAi.visible ? (
+                  <WizardAiProposalPanel
+                    label="Services"
+                    loading={servicesAi.loading}
+                    proposal={servicesAi.proposal}
+                    error={servicesAi.error}
+                    onUseThis={() => applyWizardAiProposal("services", false)}
+                    onEdit={() => applyWizardAiProposal("services", true)}
+                    onTryAgain={() => void requestWizardAiProposal("services")}
+                    onCancel={() => closeWizardAiField("services")}
+                  />
+                ) : null}
               </div>
             ) : null}
 

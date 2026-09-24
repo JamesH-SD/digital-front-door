@@ -1,12 +1,14 @@
 import { getOpenAIClient } from "@/lib/ai/openaiClient";
 import {
   sanitizeWizardAboutProposal,
+  sanitizeWizardServicesProposal,
   sanitizeWizardTaglineProposal,
 } from "@/lib/ai/wizard/sanitizeWizardProposal";
 import type {
   WizardAiAboutContext,
   WizardAiProposeAction,
   WizardAiProposeResult,
+  WizardAiServicesContext,
   WizardAiTaglineContext,
 } from "@/lib/ai/wizard/types";
 
@@ -111,13 +113,74 @@ ${deployment ? `\n${deployment}` : ""}
 `.trim();
 }
 
+function buildServicesPrompt(context: WizardAiServicesContext): string {
+  const facts = buildStructuredFactsBlock(context);
+  const ownerProvided = hasText(context.ownerProvidedBusinessDescription)
+    ? context.ownerProvidedBusinessDescription!.trim()
+    : null;
+  const existing =
+    context.existingServicesOffered && context.existingServicesOffered.length > 0
+      ? context.existingServicesOffered.join("\n")
+      : null;
+
+  return `
+You are helping a business owner list the services their business actually provides for a setup wizard.
+
+Services must answer: "What does this business do?" — offerings a prospective customer would recognize.
+
+Do NOT list workflow actions, booking steps, or receptionist behaviors, such as:
+- consultations, estimates, quotes, appointments, scheduling
+- "request a quote", "schedule a call", lead capture, maintenance plans
+unless the owner explicitly described those as a supplied service line.
+
+Good examples for a painting company when owner facts mention interior/exterior and residential/commercial:
+- Interior Painting
+- Exterior Painting
+- Residential Painting
+- Commercial Painting
+
+Bad unless explicitly supported by owner-provided facts:
+- Painting Consultations
+- Painting Estimates
+- Cabinet Refinishing, Epoxy Flooring, Pressure Washing, HOA Painting, Industrial Coatings
+
+Do not turn vague adjectives or qualities into service lines.
+Do not invent services, specialties, or capabilities not supported by the input.
+
+${WIZARD_TRUTH_RULES}
+
+Output format:
+- One service per line
+- Short customer-facing names (about 2 to 6 words each)
+- No numbering, bullets, markdown, or preamble
+- About 3 to 10 lines when enough facts exist; fewer if input is thin
+
+Owner-provided business description (primary source for offerings):
+${ownerProvided || "None provided yet."}
+
+Structured business fields:
+${facts || "None provided."}
+${existing ? `\nCurrent services draft (replace entirely in your answer — propose a fresh list grounded in facts, not an append):\n${existing}` : ""}
+`.trim();
+}
+
 function hasMinimumContextForAction(
   action: WizardAiProposeAction,
-  context: WizardAiTaglineContext | WizardAiAboutContext
+  context: WizardAiTaglineContext | WizardAiAboutContext | WizardAiServicesContext
 ) {
   if (action === "tagline") {
     return (
       hasText(context.businessName) || hasText(context.primaryCategory)
+    );
+  }
+
+  if (action === "services") {
+    const servicesContext = context as WizardAiServicesContext;
+
+    return (
+      hasText(servicesContext.businessName) ||
+      hasText(servicesContext.primaryCategory) ||
+      hasText(servicesContext.ownerProvidedBusinessDescription)
     );
   }
 
@@ -130,19 +193,24 @@ function hasMinimumContextForAction(
   );
 }
 
+function skipReasonForAction(action: WizardAiProposeAction) {
+  if (action === "about" || action === "services") {
+    return "Add a business name, category, or About description before requesting a suggestion.";
+  }
+
+  return "Add a business name or category before requesting a suggestion.";
+}
+
 export async function proposeWizardSetupContent(input: {
   action: WizardAiProposeAction;
-  context: WizardAiTaglineContext | WizardAiAboutContext;
+  context: WizardAiTaglineContext | WizardAiAboutContext | WizardAiServicesContext;
 }): Promise<WizardAiProposeResult> {
   const { action, context } = input;
 
   if (!hasMinimumContextForAction(action, context)) {
     return {
       status: "skipped",
-      reason:
-        action === "about"
-          ? "Add a business name, category, or About description before requesting a suggestion."
-          : "Add a business name or category before requesting a suggestion.",
+      reason: skipReasonForAction(action),
     };
   }
 
@@ -151,7 +219,9 @@ export async function proposeWizardSetupContent(input: {
     const prompt =
       action === "tagline"
         ? buildTaglinePrompt(context as WizardAiTaglineContext)
-        : buildAboutPrompt(context as WizardAiAboutContext);
+        : action === "about"
+          ? buildAboutPrompt(context as WizardAiAboutContext)
+          : buildServicesPrompt(context as WizardAiServicesContext);
 
     const response = await client.responses.create({
       model: "gpt-4.1-mini",
@@ -170,7 +240,9 @@ export async function proposeWizardSetupContent(input: {
     const proposal =
       action === "tagline"
         ? sanitizeWizardTaglineProposal(raw)
-        : sanitizeWizardAboutProposal(raw);
+        : action === "about"
+          ? sanitizeWizardAboutProposal(raw)
+          : sanitizeWizardServicesProposal(raw);
 
     if (!proposal) {
       return {

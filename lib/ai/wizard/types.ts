@@ -1,6 +1,6 @@
 import type { TenantDeploymentMode } from "@/lib/types/tenant";
 
-export type WizardAiProposeAction = "tagline" | "about";
+export type WizardAiProposeAction = "tagline" | "about" | "services";
 
 export type WizardAiTaglineContext = {
   businessName?: string;
@@ -19,7 +19,20 @@ export type WizardAiAboutContext = {
   deploymentMode?: TenantDeploymentMode | null;
 };
 
-export type WizardAiProposeContext = WizardAiTaglineContext | WizardAiAboutContext;
+export type WizardAiServicesContext = {
+  businessName?: string;
+  primaryCategory?: string;
+  serviceAreaSummary?: string;
+  /** Unsaved About / business description — primary factual source for offerings. */
+  ownerProvidedBusinessDescription?: string;
+  /** Current unsaved services textarea (may be empty). */
+  existingServicesOffered?: string[];
+};
+
+export type WizardAiProposeContext =
+  | WizardAiTaglineContext
+  | WizardAiAboutContext
+  | WizardAiServicesContext;
 
 export type WizardAiProposeResult =
   | { status: "generated"; proposal: string }

@@ -1,5 +1,6 @@
 import type {
   WizardAiAboutContext,
+  WizardAiServicesContext,
   WizardAiTaglineContext,
 } from "@/lib/ai/wizard/types";
 import type { TenantDeploymentMode } from "@/lib/types/tenant";
@@ -29,6 +30,21 @@ export function buildWizardAiTaglineContext(
     primaryCategory: form.primaryCategory.trim() || undefined,
     serviceAreaSummary: form.serviceAreaSummary.trim() || undefined,
     existingTagline: form.tagline.trim() || undefined,
+  };
+}
+
+export function buildWizardAiServicesContext(
+  form: WizardFormSlice
+): WizardAiServicesContext {
+  const existingServices = parseListInput(form.servicesOffered);
+
+  return {
+    businessName: form.businessName.trim() || undefined,
+    primaryCategory: form.primaryCategory.trim() || undefined,
+    serviceAreaSummary: form.serviceAreaSummary.trim() || undefined,
+    ownerProvidedBusinessDescription: form.aboutUs.trim() || undefined,
+    existingServicesOffered:
+      existingServices.length > 0 ? existingServices : undefined,
   };
 }
 

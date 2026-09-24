@@ -2,6 +2,11 @@
 
 This is a lightweight context changelog, not a substitute for Git history.
 
+## 2026-09-23 — Wizard Services AI (Phase D2)
+
+- Real Services proposals on existing Wizard AI route; fake `generateServices()` removed; neutral Services copy/examples.
+- **D-031:** Services vs Customer Experience principle documented. No stock website image system (placeholders only).
+
 ## 2026-09-23 — Calendar OAuth onboarding return + tenant auth (V1)
 
 - Shared Google OAuth callback handler; canonical redirect URI `/api/calendar/google/callback`.

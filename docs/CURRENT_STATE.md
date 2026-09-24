@@ -500,7 +500,7 @@ Priority sequence remains approximately:
 1. Stabilize AI/workflow behavior.
 2. Fix Booking Flow UI inconsistencies.
 3. Simplify onboarding.
-4. Add meaningful AI assistance to onboarding — **D1 / D1.1 in code (pending review):** Wizard **tagline** and **about** AI proposals with on-behalf-of-business voice; owner About textarea is primary factual source; Customer Help copy clarifies AI receptionist choices. Services ✨ still template-only until D2. See **D-030** (D1.1 voice notes). Customer AI Receptionist runtime unchanged.
+4. Add meaningful AI assistance to onboarding — **D1 / D1.1:** Wizard **tagline** and **about** AI proposals (**D-030**). **D2:** Wizard **Services** AI via same propose route (`action: "services"`); Services = what the business does; Customer Experience = receptionist help (**D-031**). Removed fake template services generator and contractor-specific examples. Customer AI Receptionist runtime unchanged.
 5. Make tenant website customization genuinely functional.
 6. Remove misleading placeholder/demo experiences.
 7. Audit tenant isolation/admin API authorization.

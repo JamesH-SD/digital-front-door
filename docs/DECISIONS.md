@@ -606,7 +606,7 @@ Tenant Setup Readiness answers: **“Can this part of Contactor do its job?”**
 
 **In scope (D1):** Onboarding Wizard AI proposals for **tagline** and **about** copy via `POST /api/admin/tenants/[tenantSlug]/wizard-ai/propose` and `lib/ai/wizard/`. Proposal UX: Use This / Edit / Try Again / Cancel. Explicit ✨ trigger only.
 
-**Out of scope (D1):** Services AI, customer-help/booking-flow recommendation, Knowledge generation, service-area generation, greeting/next-step generation, receptionist runtime, Lead Copilot, readiness changes, generalized Admin AI framework.
+**Out of scope (D1):** Services AI (delivered in **D-031** / Phase D2), customer-help/booking-flow recommendation, Knowledge generation, service-area generation, greeting/next-step generation, receptionist runtime, Lead Copilot, readiness changes, generalized Admin AI framework.
 
 **Auth:** Mirror tenant PATCH membership checks; do not reuse unauthenticated `/api/ai/*` routes for Wizard setup assistance.
 
@@ -618,3 +618,19 @@ Tenant Setup Readiness answers: **“Can this part of Contactor do its job?”**
 
 - **Wizard AI voice:** Wizard AI creates customer-facing content **on behalf of the tenant**, as part of the business — not as an outside observer, reviewer, or consultant. About copy uses natural **we / us / our** customer-facing language. Taglines are concise, inviting, customer-facing marketing lines (we/us/our optional when awkward).
 - **Truth:** Facts explicitly provided in Wizard form fields (especially the About/business description textarea) may be **used confidently** and professionally rewritten. Unsupported facts must **never** be invented. This applies only to Wizard setup assistance (`lib/ai/wizard/`); it does **not** change or reopen stabilized AI Receptionist / chat runtime behavior.
+
+---
+
+## D-031 — Wizard Services AI (Phase D2) principle
+
+**Status:** Active as of 2026-09-23 (Phase D2)
+
+**Services principle:** Wizard **Services** describes **what the business does** (offerings customers recognize). **Customer Experience / Booking Flow** describes **what the AI receptionist should do when a customer wants help** — not Services.
+
+**In scope (D2):** `action: "services"` on the existing Wizard AI propose route; same proposal UX (Use This replaces the entire services textarea; Edit / Try Again / Cancel). Context from unsaved Wizard form only (name, category, service area, About description, current services draft). No Knowledge Base, chats, or receptionist runtime.
+
+**Truth:** Same Wizard AI truth rule — no invented specialties or workflow actions (consultations, estimates, scheduling) as fake “services” unless owner-supplied facts support them.
+
+**Persistence:** Wizard AI still does not write the database; tenant `services_offered` saves via normal wizard PATCH only.
+
+**Website images:** Hosted website sections without tenant-uploaded URLs render intentional UI placeholders (gradient hero, gray service cards, copy placeholders). A licensed stock-image fallback system is **not** implemented in code; do not document stock imagery as shipped.
