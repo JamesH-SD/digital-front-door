@@ -2,6 +2,12 @@
 
 This is a lightweight context changelog, not a substitute for Git history.
 
+## 2026-09-23 — Calendar OAuth onboarding return + tenant auth (V1)
+
+- Shared Google OAuth callback handler; canonical redirect URI `/api/calendar/google/callback`.
+- Safe internal `returnTo`; wizard Calendar uses `/onboarding/{slug}?step=calendar` with connected/error query UX.
+- Login `returnTo`; calendar-connections routes require tenant access; GET omits token fields.
+
 ## 2026-09-22 — Onboarding Wizard V2 Phase B3 customer experience / deployment
 
 - Customer Experience onboarding step (existing-site embed/QR vs hosted preview/builder); shared customer-entry URL/QR/embed helpers extracted for Admin reuse.

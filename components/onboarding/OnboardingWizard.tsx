@@ -1,7 +1,8 @@
 "use client";
 
-import { useEffect, useMemo, useRef, useState } from "react";
-import { useRouter } from "next/navigation";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useRouter, useSearchParams } from "next/navigation";
+import { onboardingCalendarOAuthReturnTo } from "@/lib/calendar/safeOAuthReturnTo";
 import type { Tenant, TenantDeploymentMode } from "@/lib/types/tenant";
 import { buildWizardTenantSnapshot } from "@/lib/onboarding/buildWizardTenantSnapshot";
 import { getTenantSetupReadiness } from "@/lib/readiness/getTenantSetupReadiness";
@@ -148,6 +149,18 @@ const STEP_HELP: Record<
   },
 };
 
+function getCalendarOAuthErrorMessage(reason: string | null) {
+  switch (reason) {
+    case "cancelled":
+      return "Google Calendar connection was cancelled. You can try again or skip for now.";
+    case "session":
+      return "Your session expired during Google sign-in. Try connecting again.";
+    case "failed":
+    default:
+      return "We could not connect Google Calendar. Please try again or skip for now.";
+  }
+}
+
 const DEFAULT_HOURS: HoursState = {
   monday: { open: "08:00", close: "17:00", closed: false },
   tuesday: { open: "08:00", close: "17:00", closed: false },
@@ -251,6 +264,7 @@ export default function OnboardingWizard({
   readinessDependencies,
 }: OnboardingWizardProps) {
   const router = useRouter();
+  const searchParams = useSearchParams();
   const priorStepRef = useRef<StepKey | null>(null);
   const taglineInputRef = useRef<HTMLInputElement>(null);
   const aboutTextareaRef = useRef<HTMLTextAreaElement>(null);
@@ -261,6 +275,14 @@ export default function OnboardingWizard({
   const [message, setMessage] = useState("");
   const [isSaving, setIsSaving] = useState(false);
   const [skipToastMessage, setSkipToastMessage] = useState<string | null>(null);
+  const [calendarOAuthError, setCalendarOAuthError] = useState<string | null>(
+    null
+  );
+  const [calendarConnectedLabel, setCalendarConnectedLabel] = useState<
+    string | null
+  >(null);
+  const [calendarStatusLoading, setCalendarStatusLoading] = useState(false);
+  const oauthReturnHandledRef = useRef(false);
 
   const [customerHelpChoice, setCustomerHelpChoice] =
     useState<TenantFacingBookingType | null>(() =>
@@ -317,6 +339,91 @@ export default function OnboardingWizard({
       setCurrentStepKey(fallbackKey);
     }
   }, [steps, currentStepKey, safeStepIndex]);
+
+  const refreshCalendarConnectionStatus = useCallback(async () => {
+    setCalendarStatusLoading(true);
+
+    try {
+      const response = await fetch(
+        `/api/admin/tenants/${tenant.slug}/calendar-connections`
+      );
+      const result = await response.json();
+
+      if (!response.ok || !result.primaryConnection) {
+        setCalendarConnectedLabel(null);
+        return;
+      }
+
+      const name =
+        result.primaryConnection.calendarName ||
+        result.primaryConnection.calendarId ||
+        "Google Calendar";
+
+      setCalendarConnectedLabel(name);
+    } catch {
+      setCalendarConnectedLabel(null);
+    } finally {
+      setCalendarStatusLoading(false);
+    }
+  }, [tenant.slug]);
+
+  useEffect(() => {
+    if (oauthReturnHandledRef.current) {
+      return;
+    }
+
+    const stepParam = searchParams.get("step");
+    const calendarParam = searchParams.get("calendar");
+    const reasonParam = searchParams.get("reason");
+
+    if (
+      !stepParam &&
+      calendarParam !== "connected" &&
+      calendarParam !== "error"
+    ) {
+      return;
+    }
+
+    oauthReturnHandledRef.current = true;
+
+    if (
+      stepParam &&
+      steps.some((step) => step.key === stepParam)
+    ) {
+      setCurrentStepKey(stepParam as StepKey);
+    } else if (
+      (calendarParam === "connected" || calendarParam === "error") &&
+      steps.some((step) => step.key === "calendar")
+    ) {
+      setCurrentStepKey("calendar");
+    }
+
+    if (calendarParam === "error") {
+      setCalendarOAuthError(getCalendarOAuthErrorMessage(reasonParam));
+    } else if (calendarParam === "connected") {
+      setCalendarOAuthError(null);
+    }
+
+    if (calendarParam === "connected" || calendarParam === "error") {
+      void refreshCalendarConnectionStatus();
+    }
+
+    router.replace(`/onboarding/${tenant.slug}`, { scroll: false });
+  }, [
+    searchParams,
+    steps,
+    tenant.slug,
+    router,
+    refreshCalendarConnectionStatus,
+  ]);
+
+  useEffect(() => {
+    if (currentStepKey !== "calendar") {
+      return;
+    }
+
+    void refreshCalendarConnectionStatus();
+  }, [currentStepKey, refreshCalendarConnectionStatus]);
 
   const reviewReadiness = useMemo(() => {
     if (currentStepKey !== "finish") {
@@ -1236,16 +1343,37 @@ export default function OnboardingWizard({
                   Settings.
                 </p>
 
+                {calendarOAuthError ? (
+                  <p className="mt-4 rounded-xl border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700">
+                    {calendarOAuthError}
+                  </p>
+                ) : null}
+
+                {calendarConnectedLabel ? (
+                  <p className="mt-4 rounded-xl border border-emerald-200 bg-emerald-50 px-3 py-2 text-sm font-medium text-emerald-800">
+                    Google Calendar connected — {calendarConnectedLabel}
+                  </p>
+                ) : calendarStatusLoading ? (
+                  <p className="mt-4 text-sm text-gray-600">
+                    Checking calendar connection…
+                  </p>
+                ) : null}
+
                 <button
                   type="button"
                   onClick={() => {
+                    const returnTo = encodeURIComponent(
+                      onboardingCalendarOAuthReturnTo(tenant.slug)
+                    );
                     window.location.href =
                       `/api/admin/tenants/${tenant.slug}/calendar-connections/google/start` +
-                      `?returnTo=${encodeURIComponent(`/onboarding/${tenant.slug}`)}`;
+                      `?returnTo=${returnTo}`;
                   }}
                   className="saas-button-accent mt-4 px-4 py-2 text-sm font-semibold"
                 >
-                  Connect Google Calendar
+                  {calendarConnectedLabel
+                    ? "Reconnect Google Calendar"
+                    : "Connect Google Calendar"}
                 </button>
               </div>
             ) : null}

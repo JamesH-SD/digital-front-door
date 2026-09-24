@@ -4,8 +4,13 @@ import Link from "next/link";
 import { useState } from "react";
 import { createClient } from "@/lib/supabase/client";
 import AuthExperienceShell from "@/components/auth/AuthExperienceShell";
+import { normalizeSafeInternalReturnTo } from "@/lib/calendar/safeOAuthReturnTo";
 
-export default function LoginForm() {
+type LoginFormProps = {
+  returnTo?: string;
+};
+
+export default function LoginForm({ returnTo }: LoginFormProps) {
   const supabase = createClient();
 
   const [email, setEmail] = useState("");
@@ -24,6 +29,16 @@ export default function LoginForm() {
       });
 
       if (error) throw error;
+
+      const safeReturnTo =
+        typeof returnTo === "string" && returnTo.trim()
+          ? normalizeSafeInternalReturnTo(returnTo, "")
+          : "";
+
+      if (safeReturnTo) {
+        window.location.href = safeReturnTo;
+        return;
+      }
 
       const tenantResponse = await fetch("/api/auth/my-tenant");
       const tenantResult = await tenantResponse.json();

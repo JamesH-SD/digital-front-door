@@ -393,6 +393,8 @@ Google OAuth verification/approval for the current Calendar integration is compl
 
 This is no longer a launch blocker.
 
+**Calendar OAuth / onboarding (V1):** Wizard Calendar connect uses OAuth state `returnTo` of `/onboarding/{tenantSlug}?step=calendar` (validated internal paths only). Canonical callback: `GET /api/calendar/google/callback` (tenant-scoped callback delegates to the same handler). Success and Google error/cancel redirect back to the safe `returnTo` with `calendar=connected` or `calendar=error` (+ public `reason`: `cancelled`, `failed`, `session`). Login accepts safe `returnTo` (default remains first-tenant dashboard). OAuth start, callback persistence, and `calendar-connections` GET/POST/DELETE require tenant membership or platform admin. GET responses omit OAuth tokens. Same Google account may connect independently per tenant (`tenant_slug` + provider + `calendar_id` upsert); no cross-tenant row reuse.
+
 ---
 
 ## Knowledge / source-of-truth model
@@ -423,7 +425,7 @@ When an actual business conflict cannot be deterministically resolved, defer to 
 
 ## Launch-risk items requiring verification
 
-- Admin API tenant authorization (partial: `PATCH /api/admin/tenants/[tenantSlug]` now requires signed-in tenant membership; other tenant-scoped routes still need audit)
+- Admin API tenant authorization (partial: tenant PATCH and calendar-connections/OAuth start+callback now require membership or platform admin; other tenant-scoped routes still need audit)
 - Direct API access to tenant-scoped routes
 - Routes using admin/service-role Supabase clients
 - End-to-end signup → tenant creation → onboarding → admin → website/embed → AI → lead → scheduling → billing journey

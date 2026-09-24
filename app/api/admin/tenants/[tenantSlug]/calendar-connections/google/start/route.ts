@@ -1,6 +1,12 @@
 import { NextRequest, NextResponse } from "next/server";
-import { getTenantBySlug } from "@/lib/db/tenants";
+import { getCurrentUser } from "@/lib/auth/getCurrentUser";
+import { userHasTenantAccess } from "@/lib/auth/userHasTenantAccess";
 import { buildGoogleOAuthUrl } from "@/lib/calendar/googleOAuth";
+import {
+  defaultCalendarOAuthReturnTo,
+  normalizeSafeInternalReturnTo,
+} from "@/lib/calendar/safeOAuthReturnTo";
+import { getTenantBySlug } from "@/lib/db/tenants";
 
 type RouteContext = {
   params: Promise<{
@@ -8,14 +14,15 @@ type RouteContext = {
   }>;
 };
 
-/**
- * Start the Google OAuth flow for a tenant.
- *
- * Why this exists:
- * - keeps the OAuth initiation server-side
- * - makes the tenant context explicit in the redirect flow
- * - avoids hardcoding Hughes General into the OAuth logic itself
- */
+function redirectToLogin(request: NextRequest, returnTo: string) {
+  const loginUrl = new URL("/login", request.url);
+  loginUrl.searchParams.set(
+    "returnTo",
+    normalizeSafeInternalReturnTo(returnTo, "/")
+  );
+  return NextResponse.redirect(loginUrl);
+}
+
 export async function GET(
   request: NextRequest,
   context: RouteContext
@@ -24,9 +31,10 @@ export async function GET(
     const { tenantSlug } = await context.params;
     const requestUrl = new URL(request.url);
 
-    const returnTo =
-      requestUrl.searchParams.get("returnTo") ??
-      `/admin/${tenantSlug}/settings`;
+    const returnTo = normalizeSafeInternalReturnTo(
+      requestUrl.searchParams.get("returnTo"),
+      defaultCalendarOAuthReturnTo(tenantSlug)
+    );
 
     const tenant = await getTenantBySlug(tenantSlug);
 
@@ -35,6 +43,19 @@ export async function GET(
         { error: "Tenant not found" },
         { status: 404 }
       );
+    }
+
+    const user = await getCurrentUser();
+
+    if (!user) {
+      const oauthStartPath = `${requestUrl.pathname}?returnTo=${encodeURIComponent(returnTo)}`;
+      return redirectToLogin(request, oauthStartPath);
+    }
+
+    const hasAccess = await userHasTenantAccess(user.id, tenantSlug);
+
+    if (!hasAccess) {
+      return NextResponse.json({ error: "Unauthorized" }, { status: 403 });
     }
 
     const url = buildGoogleOAuthUrl({

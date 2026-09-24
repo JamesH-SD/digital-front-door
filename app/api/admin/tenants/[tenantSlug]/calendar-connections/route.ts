@@ -1,4 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
+import { requireTenantCalendarAccess } from "@/lib/auth/requireTenantCalendarAccess";
+import { toPublicCalendarConnectionSummary } from "@/lib/calendar/publicCalendarConnectionSummary";
 import { getTenantBySlug } from "@/lib/db/tenants";
 import {
   getActiveCalendarConnectionsByTenantSlug,
@@ -40,6 +42,12 @@ export async function GET(
       );
     }
 
+    const access = await requireTenantCalendarAccess(tenantSlug);
+
+    if (!access.ok) {
+      return access.response;
+    }
+
     const [connections, primaryConnection] = await Promise.all([
       getActiveCalendarConnectionsByTenantSlug(tenantSlug),
       getPrimaryCalendarConnectionByTenantSlug(tenantSlug),
@@ -47,8 +55,10 @@ export async function GET(
 
     return NextResponse.json(
       {
-        connections,
-        primaryConnection,
+        connections: connections.map(toPublicCalendarConnectionSummary),
+        primaryConnection: primaryConnection
+          ? toPublicCalendarConnectionSummary(primaryConnection)
+          : null,
       },
       { status: 200 }
     );
@@ -84,6 +94,12 @@ export async function POST(
         { error: "Tenant not found" },
         { status: 404 }
       );
+    }
+
+    const access = await requireTenantCalendarAccess(tenantSlug);
+
+    if (!access.ok) {
+      return access.response;
     }
 
     const body = await request.json();
@@ -130,7 +146,7 @@ export async function POST(
 
     return NextResponse.json(
       {
-        connection,
+        connection: toPublicCalendarConnectionSummary(connection),
       },
       { status: 200 }
     );
@@ -158,6 +174,12 @@ export async function DELETE(
         { error: "Tenant not found" },
         { status: 404 }
       );
+    }
+
+    const access = await requireTenantCalendarAccess(tenantSlug);
+
+    if (!access.ok) {
+      return access.response;
     }
 
     await disconnectPrimaryCalendarConnectionByTenantSlug(tenantSlug);

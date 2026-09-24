@@ -92,7 +92,7 @@ Billing UI and Stripe integration routes are present. The admin UI represents tr
 
 - OpenAI: customer conversation and Lead Copilot-related functions
 - Supabase: auth/data/storage
-- Google Calendar/OAuth: calendar connection and appointment flow
+- Google Calendar/OAuth: calendar connection and appointment flow. OAuth redirect URI should target `GET /api/calendar/google/callback`; shared handler also serves legacy tenant-path callbacks. State carries `tenantSlug` + validated internal `returnTo`.
 - Stripe: subscription billing
 - Twilio/SMS notification support in library code
 - Resend/email configuration is referenced by project environment/deployment material but full production verification is outside this code-only snapshot
