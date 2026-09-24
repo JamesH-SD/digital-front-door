@@ -372,6 +372,8 @@ Contactor's AI direction includes:
 
 Helps tenants configure Contactor during onboarding.
 
+**Wizard AI interaction principle (D1+):** AI proposes; the human accepts; the system remains truth. Wizard AI returns suggestions only. Accepting a proposal updates in-wizard form state. Tenant configuration is persisted only through existing authenticated tenant save flows—not from Wizard AI endpoints.
+
 ### Admin AI
 
 Helps tenants understand and operate Contactor, eventually including approved assisted actions.
@@ -595,3 +597,24 @@ Tenant Setup Readiness answers: **“Can this part of Contactor do its job?”**
 - **C1b (Website admin):** Operational hosted-website status uses the shared Website category (`getHostedWebsiteOperationalReadiness()`). Website Builder 8-item progress remains a separate polish checklist (`getWebsiteBuilderProgress()`). No single combined percentage.
 - **C2 (Dashboard + Wizard Review):** `loadTenantSetupReadiness()` + shared `TenantSetupProgress` UI. Wizard Review merges in-progress form into a tenant snapshot for readiness, saves on Review entry, and refreshes server dependencies (knowledge count, calendar). Finish does not require 100% operational readiness.
 - **Future:** Readiness API if a client-only surface needs it later.
+
+---
+
+## D-030 — Wizard AI V1 (Phase D1) scope and boundary
+
+**Status:** Active as of 2026-09-23 (Phase D1)
+
+**In scope (D1):** Onboarding Wizard AI proposals for **tagline** and **about** copy via `POST /api/admin/tenants/[tenantSlug]/wizard-ai/propose` and `lib/ai/wizard/`. Proposal UX: Use This / Edit / Try Again / Cancel. Explicit ✨ trigger only.
+
+**Out of scope (D1):** Services AI, customer-help/booking-flow recommendation, Knowledge generation, service-area generation, greeting/next-step generation, receptionist runtime, Lead Copilot, readiness changes, generalized Admin AI framework.
+
+**Auth:** Mirror tenant PATCH membership checks; do not reuse unauthenticated `/api/ai/*` routes for Wizard setup assistance.
+
+**Context:** Send only wizard-visible business facts (name, category, service area, optional existing copy, optional services list for About, optional deployment mode for About tone). No Knowledge Base, chats, leads, campaigns, or Booking Flow config in prompts.
+
+**Persistence:** Wizard AI never writes the database.
+
+**D1.1 — Wizard AI voice and truth (does not modify Customer AI Receptionist):**
+
+- **Wizard AI voice:** Wizard AI creates customer-facing content **on behalf of the tenant**, as part of the business — not as an outside observer, reviewer, or consultant. About copy uses natural **we / us / our** customer-facing language. Taglines are concise, inviting, customer-facing marketing lines (we/us/our optional when awkward).
+- **Truth:** Facts explicitly provided in Wizard form fields (especially the About/business description textarea) may be **used confidently** and professionally rewritten. Unsupported facts must **never** be invented. This applies only to Wizard setup assistance (`lib/ai/wizard/`); it does **not** change or reopen stabilized AI Receptionist / chat runtime behavior.

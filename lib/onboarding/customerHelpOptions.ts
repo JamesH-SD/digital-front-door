@@ -22,31 +22,31 @@ export const CUSTOMER_HELP_OPTIONS: {
     value: "consultation",
     label: "Schedule a consultation",
     description:
-      "Customers can share project details and schedule a consultation when ready.",
+      "Customers share what they need, then choose an available date and time from your connected calendar for a consultation.",
   },
   {
     value: "phone_call",
     label: "Schedule a phone call",
     description:
-      "After capturing the request, customers can pick a time for a phone call.",
+      "Customers share their request, then choose an available date and time from your connected calendar for a phone call.",
   },
   {
     value: "estimate",
     label: "Request an estimate or quote",
     description:
-      "Collect project details and send the request to your team for follow-up.",
+      "Customers provide the project details you need for an estimate or quote. Your team reviews the request and follows up with pricing or next steps.",
   },
   {
     value: "lead_capture",
     label: "Send the request to my team",
     description:
-      "Capture contact details and project information for manual follow-up.",
+      "Customers share their contact information and what they need. Your team receives the request and follows up personally.",
   },
   {
     value: "product_signup",
     label: "Sign up for my product or service",
     description:
-      "Guide customers toward creating an account or starting signup.",
+      "Your AI receptionist guides customers through your signup process and collects the information needed to get started.",
   },
 ];
 

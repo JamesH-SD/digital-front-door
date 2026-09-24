@@ -27,6 +27,12 @@ import {
 } from "@/lib/onboarding/onboardingDeferredSetupMessages";
 import ToastMessage from "@/components/ui/ToastMessage";
 import OnboardingCustomerExperienceStep from "@/components/onboarding/OnboardingCustomerExperienceStep";
+import WizardAiProposalPanel from "@/components/onboarding/WizardAiProposalPanel";
+import {
+  buildWizardAiAboutContext,
+  buildWizardAiTaglineContext,
+} from "@/lib/onboarding/buildWizardAiRequestContext";
+import type { WizardAiProposeAction } from "@/lib/ai/wizard/types";
 
 type StepKey = OnboardingWizardStepKey;
 
@@ -102,9 +108,9 @@ const STEP_HELP: Record<
   },
   customerHelp: {
     eyebrow: "Customer experience",
-    title: "How should Contactor help customers?",
+    title: "How should your AI receptionist help customers?",
     description:
-      "Choose what happens after a customer shares their request. You can adjust advanced messaging later in Admin.",
+      "Choose what your AI receptionist should do when a customer wants help. You can adjust advanced messaging later in AI Receptionist settings.",
   },
   hours: {
     eyebrow: "Business Hours",
@@ -219,6 +225,20 @@ function SummaryRow({
 /** Step layout only when customer help is not chosen yet (avoids legacy types affecting Calendar visibility). */
 const WIZARD_STEP_PLACEHOLDER_BOOKING_TYPE: TenantFacingBookingType = "lead_capture";
 
+type WizardAiFieldState = {
+  visible: boolean;
+  loading: boolean;
+  proposal: string | null;
+  error: string | null;
+};
+
+const INITIAL_WIZARD_AI_FIELD: WizardAiFieldState = {
+  visible: false,
+  loading: false,
+  proposal: null,
+  error: null,
+};
+
 type OnboardingWizardProps = {
   tenant: Tenant;
   setupReadiness: TenantSetupReadiness;
@@ -232,7 +252,11 @@ export default function OnboardingWizard({
 }: OnboardingWizardProps) {
   const router = useRouter();
   const priorStepRef = useRef<StepKey | null>(null);
+  const taglineInputRef = useRef<HTMLInputElement>(null);
+  const aboutTextareaRef = useRef<HTMLTextAreaElement>(null);
   const [currentStepKey, setCurrentStepKey] = useState<StepKey>("business");
+  const [taglineAi, setTaglineAi] = useState<WizardAiFieldState>(INITIAL_WIZARD_AI_FIELD);
+  const [aboutAi, setAboutAi] = useState<WizardAiFieldState>(INITIAL_WIZARD_AI_FIELD);
   const [returnToReview, setReturnToReview] = useState(false);
   const [message, setMessage] = useState("");
   const [isSaving, setIsSaving] = useState(false);
@@ -404,23 +428,93 @@ export default function OnboardingWizard({
     }));
   }
 
-  function generateTagline() {
-    const category = form.primaryCategory || "service business";
-    setForm((prev) => ({
-      ...prev,
-      tagline: `Reliable ${category} services made simple.`,
-    }));
+  function closeWizardAiField(action: WizardAiProposeAction) {
+    if (action === "tagline") {
+      setTaglineAi(INITIAL_WIZARD_AI_FIELD);
+      return;
+    }
+
+    setAboutAi(INITIAL_WIZARD_AI_FIELD);
   }
 
-  function generateAboutUs() {
-    const name = form.businessName || "Our business";
-    const category = form.primaryCategory || "service";
-    const area = form.serviceAreaSummary || "our local community";
+  function applyWizardAiProposal(action: WizardAiProposeAction, focusField: boolean) {
+    const state = action === "tagline" ? taglineAi : aboutAi;
+    if (!state.proposal) {
+      return;
+    }
 
-    setForm((prev) => ({
-      ...prev,
-      aboutUs: `${name} provides dependable ${category} services for customers in ${area}. We focus on clear communication, quality work, and helping customers feel confident from the first conversation through the finished result.`,
-    }));
+    if (action === "tagline") {
+      setForm((prev) => ({ ...prev, tagline: state.proposal! }));
+      closeWizardAiField("tagline");
+      if (focusField) {
+        taglineInputRef.current?.focus();
+      }
+      return;
+    }
+
+    setForm((prev) => ({ ...prev, aboutUs: state.proposal! }));
+    closeWizardAiField("about");
+    if (focusField) {
+      aboutTextareaRef.current?.focus();
+    }
+  }
+
+  async function requestWizardAiProposal(action: WizardAiProposeAction) {
+    const setState = action === "tagline" ? setTaglineAi : setAboutAi;
+    const context =
+      action === "tagline"
+        ? buildWizardAiTaglineContext(form)
+        : buildWizardAiAboutContext(form);
+
+    setState({
+      visible: true,
+      loading: true,
+      proposal: null,
+      error: null,
+    });
+
+    try {
+      const response = await fetch(
+        `/api/admin/tenants/${tenant.slug}/wizard-ai/propose`,
+        {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify({ action, context }),
+        }
+      );
+
+      const result = await response.json();
+
+      if (result.status === "generated" && typeof result.proposal === "string") {
+        setState({
+          visible: true,
+          loading: false,
+          proposal: result.proposal,
+          error: null,
+        });
+        return;
+      }
+
+      setState({
+        visible: true,
+        loading: false,
+        proposal: null,
+        error:
+          result.reason ||
+          result.error ||
+          "Could not generate a suggestion right now. You can continue typing manually.",
+      });
+    } catch {
+      setState({
+        visible: true,
+        loading: false,
+        proposal: null,
+        error:
+          "Could not generate a suggestion right now. You can continue typing manually.",
+      });
+    }
   }
 
   function generateServices() {
@@ -730,24 +824,41 @@ export default function OnboardingWizard({
                     className="saas-input w-full px-3 py-2 text-sm"
                   />
 
-                  <div className="relative">
-                    <input
-                      value={form.tagline}
-                      onChange={(e) =>
-                        setForm((prev) => ({ ...prev, tagline: e.target.value }))
-                      }
-                      placeholder="Short tagline"
-                      className="saas-input w-full px-3 py-2 pr-10 text-sm"
-                    />
+                  <div>
+                    <div className="relative">
+                      <input
+                        ref={taglineInputRef}
+                        value={form.tagline}
+                        onChange={(e) =>
+                          setForm((prev) => ({ ...prev, tagline: e.target.value }))
+                        }
+                        placeholder="Short tagline"
+                        className="saas-input w-full px-3 py-2 pr-10 text-sm"
+                      />
 
-                    <button
-                      type="button"
-                      onClick={generateTagline}
-                      title="Let AI help"
-                      className="absolute right-2 top-1/2 -translate-y-1/2 rounded-full px-2 text-sm hover:bg-orange-50"
-                    >
-                      ✨
-                    </button>
+                      <button
+                        type="button"
+                        onClick={() => void requestWizardAiProposal("tagline")}
+                        disabled={taglineAi.loading}
+                        title="Get AI suggestion"
+                        className="absolute right-2 top-1/2 -translate-y-1/2 rounded-full px-2 text-sm hover:bg-orange-50 disabled:cursor-not-allowed disabled:opacity-50"
+                      >
+                        ✨
+                      </button>
+                    </div>
+
+                    {taglineAi.visible ? (
+                      <WizardAiProposalPanel
+                        label="Tagline"
+                        loading={taglineAi.loading}
+                        proposal={taglineAi.proposal}
+                        error={taglineAi.error}
+                        onUseThis={() => applyWizardAiProposal("tagline", false)}
+                        onEdit={() => applyWizardAiProposal("tagline", true)}
+                        onTryAgain={() => void requestWizardAiProposal("tagline")}
+                        onCancel={() => closeWizardAiField("tagline")}
+                      />
+                    ) : null}
                   </div>
 
                   <input
@@ -850,28 +961,45 @@ export default function OnboardingWizard({
                   ) : null}
                 </div>
 
-                <div className="relative">
-                  <textarea
-                    value={form.aboutUs}
-                    onChange={(e) =>
-                      setForm((prev) => ({
-                        ...prev,
-                        aboutUs: e.target.value,
-                      }))
-                    }
-                    rows={5}
-                    placeholder="About the business"
-                    className="saas-input w-full px-3 py-2 pr-10 text-sm"
-                  />
+                <div>
+                  <div className="relative">
+                    <textarea
+                      ref={aboutTextareaRef}
+                      value={form.aboutUs}
+                      onChange={(e) =>
+                        setForm((prev) => ({
+                          ...prev,
+                          aboutUs: e.target.value,
+                        }))
+                      }
+                      rows={5}
+                      placeholder="About the business"
+                      className="saas-input w-full px-3 py-2 pr-10 text-sm"
+                    />
 
-                  <button
-                    type="button"
-                    onClick={generateAboutUs}
-                    title="Let AI help"
-                    className="absolute right-2 top-2 rounded-full px-2 text-sm hover:bg-orange-50"
-                  >
-                    ✨
-                  </button>
+                    <button
+                      type="button"
+                      onClick={() => void requestWizardAiProposal("about")}
+                      disabled={aboutAi.loading}
+                      title="Get AI suggestion"
+                      className="absolute right-2 top-2 rounded-full px-2 text-sm hover:bg-orange-50 disabled:cursor-not-allowed disabled:opacity-50"
+                    >
+                      ✨
+                    </button>
+                  </div>
+
+                  {aboutAi.visible ? (
+                    <WizardAiProposalPanel
+                      label="About"
+                      loading={aboutAi.loading}
+                      proposal={aboutAi.proposal}
+                      error={aboutAi.error}
+                      onUseThis={() => applyWizardAiProposal("about", false)}
+                      onEdit={() => applyWizardAiProposal("about", true)}
+                      onTryAgain={() => void requestWizardAiProposal("about")}
+                      onCancel={() => closeWizardAiField("about")}
+                    />
+                  ) : null}
                 </div>
               </div>
             ) : null}
