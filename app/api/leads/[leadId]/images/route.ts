@@ -3,6 +3,12 @@ import { createAdminClient } from "@/lib/supabase/admin";
 import { getLeadById, updateLead } from "@/lib/db/leads";
 import { createLeadActivity } from "@/lib/db/lead-activities";
 
+/**
+ * Customer chat image upload (see ChatWidget) — intentionally unauthenticated.
+ * Tenant membership is NOT required; possession of leadId + matching tenant
+ * on the lead row is the current customer-side gate (same as pre-E1b).
+ */
+
 type RouteContext = {
   params: Promise<{
     leadId: string;
@@ -14,21 +20,30 @@ export async function POST(request: NextRequest, context: RouteContext) {
     const { leadId } = await context.params;
     const formData = await request.formData();
 
-    const tenantSlug = formData.get("tenantSlug");
+    const tenantSlugFromClient = formData.get("tenantSlug");
     const file = formData.get("file");
-
-    if (typeof tenantSlug !== "string" || !tenantSlug.trim()) {
-      return NextResponse.json(
-        { error: "tenantSlug is required" },
-        { status: 400 }
-      );
-    }
 
     if (!(file instanceof File)) {
       return NextResponse.json(
         { error: "file is required" },
         { status: 400 }
       );
+    }
+
+    const lead = await getLeadById(leadId);
+
+    if (!lead) {
+      return NextResponse.json({ error: "Lead not found" }, { status: 404 });
+    }
+
+    const tenantSlug = lead.tenantSlug;
+
+    if (
+      typeof tenantSlugFromClient === "string" &&
+      tenantSlugFromClient.trim() &&
+      tenantSlugFromClient.trim() !== tenantSlug
+    ) {
+      return NextResponse.json({ error: "Lead not found" }, { status: 404 });
     }
 
     const allowedMimeTypes = [
@@ -59,15 +74,6 @@ export async function POST(request: NextRequest, context: RouteContext) {
       return NextResponse.json(
         { error: "File is too large. Max size is 15MB." },
         { status: 400 }
-      );
-    }
-
-    const lead = await getLeadById(leadId);
-
-    if (!lead || lead.tenantSlug !== tenantSlug) {
-      return NextResponse.json(
-        { error: "Lead not found" },
-        { status: 404 }
       );
     }
 

@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
+import { requireTenantAccess } from "@/lib/auth/requireTenantAccess";
 import { createAdminClient } from "@/lib/supabase/admin";
 
 type RouteParams = {
@@ -10,6 +11,13 @@ type RouteParams = {
 export async function PATCH(request: NextRequest, { params }: RouteParams) {
   try {
     const { tenantSlug } = await params;
+
+    const access = await requireTenantAccess(tenantSlug);
+
+    if (!access.ok) {
+      return access.response;
+    }
+
     const body = await request.json();
 
     const action = body.action as "publish" | "unpublish";

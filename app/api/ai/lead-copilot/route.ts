@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
+import { requireLeadAccess } from "@/lib/auth/requireLeadAccess";
 import { runLeadCopilot } from "@/lib/ai/runLeadCopilot";
 import type { Lead } from "@/lib/types/lead";
 
@@ -19,11 +20,17 @@ export async function POST(request: NextRequest) {
     const leadId = leadIdFromBody || lead?.id;
     const forceRegenerate = body?.forceRegenerate === true;
 
-    if (!leadId) {
+    if (!leadId || typeof leadId !== "string") {
       return NextResponse.json(
         { error: "leadId or lead.id is required" },
         { status: 400 }
       );
+    }
+
+    const access = await requireLeadAccess(leadId);
+
+    if (!access.ok) {
+      return access.response;
     }
 
     const result = await runLeadCopilot(leadId, forceRegenerate);

@@ -634,3 +634,21 @@ Tenant Setup Readiness answers: **“Can this part of Contactor do its job?”**
 **Persistence:** Wizard AI still does not write the database; tenant `services_offered` saves via normal wizard PATCH only.
 
 **Website images:** Hosted website sections without tenant-uploaded URLs render intentional UI placeholders (gradient hero, gray service cards, copy placeholders). A licensed stock-image fallback system is **not** implemented in code; do not document stock imagery as shipped.
+
+---
+
+## D-032 — Tenant-scoped Admin API authorization (Phase E1)
+
+**Status:** Active as of 2026-09-23 (Phase E1)
+
+**Rule:** Every `/api/admin/tenants/[tenantSlug]/…` handler independently verifies the signed-in user may access that tenant **before** service-role reads, mutations, storage, or external API calls. Protected Admin UI is **not** treated as API authorization.
+
+**Access model:** `requireTenantAccess(tenantSlug)` — tenant membership **or** platform admin (same as `app/admin/[tenantSlug]/layout.tsx`). Owner-only actions (e.g. user invites) still require owner membership unless platform admin.
+
+**Lead management APIs:** Authenticated `/api/leads/[leadId]/…` admin handlers (PATCH lead, PATCH status, GET appointment) and `/api/ai/lead-*` / `/api/ai/suggested-reply` resolve `leadId` → `tenant_slug` with a minimal DB lookup via `requireLeadAccess`, then apply the same tenant access gate before full lead load, mutations, storage, or OpenAI.
+
+**Public lead exception:** `POST /api/leads/[leadId]/images` remains unauthenticated for customer chat uploads; storage paths use server-resolved `tenant_slug` from the lead row (client `tenantSlug` is validated when supplied, not trusted for path construction).
+
+**Intentionally public (not Admin API):** Customer chat (`/api/chat/*`), public tenant pages, embed/widget, campaign entry surfaces — unchanged by E1.
+
+**OAuth exception:** Google OAuth callback routes authorize inside `handleGoogleOAuthCallbackRequest` after state decode (browser redirect, not cookie session on all paths).

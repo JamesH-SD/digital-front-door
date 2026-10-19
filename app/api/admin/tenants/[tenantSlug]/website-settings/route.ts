@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import { requireTenantAccess } from "@/lib/auth/requireTenantAccess";
 import { createClient } from "@/lib/supabase/server";
 
 type RouteContext = {
@@ -10,6 +11,13 @@ type RouteContext = {
 export async function PATCH(request: Request, context: RouteContext) {
   try {
     const { tenantSlug } = await context.params;
+
+    const access = await requireTenantAccess(tenantSlug);
+
+    if (!access.ok) {
+      return access.response;
+    }
+
     const body = await request.json();
 
     const websiteSettings = body.websiteSettings;

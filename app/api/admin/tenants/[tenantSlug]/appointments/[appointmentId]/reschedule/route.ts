@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
+import { requireTenantAccess } from "@/lib/auth/requireTenantAccess";
 import { getTenantBySlug } from "@/lib/db/tenants";
 import { getCalendarConnectionById } from "@/lib/calendar/calendarConnectionService";
 import { updateGoogleCalendarEvent } from "@/lib/calendar/googleCalendar";
@@ -35,6 +36,12 @@ export async function POST(
 ) {
   try {
     const { tenantSlug, appointmentId } = await context.params;
+
+    const access = await requireTenantAccess(tenantSlug);
+
+    if (!access.ok) {
+      return access.response;
+    }
 
     const tenant = await getTenantBySlug(tenantSlug);
 

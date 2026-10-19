@@ -1,7 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createAdminClient } from "@/lib/supabase/admin";
-import { getCurrentUser } from "@/lib/auth/getCurrentUser";
-import { getUserTenantMembership } from "@/lib/auth/tenantAccess";
+import { requireTenantAccess } from "@/lib/auth/requireTenantAccess";
 
 type RouteParams = {
   params: Promise<{
@@ -11,19 +10,10 @@ type RouteParams = {
 
 export async function PATCH(request: NextRequest, { params }: RouteParams) {
   const { tenantSlug } = await params;
-  const user = await getCurrentUser();
+  const access = await requireTenantAccess(tenantSlug);
 
-  if (!user) {
-    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-  }
-
-  const membership = await getUserTenantMembership({
-    userId: user.id,
-    tenantSlug,
-  });
-
-  if (!membership) {
-    return NextResponse.json({ error: "Unauthorized" }, { status: 403 });
+  if (!access.ok) {
+    return access.response;
   }
 
   const body = await request.json();
@@ -34,7 +24,7 @@ export async function PATCH(request: NextRequest, { params }: RouteParams) {
     .upsert(
       {
         tenant_slug: tenantSlug,
-        user_id: user.id,
+        user_id: access.userId,
         lead_email_alerts: Boolean(body.leadEmailAlerts),
         appointment_email_alerts: Boolean(body.appointmentEmailAlerts),
         billing_email_alerts: Boolean(body.billingEmailAlerts),

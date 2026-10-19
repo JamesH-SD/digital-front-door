@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
+import { requireTenantAccess } from "@/lib/auth/requireTenantAccess";
 import { createAdminClient } from "@/lib/supabase/admin";
 
 type RouteParams = {
@@ -36,6 +37,13 @@ type AssetType =
 export async function POST(request: NextRequest, { params }: RouteParams) {
   try {
     const { tenantSlug } = await params;
+
+    const access = await requireTenantAccess(tenantSlug);
+
+    if (!access.ok) {
+      return access.response;
+    }
+
     const formData = await request.formData();
 
     const file = formData.get("file");

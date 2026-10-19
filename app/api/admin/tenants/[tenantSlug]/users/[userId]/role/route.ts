@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { createAdminClient } from "@/lib/supabase/admin";
-import { getCurrentUser } from "@/lib/auth/getCurrentUser";
+import { getPlatformAdminRole } from "@/lib/auth/platformAccess";
+import { requireTenantAccess } from "@/lib/auth/requireTenantAccess";
 import { getUserTenantMembership } from "@/lib/auth/tenantAccess";
 
 type RouteParams = {
@@ -12,25 +13,28 @@ type RouteParams = {
 
 export async function DELETE(_: Request, { params }: RouteParams) {
   const { tenantSlug, userId } = await params;
-  const currentUser = await getCurrentUser();
 
-  if (!currentUser) {
-    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  const access = await requireTenantAccess(tenantSlug);
+
+  if (!access.ok) {
+    return access.response;
   }
 
   const membership = await getUserTenantMembership({
-    userId: currentUser.id,
+    userId: access.userId,
     tenantSlug,
   });
 
-  if (!membership || membership.role !== "owner") {
+  const platformRole = await getPlatformAdminRole(access.userId);
+
+  if ((!membership || membership.role !== "owner") && !platformRole) {
     return NextResponse.json(
       { error: "Only owners can remove users." },
       { status: 403 }
     );
   }
 
-  if (currentUser.id === userId) {
+  if (access.userId === userId) {
     return NextResponse.json(
       { error: "You cannot remove yourself from this account." },
       { status: 400 }

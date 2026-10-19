@@ -1,57 +1,51 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createAdminClient } from "@/lib/supabase/admin";
+import { requireLeadAccess } from "@/lib/auth/requireLeadAccess";
 import { generateLeadSummary } from "@/lib/ai/generateLeadSummary";
+import { mapLead } from "@/lib/db/leads";
 
 /**
  * Lead summary endpoint with DB caching.
- *
- * Why this exists:
- * - avoids calling OpenAI every time a contractor opens a lead
- * - stores the generated summary for reuse
- * - still allows regeneration later if we add a "Regenerate Summary" button
  */
 export async function POST(request: NextRequest) {
   try {
     const body = await request.json();
-    const lead = body?.lead;
     const forceRegenerate = body?.forceRegenerate === true;
 
-    if (!lead || typeof lead !== "object") {
-      return NextResponse.json(
-        { error: "lead is required" },
-        { status: 400 }
-      );
-    }
+    const leadIdFromBody =
+      typeof body?.lead?.id === "string" ? body.lead.id.trim() : "";
 
-    const leadId = lead?.id;
-
-    if (!leadId || typeof leadId !== "string") {
+    if (!leadIdFromBody) {
       return NextResponse.json(
         { error: "lead.id is required" },
         { status: 400 }
       );
     }
 
+    const access = await requireLeadAccess(leadIdFromBody);
+
+    if (!access.ok) {
+      return access.response;
+    }
+
     const supabase = createAdminClient();
 
-    /**
-     * First check whether this lead already has a cached AI summary.
-     */
     const { data: existingLead, error: fetchError } = await supabase
       .from("leads")
-      .select("id, ai_summary, ai_summary_updated_at")
-      .eq("id", leadId)
+      .select("*")
+      .eq("id", leadIdFromBody)
       .single();
 
-    if (fetchError) {
-      console.error("Error fetching cached lead summary:", fetchError.message);
-      throw fetchError;
+    if (fetchError || !existingLead) {
+      return NextResponse.json({ error: "Lead not found." }, { status: 404 });
     }
+
+    const lead = mapLead(existingLead);
 
     if (
       !forceRegenerate &&
-      existingLead?.ai_summary &&
-      existingLead.ai_summary.trim()
+      existingLead.ai_summary &&
+      String(existingLead.ai_summary).trim()
     ) {
       return NextResponse.json(
         {
@@ -64,9 +58,6 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    /**
-     * Only call OpenAI if we do not already have a cached summary.
-     */
     const result = await generateLeadSummary(lead);
 
     if (result.status === "generated" && result.summary) {
@@ -76,7 +67,7 @@ export async function POST(request: NextRequest) {
           ai_summary: result.summary,
           ai_summary_updated_at: new Date().toISOString(),
         })
-        .eq("id", leadId);
+        .eq("id", leadIdFromBody);
 
       if (updateError) {
         console.error("Error saving AI summary:", updateError.message);

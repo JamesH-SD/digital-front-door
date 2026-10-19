@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
+import { requireLeadAccess } from "@/lib/auth/requireLeadAccess";
 import { updateLead } from "@/lib/db/leads";
 
 type LeadStatus = "new" | "contacted" | "booked" | "closed";
@@ -11,15 +12,17 @@ type RouteContext = {
 
 /**
  * Update only the lead status.
- *
- * Why this exists:
- * - the general PATCH /api/leads/[leadId] route updates many fields
- * - modal actions like "Move to Follow-up" should only change status
- * - this avoids accidentally overwriting other lead fields with undefined
  */
 export async function PATCH(request: NextRequest, context: RouteContext) {
   try {
     const { leadId } = await context.params;
+
+    const access = await requireLeadAccess(leadId);
+
+    if (!access.ok) {
+      return access.response;
+    }
+
     const body = await request.json();
 
     const status = body?.status as LeadStatus | undefined;

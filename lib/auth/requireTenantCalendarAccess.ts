@@ -1,34 +1,12 @@
-import { NextResponse } from "next/server";
-import { getCurrentUser } from "@/lib/auth/getCurrentUser";
-import { userHasTenantAccess } from "@/lib/auth/userHasTenantAccess";
+import { requireTenantAccess, type TenantAccessResult } from "@/lib/auth/requireTenantAccess";
 
-export type TenantCalendarAccessResult =
-  | { ok: true; userId: string }
-  | { ok: false; response: NextResponse };
+export type TenantCalendarAccessResult = TenantAccessResult;
 
 /**
- * Auth gate for tenant calendar management routes (OAuth start, connections CRUD).
+ * Calendar Admin routes use the same tenant access gate as other tenant APIs.
  */
 export async function requireTenantCalendarAccess(
   tenantSlug: string
 ): Promise<TenantCalendarAccessResult> {
-  const user = await getCurrentUser();
-
-  if (!user) {
-    return {
-      ok: false,
-      response: NextResponse.json({ error: "Unauthorized" }, { status: 401 }),
-    };
-  }
-
-  const hasAccess = await userHasTenantAccess(user.id, tenantSlug);
-
-  if (!hasAccess) {
-    return {
-      ok: false,
-      response: NextResponse.json({ error: "Unauthorized" }, { status: 403 }),
-    };
-  }
-
-  return { ok: true, userId: user.id };
+  return requireTenantAccess(tenantSlug);
 }

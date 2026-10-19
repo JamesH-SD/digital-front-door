@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
+import { requireTenantAccess } from "@/lib/auth/requireTenantAccess";
 import {
   createTenantKnowledgeItem,
   getTenantKnowledgeItems,
@@ -75,6 +76,12 @@ export async function GET(
 ) {
   const { tenantSlug } = await params;
 
+  const access = await requireTenantAccess(tenantSlug);
+
+  if (!access.ok) {
+    return access.response;
+  }
+
   const { searchParams } = new URL(_request.url);
 const campaignId = searchParams.get("campaignId");
 
@@ -94,6 +101,13 @@ export async function POST(
   { params }: { params: Promise<{ tenantSlug: string }> }
 ) {
   const { tenantSlug } = await params;
+
+  const access = await requireTenantAccess(tenantSlug);
+
+  if (!access.ok) {
+    return access.response;
+  }
+
   const contentType = request.headers.get("content-type") || "";
 
   if (contentType.includes("multipart/form-data")) {
@@ -265,6 +279,13 @@ export async function PATCH(
   { params }: { params: Promise<{ tenantSlug: string }> }
 ) {
   const { tenantSlug } = await params;
+
+  const access = await requireTenantAccess(tenantSlug);
+
+  if (!access.ok) {
+    return access.response;
+  }
+
   const body = await request.json();
 
   const id = typeof body.id === "string" ? body.id : "";
@@ -318,6 +339,13 @@ export async function DELETE(
   { params }: { params: Promise<{ tenantSlug: string }> }
 ) {
   const { tenantSlug } = await params;
+
+  const access = await requireTenantAccess(tenantSlug);
+
+  if (!access.ok) {
+    return access.response;
+  }
+
   const { searchParams } = new URL(request.url);
   const id = searchParams.get("id");
 

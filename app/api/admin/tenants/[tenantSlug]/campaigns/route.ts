@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
+import { requireTenantAccess } from "@/lib/auth/requireTenantAccess";
 import {
   createTenantCampaign,
   deleteTenantCampaign,
@@ -21,6 +22,13 @@ export async function GET(
 ) {
   try {
     const { tenantSlug } = await params;
+
+    const access = await requireTenantAccess(tenantSlug);
+
+    if (!access.ok) {
+      return access.response;
+    }
+
     const campaigns = await getTenantCampaigns(tenantSlug);
 
     return NextResponse.json({ campaigns });
@@ -40,6 +48,13 @@ export async function POST(
 ) {
   try {
     const { tenantSlug } = await params;
+
+    const access = await requireTenantAccess(tenantSlug);
+
+    if (!access.ok) {
+      return access.response;
+    }
+
     const body = await request.json();
 
     const name = optionalTrimmedString(body.name) || "";
@@ -75,6 +90,13 @@ export async function PATCH(
 ) {
   try {
     const { tenantSlug } = await params;
+
+    const access = await requireTenantAccess(tenantSlug);
+
+    if (!access.ok) {
+      return access.response;
+    }
+
     const body = await request.json();
 
     const campaignId = optionalTrimmedString(body.campaignId) || "";
@@ -152,6 +174,13 @@ export async function DELETE(
 ) {
   try {
     const { tenantSlug } = await params;
+
+    const access = await requireTenantAccess(tenantSlug);
+
+    if (!access.ok) {
+      return access.response;
+    }
+
     const { searchParams } = new URL(request.url);
     const campaignId = searchParams.get("campaignId")?.trim() || "";
 

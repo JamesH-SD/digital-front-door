@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
+import { requireLeadAccess } from "@/lib/auth/requireLeadAccess";
 import { updateLead } from "@/lib/db/leads";
 
 type RouteContext = {
@@ -10,6 +11,13 @@ type RouteContext = {
 export async function PATCH(request: NextRequest, context: RouteContext) {
   try {
     const { leadId } = await context.params;
+
+    const access = await requireLeadAccess(leadId);
+
+    if (!access.ok) {
+      return access.response;
+    }
+
     const body = await request.json();
 
     const updatedLead = await updateLead(leadId, {

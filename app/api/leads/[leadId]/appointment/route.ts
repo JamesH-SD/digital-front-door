@@ -1,14 +1,9 @@
 import { NextRequest, NextResponse } from "next/server";
-import { getLeadById } from "@/lib/db/leads";
+import { requireLeadAccess } from "@/lib/auth/requireLeadAccess";
 import { getLatestAppointmentByLeadId } from "@/lib/scheduling/appointmentQueries";
 
 /**
- * Get the most recent appointment for a lead.
- *
- * Why this exists:
- * - lets the lead detail screen become appointment-aware
- * - keeps appointment lookup separate from the broader lead payload
- * - allows the UI to switch between Schedule vs View flows
+ * Get the most recent appointment for a lead (admin lead detail).
  */
 export async function GET(
   _request: NextRequest,
@@ -17,13 +12,10 @@ export async function GET(
   try {
     const { leadId } = await context.params;
 
-    const lead = await getLeadById(leadId);
+    const access = await requireLeadAccess(leadId);
 
-    if (!lead) {
-      return NextResponse.json(
-        { error: "Lead not found" },
-        { status: 404 }
-      );
+    if (!access.ok) {
+      return access.response;
     }
 
     const appointment = await getLatestAppointmentByLeadId(leadId);

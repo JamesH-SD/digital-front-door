@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
+import { requireTenantAccess } from "@/lib/auth/requireTenantAccess";
 import {
   createCampaignAsset,
   deleteCampaignAsset,
@@ -16,6 +17,13 @@ export async function GET(
 ) {
   try {
     const { tenantSlug } = await params;
+
+    const access = await requireTenantAccess(tenantSlug);
+
+    if (!access.ok) {
+      return access.response;
+    }
+
     const { searchParams } = new URL(request.url);
 
     const campaignId = searchParams.get("campaignId")?.trim() || undefined;
@@ -42,6 +50,13 @@ export async function POST(
 ) {
   try {
     const { tenantSlug } = await params;
+
+    const access = await requireTenantAccess(tenantSlug);
+
+    if (!access.ok) {
+      return access.response;
+    }
+
     const body = await request.json();
 
     const campaignId = trimmedString(body.campaignId);
@@ -98,6 +113,13 @@ export async function PATCH(
 ) {
   try {
     const { tenantSlug } = await params;
+
+    const access = await requireTenantAccess(tenantSlug);
+
+    if (!access.ok) {
+      return access.response;
+    }
+
     const body = await request.json();
 
     const campaignAssetId = trimmedString(body.campaignAssetId);
@@ -161,6 +183,13 @@ export async function DELETE(
 ) {
   try {
     const { tenantSlug } = await params;
+
+    const access = await requireTenantAccess(tenantSlug);
+
+    if (!access.ok) {
+      return access.response;
+    }
+
     const { searchParams } = new URL(request.url);
 
     const campaignAssetId =

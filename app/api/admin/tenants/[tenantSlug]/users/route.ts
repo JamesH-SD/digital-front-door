@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createAdminClient } from "@/lib/supabase/admin";
-import { getCurrentUser } from "@/lib/auth/getCurrentUser";
+import { getPlatformAdminRole } from "@/lib/auth/platformAccess";
+import { requireTenantAccess } from "@/lib/auth/requireTenantAccess";
 import { getUserTenantMembership } from "@/lib/auth/tenantAccess";
 
 type RouteParams = {
@@ -9,18 +10,21 @@ type RouteParams = {
 
 export async function POST(request: NextRequest, { params }: RouteParams) {
   const { tenantSlug } = await params;
-  const currentUser = await getCurrentUser();
 
-  if (!currentUser) {
-    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  const access = await requireTenantAccess(tenantSlug);
+
+  if (!access.ok) {
+    return access.response;
   }
 
   const membership = await getUserTenantMembership({
-    userId: currentUser.id,
+    userId: access.userId,
     tenantSlug,
   });
 
-  if (!membership || membership.role !== "owner") {
+  const platformRole = await getPlatformAdminRole(access.userId);
+
+  if ((!membership || membership.role !== "owner") && !platformRole) {
     return NextResponse.json(
       { error: "Only owners can invite users." },
       { status: 403 }
@@ -47,7 +51,7 @@ export async function POST(request: NextRequest, { params }: RouteParams) {
       email,
       role,
       status: "pending",
-      invited_by: currentUser.id,
+      invited_by: access.userId,
       expires_at: new Date(Date.now() + 14 * 24 * 60 * 60 * 1000).toISOString(),
       updated_at: new Date().toISOString(),
     },

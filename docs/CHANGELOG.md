@@ -2,6 +2,10 @@
 
 This is a lightweight context changelog, not a substitute for Git history.
 
+## 2026-09-23 — Tenant Admin API + lead AI authorization (Phase E1)
+
+- `requireTenantAccess` on all tenant Admin API routes; `requireLeadAccess` on `/api/ai/*` lead tools and authenticated `/api/leads/[leadId]/…` admin routes (E1b); public chat image upload exception documented; **D-032**.
+
 ## 2026-09-23 — Wizard Services AI (Phase D2)
 
 - Real Services proposals on existing Wizard AI route; fake `generateServices()` removed; neutral Services copy/examples.

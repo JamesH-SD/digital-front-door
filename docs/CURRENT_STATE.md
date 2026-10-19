@@ -425,7 +425,7 @@ When an actual business conflict cannot be deterministically resolved, defer to 
 
 ## Launch-risk items requiring verification
 
-- Admin API tenant authorization (partial: tenant PATCH and calendar-connections/OAuth start+callback now require membership or platform admin; other tenant-scoped routes still need audit)
+- Admin API tenant authorization (**E1:** all `/api/admin/tenants/[tenantSlug]/…` route handlers use `requireTenantAccess` / calendar wrapper except Google OAuth callback delegating to shared handler; authenticated `/api/leads/[leadId]/…` admin routes and `/api/ai/*` lead tools use `requireLeadAccess`; customer chat image upload on `POST …/images` remains public with server-resolved tenant for storage paths)
 - Direct API access to tenant-scoped routes
 - Routes using admin/service-role Supabase clients
 - End-to-end signup → tenant creation → onboarding → admin → website/embed → AI → lead → scheduling → billing journey

@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
+import { requireTenantAccess } from "@/lib/auth/requireTenantAccess";
 import { getBookableAppointmentSlots } from "@/lib/scheduling/getBookableAppointmentSlots";
 
 type RouteContext = {
@@ -24,6 +25,13 @@ type RouteContext = {
 export async function GET(request: NextRequest, context: RouteContext) {
   try {
     const { tenantSlug } = await context.params;
+
+    const access = await requireTenantAccess(tenantSlug);
+
+    if (!access.ok) {
+      return access.response;
+    }
+
     const url = new URL(request.url);
 
     const timezone =
