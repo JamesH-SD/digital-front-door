@@ -2,6 +2,11 @@
 
 This is a lightweight context changelog, not a substitute for Git history.
 
+## 2026-09-23 — Hosted website V1 credibility (Phase F1)
+
+- Hero/About use website override → tenant `tagline` / `aboutUs` → generic fallback (`resolveTenantWebsitePresentation`).
+- Tenant primary/accent colors on public hosted site; sample reviews removed; no-image text-first layouts; honest website settings image copy; clearer draft/publish admin UX. **D-033**.
+
 ## 2026-09-23 — Tenant Admin API + lead AI authorization (Phase E1)
 
 - `requireTenantAccess` on all tenant Admin API routes; `requireLeadAccess` on `/api/ai/*` lead tools and authenticated `/api/leads/[leadId]/…` admin routes (E1b); public chat image upload exception documented; **D-032**.

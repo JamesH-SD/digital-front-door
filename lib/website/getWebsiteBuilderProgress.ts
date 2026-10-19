@@ -25,7 +25,7 @@ export function getWebsiteBuilderProgress(tenant: Tenant): WebsiteBuilderProgres
     },
     {
       label: "Home page headline",
-      complete: Boolean(settings.heroHeadline),
+      complete: Boolean(settings.heroHeadline?.trim() || tenant.tagline?.trim()),
       href: "hero",
     },
     {
@@ -43,7 +43,7 @@ export function getWebsiteBuilderProgress(tenant: Tenant): WebsiteBuilderProgres
     },
     {
       label: "About section",
-      complete: Boolean(settings.aboutBody),
+      complete: Boolean(settings.aboutBody?.trim() || tenant.aboutUs?.trim()),
       href: "about",
     },
     {

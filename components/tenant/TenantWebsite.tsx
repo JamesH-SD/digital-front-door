@@ -1,16 +1,20 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useState, type CSSProperties } from "react";
 import {
   CheckCircle2,
   ChevronDown,
-  ChevronLeft,
-  ChevronRight,
   Menu,
   MessageCircle,
-  Star,
   X,
 } from "lucide-react";
+import {
+  resolveWebsiteAboutBody,
+  resolveWebsiteBrandColors,
+  resolveWebsiteHeroDescription,
+  resolveWebsiteHeroHeadline,
+} from "@/lib/website/resolveTenantWebsitePresentation";
+import { resolveWebsiteServicesSection } from "@/lib/website/resolveWebsiteServicesSection";
 import {
   FaFacebook,
   FaInstagram,
@@ -32,18 +36,6 @@ type Props = {
 function formatPhoneHref(phone?: string) {
   if (!phone) return "";
   return `tel:${phone.replace(/\D/g, "")}`;
-}
-
-function getServiceAreas(tenant: Tenant) {
-  if (tenant.serviceCities && tenant.serviceCities.length > 0) {
-    return tenant.serviceCities;
-  }
-
-  if (tenant.serviceAreaSummary) {
-    return [tenant.serviceAreaSummary];
-  }
-
-  return ["Local service area"];
 }
 
 function getServices(tenant: Tenant) {
@@ -147,21 +139,6 @@ function getFaqs(tenant: Tenant) {
   ];
 }
 
-const sampleReviews = [
-  {
-    name: "Local Homeowner",
-    text: "Great communication, clear next steps, and easy to get the project conversation started.",
-  },
-  {
-    name: "Property Owner",
-    text: "Professional, responsive, and helpful when discussing the scope of work.",
-  },
-  {
-    name: "San Diego Customer",
-    text: "The process was simple and made it easy to ask questions before moving forward.",
-  },
-];
-
 export function TenantWebsite({
   tenant,
   leadSource,
@@ -173,16 +150,21 @@ export function TenantWebsite({
   const [chatOpen, setChatOpen] = useState(autoOpenChat);
   const [mobileNavOpen, setMobileNavOpen] = useState(false);
   const [activeFaq, setActiveFaq] = useState(0);
-  const [activeReview, setActiveReview] = useState(0);
 
   const phoneHref = formatPhoneHref(tenant.primaryPhone);
   const services = getServices(tenant);
   const projectGallery = getProjectGallery(tenant);
-  const serviceAreas = getServiceAreas(tenant);
   const faqs = getFaqs(tenant);
-  const currentReview = sampleReviews[activeReview];
 
   const websiteSettings = tenant.websiteSettings || {};
+  const brand = resolveWebsiteBrandColors(tenant, websiteSettings);
+  const brandStyle = {
+    ["--tenant-primary" as string]: brand.primary,
+    ["--tenant-primary-hover" as string]: brand.primaryHover,
+    ["--tenant-primary-button-text" as string]: brand.primaryButtonText,
+    ["--tenant-accent" as string]: brand.accent,
+    ["--tenant-accent-hover" as string]: brand.accentHover,
+  } as CSSProperties;
 
   const socialLinks = [
     {
@@ -211,13 +193,9 @@ export function TenantWebsite({
     },
   ].filter((link) => Boolean(link.href?.trim()));
 
-  const heroHeadline =
-  websiteSettings.heroHeadline ||
-  `${tenant.businessName} makes it easy to get started.`;
+  const heroHeadline = resolveWebsiteHeroHeadline(tenant);
 
-  const heroDescription =
-    websiteSettings.heroDescription ||
-    "Ask a question, request an estimate, or schedule the next step. Our AI receptionist helps collect the right details so you do not have to wait for a callback.";
+  const heroDescription = resolveWebsiteHeroDescription(tenant);
 
   const heroPrimaryCtaLabel =
     websiteSettings.heroPrimaryCtaLabel || "Ask Our Receptionist";
@@ -291,11 +269,6 @@ export function TenantWebsite({
     websiteSettings.projectGalleryDescription ||
     "Browse a few examples of completed projects and ask our AI receptionist about similar work.";
   
-  const reviewsHeading = websiteSettings.reviewsHeading || "Reviews";
-  
-  const reviewsTitle =
-    websiteSettings.reviewsTitle || "What customers say";
-  
   const faqsHeading = websiteSettings.faqsHeading || "FAQs";
   
   const faqsTitle =
@@ -315,23 +288,17 @@ export function TenantWebsite({
     websiteSettings.aboutTitle ||
     `About ${tenant.businessName}`;
 
-  const aboutBody =
-  websiteSettings.aboutBody ||
-  `${tenant.businessName} helps customers ask questions, share details, and coordinate next steps through a simple online experience.`;
+  const aboutBody = resolveWebsiteAboutBody(tenant);
 
   const aboutCtaLabel =
     websiteSettings.aboutCtaLabel ||
     "Ask About Your Project";
 
-    const servicesSectionHeading =
-    websiteSettings.servicesSectionHeading || "Services";
-  
-  const servicesSectionTitle =
-    websiteSettings.servicesSectionTitle || "Services customers can ask about";
-  
-  const servicesSectionDescription =
-    websiteSettings.servicesSectionDescription ||
-    "Explore common services and ask our AI receptionist about the one that fits your needs.";
+  const {
+    heading: servicesSectionHeading,
+    title: servicesSectionTitle,
+    description: servicesSectionDescription,
+  } = resolveWebsiteServicesSection(tenant);
 
   useEffect(() => {
     if (autoOpenChat) {
@@ -344,18 +311,14 @@ export function TenantWebsite({
     setMobileNavOpen(false);
   }
 
-  function nextReview() {
-    setActiveReview((prev) => (prev + 1) % sampleReviews.length);
-  }
-
-  function previousReview() {
-    setActiveReview((prev) =>
-      prev === 0 ? sampleReviews.length - 1 : prev - 1
-    );
-  }
+  const whyUsImageUrl = websiteSettings.whyUsImageUrl?.trim();
+  const aboutImageUrl = websiteSettings.aboutImageUrl?.trim();
 
   return (
-    <main className="min-h-screen overflow-x-hidden bg-white text-gray-950">
+    <main
+      className="tenant-website min-h-screen overflow-x-hidden bg-white text-gray-950"
+      style={brandStyle}
+    >
       {/* NAV */}
       {isPreview && (
         <div className="fixed left-0 right-0 top-0 z-[60] border-b border-amber-200 bg-amber-50 px-4 py-3 text-center text-sm font-semibold text-amber-900">
@@ -376,7 +339,7 @@ export function TenantWebsite({
               className="h-10 w-10 rounded-xl object-contain"
             />
           ) : (
-            <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-gray-950 text-sm font-bold text-white">
+            <div className="tenant-brand-primary-bg flex h-10 w-10 items-center justify-center rounded-xl text-sm font-bold text-white">
               {tenant.businessName.charAt(0)}
             </div>
           )}
@@ -385,8 +348,10 @@ export function TenantWebsite({
             <p className="truncate text-base font-bold text-gray-950">
               {tenant.businessName}
             </p>
-            <p className="hidden text-xs text-gray-500 sm:block">
-              {tenant.primaryCategory || "Local Service Business"}
+            <p className="hidden truncate text-xs text-gray-500 sm:block">
+              {tenant.tagline?.trim() ||
+                tenant.primaryCategory ||
+                "Local Service Business"}
             </p>
           </div>
         </a>
@@ -483,7 +448,12 @@ export function TenantWebsite({
             <div className="absolute inset-0 bg-black/65" />
           </>
         ) : (
-          <div className="absolute inset-0 bg-[radial-gradient(circle_at_20%_20%,rgba(249,115,22,0.25),transparent_28%),radial-gradient(circle_at_80%_20%,rgba(255,255,255,0.12),transparent_22%)]" />
+          <div
+            className="absolute inset-0"
+            style={{
+              background: `radial-gradient(circle at 85% 15%, color-mix(in srgb, ${brand.accent} 22%, transparent), transparent 24%), radial-gradient(circle at 15% 25%, color-mix(in srgb, ${brand.primary} 50%, transparent), transparent 32%), linear-gradient(145deg, ${brand.primary} 0%, #0f172a 100%)`,
+            }}
+          />
         )}
 
         <div className="relative mx-auto grid max-w-6xl gap-10 px-5 py-20 text-white sm:px-6 lg:grid-cols-[1fr_0.8fr] lg:items-center lg:py-28">
@@ -523,7 +493,10 @@ export function TenantWebsite({
           <div className="rounded-3xl border border-white/10 bg-white/10 p-5 shadow-2xl backdrop-blur">
             <div className="rounded-2xl bg-white p-5 text-gray-950">
               <div className="flex items-center gap-3">
-                <div className="flex h-11 w-11 items-center justify-center rounded-2xl bg-orange-700 text-white">
+                <div
+                  className="flex h-11 w-11 items-center justify-center rounded-2xl text-white"
+                  style={{ backgroundColor: brand.primary }}
+                >
                   <MessageCircle className="h-5 w-5" />
                 </div>
                 <div>
@@ -567,25 +540,23 @@ export function TenantWebsite({
       {/* WHY US */}
       {websiteSettings.showWhyUs !== false ? (
       <section id="why-us" className="bg-stone-50 py-16">
-        <div className="mx-auto grid max-w-6xl gap-10 px-5 sm:px-6 lg:grid-cols-[0.9fr_1.1fr] lg:items-center">
-          <div className="min-h-[340px] overflow-hidden rounded-3xl bg-[linear-gradient(135deg,#e7e5e4,#fafaf9)] shadow-sm">
-            {websiteSettings.whyUsImageUrl ? (
+        <div
+          className={`mx-auto grid max-w-6xl gap-10 px-5 sm:px-6 lg:items-center ${
+            whyUsImageUrl ? "lg:grid-cols-[0.9fr_1.1fr]" : ""
+          }`}
+        >
+          {whyUsImageUrl ? (
+            <div className="min-h-[340px] overflow-hidden rounded-3xl shadow-sm">
               <img
-                src={websiteSettings.whyUsImageUrl}
+                src={whyUsImageUrl}
                 alt={`${tenant.businessName} work`}
                 className="h-full min-h-[340px] w-full object-cover object-center"
               />
-            ) : (
-              <div className="flex h-full min-h-[340px] items-end rounded-2xl border border-white/70 bg-white/50 p-6">
-                <p className="text-sm font-semibold text-gray-600">
-                  Professional image / project photo placeholder
-                </p>
-              </div>
-            )}
-          </div>
+            </div>
+          ) : null}
 
           <div>
-            <p className="text-xs font-bold uppercase tracking-wide text-orange-700">
+            <p className="tenant-brand-primary-text text-xs font-bold uppercase tracking-wide">
               {whyUsHeading}
             </p>
 
@@ -612,7 +583,7 @@ export function TenantWebsite({
         <section id="services" className="bg-white py-16">
           <div className="mx-auto max-w-6xl px-5 sm:px-6">
             <div className="mx-auto max-w-2xl text-center">
-              <p className="text-xs font-bold uppercase tracking-wide text-orange-700">
+              <p className="tenant-brand-primary-text text-xs font-bold uppercase tracking-wide">
                 {servicesSectionHeading}
               </p>
 
@@ -620,12 +591,18 @@ export function TenantWebsite({
                 {servicesSectionTitle}
               </h2>
 
-              <p className="mt-4 text-sm leading-7 text-gray-600">
-                {servicesSectionDescription}
-              </p>
+              {servicesSectionDescription ? (
+                <p className="mt-4 text-sm leading-7 text-gray-600">
+                  {servicesSectionDescription}
+                </p>
+              ) : null}
             </div>
 
-            <div className="mx-auto mt-10 grid max-w-5xl grid-cols-[repeat(auto-fit,minmax(240px,1fr))] justify-center gap-5">
+            <div
+              className={`mx-auto grid max-w-5xl grid-cols-[repeat(auto-fit,minmax(240px,1fr))] justify-center gap-5 ${
+                servicesSectionDescription ? "mt-10" : "mt-8"
+              }`}
+            >
               {services.map((service) => (
                 <article
                   key={service.id}
@@ -637,13 +614,9 @@ export function TenantWebsite({
                       alt={service.title}
                       className="h-44 w-full object-cover object-center"
                     />
-                  ) : (
-                    <div className="flex h-44 items-center justify-center bg-stone-100 text-sm font-semibold text-stone-500">
-                      {service.title}
-                    </div>
-                  )}
+                  ) : null}
 
-                  <div className="p-5">
+                  <div className={service.imageUrl ? "p-5" : "p-6"}>
                     <h3 className="text-lg font-bold text-gray-950">
                       {service.title}
                     </h3>
@@ -657,7 +630,7 @@ export function TenantWebsite({
                     <button
                       type="button"
                       onClick={openChat}
-                      className="mt-5 w-full rounded-xl border border-stone-200 bg-white px-4 py-2 text-sm font-semibold text-gray-800 shadow-sm transition hover:border-orange-200 hover:bg-orange-50 hover:text-orange-700"
+                      className="tenant-brand-accent-soft mt-5 w-full rounded-xl border px-4 py-2 text-sm font-semibold text-gray-800 shadow-sm transition hover:opacity-90"
                     >
                       Ask About This Service
                     </button>
@@ -673,7 +646,7 @@ export function TenantWebsite({
         <section id="project-gallery" className="bg-stone-50 py-16">
           <div className="mx-auto max-w-6xl px-5 sm:px-6">
             <div className="mx-auto max-w-2xl text-center">
-              <p className="text-xs font-bold uppercase tracking-wide text-orange-700">
+              <p className="tenant-brand-primary-text text-xs font-bold uppercase tracking-wide">
                 {projectGalleryHeading}
               </p>
 
@@ -712,7 +685,7 @@ export function TenantWebsite({
                     <button
                       type="button"
                       onClick={openChat}
-                      className="mt-5 w-full rounded-xl border border-stone-200 bg-white px-4 py-2 text-sm font-semibold text-gray-800 shadow-sm transition hover:border-orange-200 hover:bg-orange-50 hover:text-orange-700"
+                      className="tenant-brand-accent-soft mt-5 w-full rounded-xl border px-4 py-2 text-sm font-semibold text-gray-800 shadow-sm transition hover:opacity-90"
                     >
                       Ask About Similar Work
                     </button>
@@ -729,7 +702,7 @@ export function TenantWebsite({
         <section className="bg-gray-950 py-14 text-white">
           <div className="mx-auto flex max-w-6xl flex-col gap-6 px-5 sm:px-6 md:flex-row md:items-center md:justify-between">
             <div>
-              <p className="text-xs font-bold uppercase tracking-wide text-orange-400">
+              <p className="tenant-brand-primary-text text-xs font-bold uppercase tracking-wide">
                 {bannerHeading}
               </p>
 
@@ -757,7 +730,7 @@ export function TenantWebsite({
       {websiteSettings.showServiceAreas !== false ? (
         <section className="bg-stone-50 py-16">
           <div className="mx-auto max-w-6xl px-5 text-center sm:px-6">
-          <p className="text-xs font-bold uppercase tracking-wide text-orange-700">
+          <p className="tenant-brand-primary-text text-xs font-bold uppercase tracking-wide">
             {serviceAreasHeading}
           </p>
 
@@ -772,7 +745,7 @@ export function TenantWebsite({
                     key={city}
                     className="flex items-center gap-3 text-lg font-semibold text-gray-800"
                   >
-                    <span className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-emerald-600 text-sm font-bold text-white">
+                    <span className="tenant-brand-primary-bg flex h-6 w-6 shrink-0 items-center justify-center rounded-full text-sm font-bold text-white">
                       ✓
                     </span>
                     <span>{city}</span>
@@ -787,9 +760,13 @@ export function TenantWebsite({
       {/* ABOUT */}
       {websiteSettings.showAbout !== false ? (
       <section id="about" className="bg-white py-16">
-        <div className="mx-auto grid max-w-6xl gap-10 px-5 sm:px-6 lg:grid-cols-[1.1fr_0.9fr] lg:items-center">
+        <div
+          className={`mx-auto grid max-w-6xl gap-10 px-5 sm:px-6 lg:items-center ${
+            aboutImageUrl ? "lg:grid-cols-[1.1fr_0.9fr]" : "max-w-3xl"
+          }`}
+        >
           <div>
-            <p className="text-xs font-bold uppercase tracking-wide text-orange-700">
+            <p className="tenant-brand-primary-text text-xs font-bold uppercase tracking-wide">
               {aboutHeading}
             </p>
             <h2 className="mt-3 text-3xl font-bold tracking-tight text-gray-950">
@@ -808,70 +785,15 @@ export function TenantWebsite({
             </button>
           </div>
 
-          <div className="min-h-[320px] overflow-hidden rounded-3xl bg-[linear-gradient(135deg,#f5f5f4,#e7e5e4)] shadow-sm">
-            {websiteSettings.aboutImageUrl ? (
+          {aboutImageUrl ? (
+            <div className="min-h-[320px] overflow-hidden rounded-3xl shadow-sm">
               <img
-                src={websiteSettings.aboutImageUrl}
+                src={aboutImageUrl}
                 alt={`${tenant.businessName} team`}
                 className="h-full min-h-[320px] w-full object-cover object-center"
               />
-            ) : (
-              <div className="flex h-full min-h-[320px] items-end rounded-2xl border border-white/70 bg-white/50 p-6">
-                <p className="text-sm font-semibold text-gray-600">
-                  Business photo placeholder
-                </p>
-              </div>
-            )}
-          </div>
-        </div>
-      </section>
-      ) : null}
-
-      {/* REVIEWS */}
-      {websiteSettings.showReviews !== false ? (
-      <section className="bg-stone-50 py-16">
-        <div className="mx-auto max-w-4xl px-5 text-center sm:px-6">
-          <p className="text-xs font-bold uppercase tracking-wide text-orange-700">
-            {reviewsHeading}
-          </p>
-          <h2 className="mt-3 text-3xl font-bold tracking-tight text-gray-950">
-            {reviewsTitle}
-          </h2>
-
-          <div className="mt-8 rounded-3xl border border-stone-200 bg-white p-8 shadow-sm">
-            <div className="flex justify-center gap-1 text-orange-500">
-              {[1, 2, 3, 4, 5].map((item) => (
-                <Star key={item} className="h-5 w-5 fill-current" />
-              ))}
             </div>
-
-            <p className="mt-5 text-lg leading-8 text-gray-700">
-              “{currentReview.text}”
-            </p>
-            <p className="mt-4 text-sm font-bold text-gray-950">
-              {currentReview.name}
-            </p>
-
-            <div className="mt-6 flex items-center justify-center gap-3">
-              <button
-                type="button"
-                onClick={previousReview}
-                className="flex h-10 w-10 items-center justify-center rounded-full border border-stone-200 bg-white shadow-sm transition hover:bg-stone-50"
-                aria-label="Previous review"
-              >
-                <ChevronLeft className="h-4 w-4" />
-              </button>
-
-              <button
-                type="button"
-                onClick={nextReview}
-                className="flex h-10 w-10 items-center justify-center rounded-full border border-stone-200 bg-white shadow-sm transition hover:bg-stone-50"
-                aria-label="Next review"
-              >
-                <ChevronRight className="h-4 w-4" />
-              </button>
-            </div>
-          </div>
+          ) : null}
         </div>
       </section>
       ) : null}
@@ -881,7 +803,7 @@ export function TenantWebsite({
       <section id="faqs" className="bg-white py-16">
         <div className="mx-auto grid max-w-6xl gap-10 px-5 sm:px-6 lg:grid-cols-[0.8fr_1.2fr]">
           <div>
-            <p className="text-xs font-bold uppercase tracking-wide text-orange-700">
+            <p className="tenant-brand-primary-text text-xs font-bold uppercase tracking-wide">
               {faqsHeading}
             </p>
             <h2 className="mt-3 text-3xl font-bold tracking-tight text-gray-950">
@@ -967,12 +889,15 @@ export function TenantWebsite({
             ) : null}
           </div>
 
-          <div className="rounded-2xl border border-white/10 bg-white/10 p-5">
-            <p className="text-sm font-bold">Map / Location Placeholder</p>
-            <p className="mt-2 text-sm leading-6 text-white/70">
-              A map can be added here when business address sharing is enabled.
-            </p>
-          </div>
+          {tenant.serviceAreaSummary || tenant.serviceCities?.length ? (
+            <div className="rounded-2xl border border-white/10 bg-white/10 p-5">
+              <p className="text-sm font-bold">Service area</p>
+              <p className="mt-2 text-sm leading-6 text-white/70">
+                {tenant.serviceAreaSummary ||
+                  tenant.serviceCities?.slice(0, 6).join(", ")}
+              </p>
+            </div>
+          ) : null}
         </div>
 
         <div className="border-t border-white/10 px-5 py-5 text-center text-xs text-white/50">
@@ -985,7 +910,7 @@ export function TenantWebsite({
         <button
           type="button"
           onClick={openChat}
-          className="fixed bottom-5 right-5 z-50 flex items-center gap-3 rounded-2xl bg-gray-950 px-4 py-3 text-sm font-bold text-white shadow-2xl transition hover:bg-gray-800"
+          className="tenant-brand-primary-bg fixed bottom-5 right-5 z-50 flex items-center gap-3 rounded-2xl px-4 py-3 text-sm font-bold text-white shadow-2xl transition hover:opacity-90"
         >
           <MessageCircle className="h-5 w-5" />
             <span className="hidden sm:inline">{floatingChatLabel}</span>
@@ -1022,7 +947,7 @@ export function TenantWebsite({
                 href="https://getcontactor.com"
                 target="_blank"
                 rel="noopener noreferrer"
-                className="inline-flex items-center justify-center gap-1.5 text-xs font-semibold text-gray-500 transition hover:text-orange-700"
+                className="inline-flex items-center justify-center gap-1.5 text-xs font-semibold text-gray-500 transition hover:opacity-80"
               >
                 <span>Powered by</span>
                 <img
@@ -1042,7 +967,7 @@ export function TenantWebsite({
 function TrustItem({ label }: { label: string }) {
   return (
     <div className="flex items-center gap-3 rounded-2xl border border-stone-200 bg-white px-4 py-3 shadow-sm">
-      <CheckCircle2 className="h-5 w-5 shrink-0 text-green-600" />
+      <CheckCircle2 className="tenant-brand-check h-5 w-5 shrink-0" />
       <span>{label}</span>
     </div>
   );
@@ -1051,7 +976,7 @@ function TrustItem({ label }: { label: string }) {
 function Feature({ title, text }: { title: string; text: string }) {
   return (
     <div className="flex gap-4">
-      <CheckCircle2 className="mt-1 h-5 w-5 shrink-0 text-green-600" />
+      <CheckCircle2 className="tenant-brand-check mt-1 h-5 w-5 shrink-0" />
       <div>
         <p className="font-bold text-gray-950">{title}</p>
         <p className="mt-1 text-sm leading-6 text-gray-600">{text}</p>

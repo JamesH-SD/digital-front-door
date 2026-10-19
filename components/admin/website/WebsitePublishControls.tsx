@@ -80,15 +80,15 @@ export default function WebsitePublishControls({
           </p>
 
           <h2 className="mt-2 text-xl font-bold text-gray-950">
-            {isPublished ? "Published" : "Draft"}
+            {isPublished ? "Published — live" : "Draft — not public"}
           </h2>
 
           <p className="mt-1 text-sm leading-6 text-gray-600">
             {isPublished
               ? `Your website is live${
-                  publishedAt ? ` since ${formatDate(publishedAt)}` : ""
-                }.`
-              : "Your website is currently in draft mode."}
+                  publishedAt ? ` (published ${formatDate(publishedAt)})` : ""
+                }. Customers can visit your public URL.`
+              : "Your website is not live yet. Only preview links show the full site until you publish."}
           </p>
 
           {message ? (
@@ -99,32 +99,49 @@ export default function WebsitePublishControls({
         </div>
 
         <div className="flex flex-wrap gap-3">
-          <Link
-            href={`/${tenantSlug}?preview=true`}
-            target="_blank"
-            className="saas-button-secondary px-4 py-2 text-sm font-semibold"
-          >
-            Preview Website
-          </Link>
-
           {isPublished ? (
-            <button
-              type="button"
-              onClick={() => void updateStatus("unpublish")}
-              disabled={isSaving}
-              className="saas-button-secondary px-4 py-2 text-sm font-semibold disabled:opacity-60"
-            >
-              {isSaving ? "Updating..." : "Unpublish"}
-            </button>
+            <>
+              <Link
+                href={`/${tenantSlug}`}
+                target="_blank"
+                className="saas-button-accent px-4 py-2 text-sm font-semibold"
+              >
+                View Website
+              </Link>
+              <Link
+                href={`/${tenantSlug}?preview=true`}
+                target="_blank"
+                className="saas-button-secondary px-4 py-2 text-sm font-semibold"
+              >
+                Preview
+              </Link>
+              <button
+                type="button"
+                onClick={() => void updateStatus("unpublish")}
+                disabled={isSaving}
+                className="saas-button-secondary px-4 py-2 text-sm font-semibold disabled:opacity-60"
+              >
+                {isSaving ? "Updating..." : "Unpublish"}
+              </button>
+            </>
           ) : (
-            <button
-              type="button"
-              onClick={() => void updateStatus("publish")}
-              disabled={isSaving}
-              className="saas-button-accent px-4 py-2 text-sm font-semibold disabled:opacity-60"
-            >
-              {isSaving ? "Publishing..." : "Publish Website"}
-            </button>
+            <>
+              <Link
+                href={`/${tenantSlug}?preview=true`}
+                target="_blank"
+                className="saas-button-secondary px-4 py-2 text-sm font-semibold"
+              >
+                Preview Website
+              </Link>
+              <button
+                type="button"
+                onClick={() => void updateStatus("publish")}
+                disabled={isSaving}
+                className="saas-button-accent px-4 py-2 text-sm font-semibold disabled:opacity-60"
+              >
+                {isSaving ? "Publishing..." : "Publish Website"}
+              </button>
+            </>
           )}
         </div>
       </div>

@@ -112,6 +112,7 @@ export default async function WebsiteSectionPage({ params }: PageProps) {
 
       <WebsiteSettingsPanel
         tenantSlug={tenant.slug}
+        tenantServicesOffered={tenant.servicesOffered}
         initialSettings={{
           ...(tenant.websiteSettings || {}),
         }}

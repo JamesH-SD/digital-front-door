@@ -118,6 +118,43 @@ body {
   transform: translateY(-1px);
 }
 
+/* Hosted tenant website — primary = dominant brand; accent = supporting highlights */
+.tenant-website {
+  --accent: var(--tenant-primary, #1f3b4d);
+  --accent-hover: var(--tenant-primary-hover, #152a38);
+}
+
+.tenant-website .saas-button-accent {
+  color: var(--tenant-primary-button-text, #ffffff);
+}
+
+.tenant-website .tenant-brand-primary-text {
+  color: var(--tenant-primary, #1f3b4d);
+}
+
+.tenant-website .tenant-brand-accent-text {
+  color: var(--tenant-accent, #4e9271);
+}
+
+.tenant-website .tenant-brand-accent-soft {
+  border-color: color-mix(in srgb, var(--tenant-accent, #4e9271) 28%, transparent);
+  background-color: color-mix(in srgb, var(--tenant-accent, #4e9271) 10%, white);
+  color: #1f2937;
+}
+
+.tenant-website .tenant-brand-accent-soft:hover {
+  border-color: color-mix(in srgb, var(--tenant-accent, #4e9271) 40%, transparent);
+  background-color: color-mix(in srgb, var(--tenant-accent, #4e9271) 14%, white);
+}
+
+.tenant-website .tenant-brand-primary-bg {
+  background-color: var(--tenant-primary, #1f3b4d);
+}
+
+.tenant-website .tenant-brand-check {
+  color: var(--tenant-primary, #1f3b4d);
+}
+
 .saas-button-secondary {
   background: rgba(255, 255, 255, 0.86);
   color: #1f2937;

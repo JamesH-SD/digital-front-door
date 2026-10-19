@@ -228,11 +228,9 @@ Unified Copilot prompts are **industry-neutral** (not contractor-only). Legacy i
 
 - Seven-step wizard is present.
 - It exposes Booking Flow and AI Next Step concepts directly to the tenant.
-- Sparkle helpers are local hardcoded generators, not actual AI assistance.
-- Wizard still exposes all eight legacy Booking Flow choices.
-- Needs KISS redesign.
-- Needs alignment with current five tenant-facing Booking Flows.
-- Needs real AI assistance rather than pseudo-AI templates.
+- Wizard V2 Customer Experience step exposes **five** tenant-facing Booking Flow choices (`consultation`, `phone_call`, `estimate`, `lead_capture`, `product_signup`); legacy types may still exist on stored tenants and in config code.
+- Tagline, About, and Services steps use real Wizard AI proposals (D1/D2); other steps may still use local helpers.
+- Needs KISS redesign and further alignment between wizard copy and admin Booking Flow settings.
 
 Desired direction:
 
@@ -242,9 +240,8 @@ The tenant should answer understandable business questions while Contactor trans
 
 ### Tenant website customization
 
-- Primary and accent colors can be stored/administered.
-- Public website still uses many hardcoded Tailwind colors.
-- Full tenant-driven theming is not complete.
+- **F1:** Hosted public site uses website override → tenant `tagline` / `aboutUs` for hero and About; brand primary/accent via scoped CSS variables on `TenantWebsite`; logo upload in website brand settings; no fictional public reviews; text-first layouts when images are missing.
+- Full theme engine, fonts, arbitrary CSS, stock images, maps, and real review sources remain future work.
 
 Desired direction:
 
@@ -296,9 +293,8 @@ Not implemented:
 
 Current:
 
-- Reviews section exists visually.
-- Public website uses placeholder review content.
-- Admin copy anticipates future Google/Yelp/manual testimonial support.
+- Admin website settings include a Reviews section toggle and headings only.
+- **F1:** Public hosted site does **not** show sample testimonials; section omitted until real review data exists.
 
 Not implemented:
 

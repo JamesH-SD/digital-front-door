@@ -585,7 +585,7 @@ export function ChatWidget({
                 onClick={() => void handleSendMessage()}
                 disabled={isSending || !input.trim()}
                 className="h-10 shrink-0 rounded-xl px-5 text-sm font-semibold text-white shadow-sm disabled:cursor-not-allowed disabled:opacity-60"
-                style={{ backgroundColor: accentColor }}
+                style={{ backgroundColor: brandColor }}
               >
                 {isSending ? "..." : "Send"}
               </button>

@@ -652,3 +652,19 @@ Tenant Setup Readiness answers: **“Can this part of Contactor do its job?”**
 **Intentionally public (not Admin API):** Customer chat (`/api/chat/*`), public tenant pages, embed/widget, campaign entry surfaces — unchanged by E1.
 
 **OAuth exception:** Google OAuth callback routes authorize inside `handleGoogleOAuthCallbackRequest` after state decode (browser redirect, not cookie session on all paths).
+
+---
+
+## D-033 — Hosted website V1 credibility (Phase F1)
+
+**Status:** Active as of 2026-09-23 (Phase F1)
+
+**Content precedence:** Website-specific settings override tenant business identity; when absent, use Wizard-persisted `tagline` / `aboutUs` for hero and About before generic fallbacks.
+
+**Brand:** `websiteSettings.primaryColor` / `accentColor` (primary may fall back to `tenant.primaryColor`) drive hosted-site accent surfaces via scoped CSS variables; chat widget branding unchanged in behavior.
+
+**Reviews:** No fictional testimonials on the public hosted site; reviews section hidden until real review content exists.
+
+**Images:** No stock-image system; missing images use intentional text-first layouts without dev placeholder copy.
+
+**Admin copy:** Website image fields describe empty state honestly (no implied default/stock image).

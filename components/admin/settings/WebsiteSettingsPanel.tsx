@@ -3,6 +3,7 @@
 import { useState } from "react";
 import { ChevronDown } from "lucide-react";
 import type { TenantWebsiteSettings } from "@/lib/types/tenant";
+import { clearLegacyServicesSectionFields } from "@/lib/website/resolveWebsiteServicesSection";
 
 export type WebsitePanelSection =
   | "brand"
@@ -20,6 +21,8 @@ export type WebsitePanelSection =
   type Props = {
     tenantSlug: string;
     initialSettings?: TenantWebsiteSettings;
+    /** Used to detect system-copied services list in section description. */
+    tenantServicesOffered?: string[];
     visibleSections?: WebsitePanelSection[];
     title?: string;
     description?: string;
@@ -39,7 +42,7 @@ const defaultSettings: TenantWebsiteSettings = {
   showBanner: true,
   showServiceAreas: true,
   showAbout: true,
-  showReviews: true,
+  showReviews: false,
   showFaqs: true,
   facebookUrl: "",
   instagramUrl: "",
@@ -88,10 +91,9 @@ const defaultSettings: TenantWebsiteSettings = {
   faqsButtonLabel: "Ask a Question",
   faqs: [],
 
-  servicesSectionHeading: "Services",
-  servicesSectionTitle: "Services customers can ask about",
-  servicesSectionDescription:
-    "Explore common services and ask our AI receptionist about the one that fits your needs.",
+  servicesSectionHeading: "Our Services",
+  servicesSectionTitle: "Services We Offer",
+  servicesSectionDescription: "",
   services: [],
 
   showProjectGallery: true,
@@ -172,18 +174,23 @@ function ImageUploadCard({
   isSaving,
   onUpload,
   onUseDefault,
+  helperText,
+  emptyStateText = "No custom image yet. The live site uses a clean layout without this photo.",
 }: {
   label: string;
   imageUrl?: string;
   isSaving: boolean;
   onUpload: (file: File) => void;
   onUseDefault: () => void;
+  helperText?: string;
+  emptyStateText?: string;
 }) {
   return (
     <div className="rounded-2xl border border-stone-200 bg-white p-4 shadow-sm">
       <p className="text-sm font-semibold text-gray-950">{label}</p>
       <p className="mt-1 text-xs text-gray-500">
-          Upload a JPG, PNG, or WebP image. This logo appears on the public website and brand areas.
+        {helperText ||
+          "Upload a JPG, PNG, or WebP image for the public website."}
       </p>
 
       {imageUrl ? (
@@ -195,8 +202,8 @@ function ImageUploadCard({
           />
         </div>
       ) : (
-        <div className="mt-4 flex h-40 items-center justify-center rounded-2xl border border-dashed border-stone-300 bg-stone-50 text-sm text-gray-500">
-          Default will be used
+        <div className="mt-4 flex min-h-[8rem] items-center justify-center rounded-2xl border border-dashed border-stone-300 bg-stone-50 px-4 py-6 text-center text-sm leading-6 text-gray-500">
+          {emptyStateText}
         </div>
       )}
 
@@ -223,7 +230,7 @@ function ImageUploadCard({
           onClick={onUseDefault}
           className="saas-button-secondary mt-3 w-full px-4 py-2 text-sm font-medium"
         >
-          Use Default
+          Remove image
         </button>
       ) : null}
     </div>
@@ -290,11 +297,13 @@ function ColorField({
   value,
   fallback,
   onChange,
+  description,
 }: {
   label: string;
   value?: string;
   fallback: string;
   onChange: (value: string) => void;
+  description?: string;
 }) {
   const colorValue = value || fallback;
 
@@ -303,6 +312,11 @@ function ColorField({
       <span className="text-xs font-semibold uppercase tracking-wide text-gray-500">
         {label}
       </span>
+      {description ? (
+        <span className="mt-1 block text-xs leading-5 font-normal normal-case text-gray-500">
+          {description}
+        </span>
+      ) : null}
 
       <div className="mt-1 flex gap-2">
         <input
@@ -326,13 +340,18 @@ function ColorField({
 export default function WebsiteSettingsPanel({
   tenantSlug,
   initialSettings,
+  tenantServicesOffered = [],
   visibleSections,
   title = "Website Settings",
   description = "Customize the public website by section. Each section controls the text, images, and visibility used on the tenant website.",
 }: Props) {
-  const [settings, setSettings] = useState<TenantWebsiteSettings>({
-    ...defaultSettings,
-    ...(initialSettings || {}),
+  const [settings, setSettings] = useState<TenantWebsiteSettings>(() => {
+    const merged = {
+      ...defaultSettings,
+      ...(initialSettings || {}),
+    };
+
+    return clearLegacyServicesSectionFields(merged, tenantServicesOffered);
   });
 
   const [isSaving, setIsSaving] = useState(false);
@@ -692,6 +711,8 @@ export default function WebsiteSettingsPanel({
             isSaving={isSaving}
             onUpload={(file) => void uploadAsset("logo", file)}
             onUseDefault={() => updateField("logoUrl", "")}
+            emptyStateText="No logo uploaded. The live site shows your business name and initial instead."
+            helperText="Appears in the website header and chat branding."
           />
 
           <ImageUploadCard
@@ -700,6 +721,7 @@ export default function WebsiteSettingsPanel({
             isSaving={isSaving}
             onUpload={(file) => void uploadAsset("favicon", file)}
             onUseDefault={() => updateField("faviconUrl", "")}
+            emptyStateText="No favicon uploaded. The browser uses the default tab icon."
           />
 
           <div className="rounded-2xl border border-stone-200 bg-white p-4 shadow-sm">
@@ -709,7 +731,8 @@ export default function WebsiteSettingsPanel({
                   Brand Colors
                 </h4>
                 <p className="mt-1 text-xs leading-5 text-gray-500">
-                  Choose colors that match the business brand. These colors control website accents, buttons, and key visual highlights.
+                  Primary is your main brand color on buttons and key accents. Accent
+                  is a supporting color for highlights and secondary details.
                 </p>
               </div>
 
@@ -728,6 +751,7 @@ export default function WebsiteSettingsPanel({
                 value={settings.primaryColor}
                 fallback={defaultSettings.primaryColor || "#1F3B4D"}
                 onChange={(value) => updateField("primaryColor", value)}
+                description="Your main brand color. Used for primary buttons, key website accents, and customer actions."
               />
 
               <ColorField
@@ -735,6 +759,7 @@ export default function WebsiteSettingsPanel({
                 value={settings.accentColor}
                 fallback={defaultSettings.accentColor || "#4E9271"}
                 onChange={(value) => updateField("accentColor", value)}
+                description="A supporting color used for highlights and secondary visual details."
               />
             </div>
           </div>
@@ -791,14 +816,14 @@ export default function WebsiteSettingsPanel({
                 label="Headline"
                 value={settings.heroHeadline}
                 onChange={(value) => updateField("heroHeadline", value)}
-                placeholder="Remodeling & construction made simple"
+                placeholder="Leave blank to use your business tagline from onboarding"
               />
 
               <TextAreaField
                 label="Description"
                 value={settings.heroDescription}
                 onChange={(value) => updateField("heroDescription", value)}
-                placeholder="Ask a question, request an estimate, or schedule the next step."
+                placeholder="Leave blank to use your business About text, or a short default intro"
                 rows={3}
               />
 
@@ -840,6 +865,8 @@ export default function WebsiteSettingsPanel({
               isSaving={isSaving}
               onUpload={(file) => void uploadAsset("hero", file)}
               onUseDefault={() => updateField("heroImageUrl", "")}
+              emptyStateText="No hero photo yet. The live site uses your brand colors on the hero until you upload one."
+              helperText="Optional. Without a hero photo, visitors see a branded gradient using your website colors."
             />
           </div>
         </SectionCard>
@@ -937,14 +964,14 @@ export default function WebsiteSettingsPanel({
                 label="Small Heading"
                 value={settings.servicesSectionHeading}
                 onChange={(value) => updateField("servicesSectionHeading", value)}
-                placeholder="Services"
+                placeholder="Our Services"
               />
 
               <TextField
                 label="Title"
                 value={settings.servicesSectionTitle}
                 onChange={(value) => updateField("servicesSectionTitle", value)}
-                placeholder="Services customers can ask about"
+                placeholder="Services We Offer"
               />
             </div>
 
@@ -952,7 +979,7 @@ export default function WebsiteSettingsPanel({
               label="Description"
               value={settings.servicesSectionDescription}
               onChange={(value) => updateField("servicesSectionDescription", value)}
-              placeholder="Explore common services and ask our AI receptionist about the one that fits your needs."
+              placeholder="Optional short intro about your services (leave blank for none)"
               rows={3}
             />
 
@@ -1025,7 +1052,7 @@ export default function WebsiteSettingsPanel({
                           onClick={() => updateService(service.id, { imageUrl: "" })}
                           className="saas-button-secondary mt-3 w-full px-4 py-2 text-sm font-medium"
                         >
-                          Use Default
+                          Remove image
                         </button>
                       ) : null}
                     </div>
@@ -1332,7 +1359,7 @@ export default function WebsiteSettingsPanel({
                 label="Body Text"
                 value={settings.aboutBody}
                 onChange={(value) => updateField("aboutBody", value)}
-                placeholder="Tell customers who you are, what you do, and why they should trust your business."
+                placeholder="Leave blank to use your business About text from onboarding"
                 rows={5}
               />
 
@@ -1378,8 +1405,9 @@ export default function WebsiteSettingsPanel({
             />
 
             <p className="rounded-xl border border-stone-200 bg-stone-50 px-3 py-2 text-sm text-gray-600">
-              Review management is coming later. The website currently shows sample
-              review placeholders.
+              Real customer reviews are not connected yet. The public website hides
+              this section until review content is available — it will not show
+              sample testimonials.
             </p>
           </div>
         </SectionCard>

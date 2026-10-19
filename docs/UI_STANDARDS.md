@@ -31,9 +31,19 @@ Project Gallery should evolve to multiple images per project while retaining pro
 
 ## Brand colors
 
-The builder currently stores primary and accent colors, but many public classes remain hardcoded. The target standard is that tenant brand controls produce a coherent public theme across headings, CTA surfaces, hover states, checkmarks/badges, and other brand accents without sacrificing readability/accessibility.
+Website settings store **primary** and **accent** colors (with optional legacy `tenant.primaryColor` fallback for primary). On the hosted site, **primary** is the dominant brand (primary CTAs, section eyebrows, hero treatment, launcher, check icons). **Accent** is supporting only (soft secondary button fills, subtle hero glow, small labels such as chat “Ready to help,” composer border in chat).
 
-Avoid simply replacing every neutral color with a tenant brand color. Keep neutral text/background hierarchy and apply brand tokens intentionally.
+Avoid replacing every neutral with brand color. Keep navigation, body copy, and secondary actions such as Call Now neutral unless there is a deliberate branded reason.
+
+## Website content precedence (F1)
+
+Public hosted copy follows: **website-specific override → tenant/business field (Wizard) → restrained generic fallback**. Hero headline uses `websiteSettings.heroHeadline` else `tenant.tagline`; hero description uses override else `tenant.aboutUs`; About body uses override else `tenant.aboutUs`. No AI generation at render time.
+
+Do not show fictional sample reviews on the public site. Omit the reviews section until real review data exists.
+
+Do not show development-style image placeholders on the public site; use text-first layouts when no image is configured.
+
+Tenant-facing website image controls must not imply stock/default images exist when they do not (use “No custom image yet…” / “Remove image”).
 
 ## Public website
 
