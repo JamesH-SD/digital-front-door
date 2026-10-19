@@ -58,6 +58,7 @@ The public route:
 - enforces website publication unless preview mode is used
 - supports embedded chat
 - passes source/campaign/campaign-asset attribution to the chat experience
+- maps the full tenant row to **`PublicTenant`** / **`PublicChatTenant`** (`lib/website/publicTenant.ts`) before client components — private street address is omitted unless `showBusinessAddressPublicly`
 - renders `TenantWebsite` for the normal public page
 
 A future `tenant.getcontactor.com` subdomain model is planned but is not implemented in the reviewed code snapshot.
@@ -94,7 +95,8 @@ Billing UI and Stripe integration routes are present. The admin UI represents tr
 - Supabase: auth/data/storage
 - Google Calendar/OAuth: calendar connection and appointment flow. OAuth redirect URI should target `GET /api/calendar/google/callback`; shared handler also serves legacy tenant-path callbacks. State carries `tenantSlug` + validated internal `returnTo`.
 - **Tenant Admin API auth (E1):** `lib/auth/requireTenantAccess.ts` gates tenant-scoped Admin APIs; `lib/auth/requireLeadAccess.ts` gates authenticated lead admin routes and AI lead tools. `POST /api/leads/[leadId]/images` stays public for chat uploads with server-side tenant path binding. Customer chat and other public entry routes remain intentionally unauthenticated at the HTTP layer.
-- **Hosted website presentation (F1/F2):** `TenantWebsite` resolves copy/branding via `lib/website/resolveTenantWebsitePresentation.ts`, services section via `resolveWebsiteServicesSection.ts`, and public truth helpers (`formatBusinessHours`, `getPublicFaqs`, `getPublicTrustLabels`, `getPublicWebsiteServices`). Business Identity remains canonical for hours, contact, and service area; `websiteSettings` holds presentation overrides and section visibility.
+- **Hosted website presentation (F1/F2/F3B):** `TenantWebsite` resolves copy/branding via `lib/website/resolveTenantWebsitePresentation.ts`, services section via `resolveWebsiteServicesSection.ts`, and public truth helpers (`formatBusinessHours`, `getPublicFaqs`, `getPublicTrustLabels`, `getPublicWebsiteServices`). Business Identity remains canonical for hours, contact, and service area; `websiteSettings` holds presentation overrides and section visibility. **F3B:** no map; optional public address via `showBusinessAddressPublicly`.
+- **Receptionist address privacy (F3):** `lib/ai/buildReceptionistTenantContext.ts` omits structured Business Identity street address from receptionist tenant context when `shareBusinessAddressInChat !== true`. Does not redact tenant-authored Knowledge Base content.
 - Stripe: subscription billing
 - Twilio/SMS notification support in library code
 - Resend/email configuration is referenced by project environment/deployment material but full production verification is outside this code-only snapshot

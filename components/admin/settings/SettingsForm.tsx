@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { useRouter } from "next/navigation";
 import type { Tenant } from "@/lib/types/tenant";
 import ToastMessage from "@/components/ui/ToastMessage";
 import QRCode from "qrcode";
@@ -184,12 +185,13 @@ function createInitialFormState(tenant: Tenant) {
     outOfAreaMessage: tenant.outOfAreaMessage || "",
     addressLine2: tenant.addressLine2 || "",
     country: tenant.country || "United States",
-    serviceRadiusMiles: tenant.serviceRadiusMiles || 25,
+    serviceRadiusMiles: tenant.serviceRadiusMiles ?? null,
     excludedServiceCities: (tenant.excludedServiceCities || []).join("\n"),
 
     licenseNumber: tenant.licenseNumber || "",
     isInsured: tenant.isInsured ?? false,
     shareBusinessAddressInChat: tenant.shareBusinessAddressInChat ?? false,
+    showBusinessAddressPublicly: tenant.showBusinessAddressPublicly ?? false,
 
     servicesOffered: (tenant.servicesOffered || []).join("\n"),
 
@@ -395,6 +397,7 @@ export default function SettingsForm({
   initialTab = "businessIdentity",
   showTabs = true,
 }: SettingsFormProps) {
+  const router = useRouter();
   const [toast, setToast] = useState<ToastState>(null);
 
   const [calendarStatus, setCalendarStatus] =
@@ -529,7 +532,13 @@ export default function SettingsForm({
           nextStepMessage: form.nextStepMessage,
           serviceCities: parseLinesToArray(form.serviceCities),
           excludedServiceCities: parseLinesToArray(form.excludedServiceCities),
-          serviceRadiusMiles: Number(form.serviceRadiusMiles || 25),
+          serviceRadiusMiles:
+            form.serviceRadiusMiles === null ||
+            form.serviceRadiusMiles === undefined
+              ? null
+              : Number(form.serviceRadiusMiles),
+          showBusinessAddressPublicly: form.showBusinessAddressPublicly,
+          shareBusinessAddressInChat: form.shareBusinessAddressInChat,
           servicesOffered: parseLinesToArray(form.servicesOffered),
           hours: form.hours,
         }),
@@ -550,6 +559,8 @@ export default function SettingsForm({
         message: "Settings saved.",
         variant: "success",
       });
+
+      router.refresh();
     } catch (error) {
       console.error(error);
 
@@ -884,6 +895,7 @@ export default function SettingsForm({
             excludedServiceCities: form.excludedServiceCities,
             outOfAreaMessage: form.outOfAreaMessage,
             shareBusinessAddressInChat: form.shareBusinessAddressInChat,
+            showBusinessAddressPublicly: form.showBusinessAddressPublicly,
           }}
           isEditing={editingSections.locationServiceArea}
           isSaving={savingSections.locationServiceArea}

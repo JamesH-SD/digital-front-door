@@ -54,8 +54,8 @@ Tenant-facing website image controls must not imply stock/default images exist w
 - Website should function as a trust-building front door, not merely a chat launcher.
 - The AI receptionist should be prominent but should not prevent a visitor from reading business information.
 - Contextual CTAs should carry context into AI when relevant.
-- Service area presentation should support a real map when appropriate while preserving readable city/service-area information.
-- Footer should contain useful business/contact information; map/location should no longer remain a placeholder once Maps is implemented.
+- **F3B service area:** Public hosted site shows Business Identity summary and/or city list; optional formatted street address only when **`showBusinessAddressPublicly`** is enabled in Service Area settings. Maps/geocoding are parked post–V1.
+- Footer should contain useful business/contact information (phone, email, service-area text, optional public address).
 
 ## Copy
 

@@ -1,4 +1,5 @@
-import type { Tenant, TenantWebsiteSettings } from "@/lib/types/tenant";
+import type { TenantWebsiteSettings } from "@/lib/types/tenant";
+import type { PublicTenant } from "@/lib/website/publicTenant";
 
 const DEFAULT_PRIMARY = "#1F3B4D";
 const DEFAULT_ACCENT = "#4E9271";
@@ -18,7 +19,7 @@ function trimOrEmpty(value?: string | null): string {
 /**
  * Website-specific override → tenant/business truth → restrained generic fallback.
  */
-export function resolveWebsiteHeroHeadline(tenant: Tenant): string {
+export function resolveWebsiteHeroHeadline(tenant: PublicTenant): string {
   const settings = tenant.websiteSettings || {};
   const override = trimOrEmpty(settings.heroHeadline);
   if (override) return override;
@@ -29,7 +30,7 @@ export function resolveWebsiteHeroHeadline(tenant: Tenant): string {
   return `${tenant.businessName}${GENERIC_HERO_HEADLINE_SUFFIX}`;
 }
 
-export function resolveWebsiteHeroDescription(tenant: Tenant): string {
+export function resolveWebsiteHeroDescription(tenant: PublicTenant): string {
   const settings = tenant.websiteSettings || {};
   const override = trimOrEmpty(settings.heroDescription);
   if (override) return override;
@@ -40,7 +41,7 @@ export function resolveWebsiteHeroDescription(tenant: Tenant): string {
   return GENERIC_HERO_DESCRIPTION;
 }
 
-export function resolveWebsiteAboutBody(tenant: Tenant): string {
+export function resolveWebsiteAboutBody(tenant: PublicTenant): string {
   const settings = tenant.websiteSettings || {};
   const override = trimOrEmpty(settings.aboutBody);
   if (override) return override;
@@ -98,7 +99,7 @@ function darkenHex(hex: string, amount: number): string {
 }
 
 export function resolveWebsiteBrandColors(
-  tenant: Tenant,
+  tenant: PublicTenant,
   settings: TenantWebsiteSettings = tenant.websiteSettings || {}
 ): TenantWebsiteBrandColors {
   const primary = normalizeHex(
@@ -127,7 +128,7 @@ export function resolveWebsiteBrandColors(
 }
 
 /** For verification — hero headline resolves from tenant tagline (no website override). */
-export function websiteHeroUsesTenantTagline(tenant: Tenant): boolean {
+export function websiteHeroUsesTenantTagline(tenant: PublicTenant): boolean {
   const settings = tenant.websiteSettings || {};
   if (trimOrEmpty(settings.heroHeadline)) {
     return false;
@@ -136,7 +137,7 @@ export function websiteHeroUsesTenantTagline(tenant: Tenant): boolean {
 }
 
 /** For verification — about body resolves from tenant aboutUs (no website override). */
-export function websiteAboutUsesTenantAbout(tenant: Tenant): boolean {
+export function websiteAboutUsesTenantAbout(tenant: PublicTenant): boolean {
   const settings = tenant.websiteSettings || {};
   if (trimOrEmpty(settings.aboutBody)) {
     return false;

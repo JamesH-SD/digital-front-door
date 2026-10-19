@@ -243,7 +243,8 @@ The tenant should answer understandable business questions while Contactor trans
 - **F1:** Hosted public site uses website override → tenant `tagline` / `aboutUs` for hero and About; brand primary/accent via scoped CSS variables on `TenantWebsite`; logo upload in website brand settings; no fictional public reviews; text-first layouts when images are missing.
 - **F2:** Business hours render from Business Identity (`tenant.hours`) with website show/hide; footer phone/email use `tel:`/`mailto:`; trust bar and FAQs avoid template filler; optional sections hide when empty; service area uses Business Identity cities/summary.
 - **F2.1:** **Project Gallery** appears in the Website setup grid (across from Services); links to `/admin/.../website/project-gallery`; optional (**Added** / **Optional** badges); excluded from the 9-essential readiness %.
-- Full theme engine, fonts, arbitrary CSS, stock images, maps, and real review sources remain future work.
+- **F3B:** Hosted public routes use `buildPublicTenantView()` / `buildPublicChatTenant()` so private street address is not serialized to the browser by default. **`showBusinessAddressPublicly`** (BI Service Area) controls optional address on the hosted website; **`shareBusinessAddressInChat`** controls whether the **structured** Business Identity street address is included in receptionist tenant context (data minimization when off; KB content is separate). V1 service-area truth: `serviceAreaSummary` + optional `serviceCities` (no map/geocoding). Maps/geocoding parked.
+- Full theme engine, fonts, arbitrary CSS, stock images, **maps/geocoding**, and real review sources remain future work.
 
 Desired direction:
 
@@ -277,17 +278,14 @@ The customer should not need to explain which project they clicked.
 
 Current:
 
-- Service-area summary
-- Address fields
-- Cities
-- Radius-related configuration
-- Public service-city list
-- Footer/location placeholder
+- Service-area summary and optional **Public Website Cities** (Business Identity)
+- Optional public street address when **`showBusinessAddressPublicly`** is enabled
+- **`serviceRadiusMiles`** stored if tenant sets it (internal reference; not shown publicly; not used by AI today)
+- Public hosted website: text/list service-area section + footer summary (no map)
 
-Not implemented:
+Parked (post–V1):
 
-- Full Google Maps presentation
-- Map-based service-area experience
+- Maps, geocoding, automatic geographic coverage, radius visualization
 
 ---
 

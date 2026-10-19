@@ -2,6 +2,7 @@ import { notFound } from "next/navigation";
 import { getTenantBySlug } from "@/lib/db/tenants";
 import { getCampaignByQrSlug } from "@/lib/db/campaigns";
 import { TenantWebsite } from "@/components/tenant/TenantWebsite";
+import { buildPublicTenantView } from "@/lib/website/publicTenant";
 
 type PageProps = {
   params: Promise<{
@@ -46,7 +47,7 @@ export default async function CampaignPage({ params }: PageProps) {
 
   return (
     <TenantWebsite
-      tenant={tenant}
+      tenant={buildPublicTenantView(tenant)}
       leadSource="campaign"
       campaignId={campaign.id}
       autoOpenChat

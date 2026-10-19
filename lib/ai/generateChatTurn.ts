@@ -5,6 +5,7 @@ import { formatTenantKnowledgeForPrompt } from "@/lib/knowledge/formatTenantKnow
 import type { TenantKnowledgeItem } from "@/lib/types/tenant-knowledge";
 import { getTenantConfig } from "@/lib/config/getTenantConfig";
 import { getBookingFlowConfig } from "@/lib/config/getBookingFlowConfig";
+import { buildReceptionistLocationContextLines } from "@/lib/ai/buildReceptionistTenantContext";
 
 type ChatFieldUpdates = {
   projectType?: string;
@@ -28,7 +29,7 @@ export type GenerateChatTurnResult =
       updates?: ChatFieldUpdates;
     };
 
-function buildKnownContext(session: ChatSession, tenant: Tenant) {
+export function buildKnownContext(session: ChatSession, tenant: Tenant) {
   const intake = session.intakeData || {};
 
   const tenantConfig = getTenantConfig(tenant);
@@ -38,12 +39,7 @@ function buildKnownContext(session: ChatSession, tenant: Tenant) {
     .filter((field) => field.required && field.phase === "pre_lead")
     .map((field) => field.label);
 
-  const businessAddress = tenant.addressLine1
-    ? `${tenant.addressLine1}, ${tenant.city || ""}, ${tenant.state || ""} ${tenant.zip || ""}`
-        .replace(/\s+/g, " ")
-        .replace(/\s+,/g, ",")
-        .trim()
-    : "Not provided";
+  const locationLines = buildReceptionistLocationContextLines(tenant);
 
   return [
     `Business Name: ${tenant.businessName || "Unknown"}`,
@@ -52,24 +48,13 @@ function buildKnownContext(session: ChatSession, tenant: Tenant) {
     `Primary Phone: ${tenant.primaryPhone || "Not provided"}`,
     `Business Email: ${tenant.email || "Not provided"}`,
     `Website URL: ${tenant.websiteUrl || "Not provided"}`,
-    `Business Address: ${businessAddress}`,
-    `Business City: ${tenant.city || "Not provided"}`,
-    `Business State: ${tenant.state || "Not provided"}`,
-    `Service Area Summary: ${tenant.serviceAreaSummary || "Not provided"}`,
-    `Service Cities: ${(tenant.serviceCities || []).join(", ") || "Not provided"}`,
+    ...locationLines,
     `Services Offered: ${(tenant.servicesOffered || []).join(", ") || "Not provided"}`,
     `Business Hours: ${tenant.hours ? JSON.stringify(tenant.hours) : "Not provided"}`,
     `License Number: ${tenant.licenseNumber || "Not provided"}`,
     `Is Insured: ${
       typeof tenant.isInsured === "boolean"
         ? tenant.isInsured
-          ? "yes"
-          : "no"
-        : "unknown"
-    }`,
-    `Share Business Address In Chat: ${
-      typeof tenant.shareBusinessAddressInChat === "boolean"
-        ? tenant.shareBusinessAddressInChat
           ? "yes"
           : "no"
         : "unknown"
@@ -410,9 +395,9 @@ Tenant Context is the source of truth for business facts.
 - If the customer asks for business details that exist in Tenant Context, always answer directly using that data.
 - If Is Insured is "yes" and the customer asks whether the business is insured, answer yes directly.
 - If Is Insured is "no" and the customer asks whether the business is insured, answer no directly and briefly.
-- If Share Business Address In Chat is "yes" and a Business Address is present, provide the actual address when the customer directly asks for the address or physical location.
-- If Share Business Address In Chat is not "yes", do not reveal the full street address unless explicitly allowed by context.
-- If the customer asks where the business is located and full address sharing is allowed, it is okay to provide the full address directly instead of making them ask again.
+- If Business Address is present in Tenant Context, provide it when the customer directly asks for the business street address or physical location.
+- If Business Address is NOT present in Tenant Context, do not invent or disclose a street address. For service-area questions, use Service Area Summary and Service Cities. Offer phone follow-up if they need exact location details you do not have.
+- If the customer asks where the business is located and Business Address is in Tenant Context, you may provide the full address directly.
 - If the customer asks for the business phone number and Primary Phone is present, provide it directly.
 - If the customer asks for the business email and Business Email is present, provide it directly.
 

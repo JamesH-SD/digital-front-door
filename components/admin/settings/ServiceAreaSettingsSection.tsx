@@ -9,11 +9,12 @@ type Props = {
     zip: string;
     country: string;
     serviceAreaSummary: string;
-    serviceRadiusMiles: number;
+    serviceRadiusMiles: number | null;
     serviceCities: string;
     excludedServiceCities: string;
     outOfAreaMessage: string;
     shareBusinessAddressInChat: boolean;
+    showBusinessAddressPublicly: boolean;
   };
   isEditing: boolean;
   isSaving: boolean;
@@ -37,6 +38,8 @@ export default function ServiceAreaSettingsSection({
   onCancel,
   onSave,
 }: Props) {
+  const radiusPresets = [10, 25, 50, 75, 100];
+
   return (
     <section className="rounded-2xl border border-stone-200/50 bg-white/90 p-5 shadow-[0_8px_24px_rgba(17,24,39,0.045)]">
       <SettingsSectionHeader
@@ -55,7 +58,8 @@ export default function ServiceAreaSettingsSection({
                 Business Address
               </h3>
               <p className="mt-1 text-xs leading-5 text-gray-500">
-                This is the business location used as the center point for the service area.
+                Your business location on file. It is not shown on the public
+                website unless you enable that below.
               </p>
             </div>
 
@@ -110,73 +114,137 @@ export default function ServiceAreaSettingsSection({
                 onChange={(value) => onChange({ country: value })}
               />
             </div>
+
+            <div className="mt-4 space-y-3">
+              {isEditing ? (
+                <>
+                  <label className="flex items-start gap-2 rounded-xl border border-stone-200 bg-white px-3 py-2 text-sm text-gray-700">
+                    <input
+                      type="checkbox"
+                      className="mt-0.5"
+                      checked={form.showBusinessAddressPublicly}
+                      onChange={(e) =>
+                        onChange({
+                          showBusinessAddressPublicly: e.target.checked,
+                        })
+                      }
+                    />
+                    <span>
+                      <span className="font-medium text-gray-900">
+                        Show this business address on my public website
+                      </span>
+                      <span className="mt-1 block text-xs leading-5 text-gray-500">
+                        Enable only if customers can visit this location or you
+                        want this address displayed publicly on your hosted
+                        website.
+                      </span>
+                    </span>
+                  </label>
+
+                  <label className="flex items-start gap-2 rounded-xl border border-stone-200 bg-white px-3 py-2 text-sm text-gray-700">
+                    <input
+                      type="checkbox"
+                      className="mt-0.5"
+                      checked={form.shareBusinessAddressInChat}
+                      onChange={(e) =>
+                        onChange({
+                          shareBusinessAddressInChat: e.target.checked,
+                        })
+                      }
+                    />
+                    <span>
+                      <span className="font-medium text-gray-900">
+                        Share this address in AI chat when customers ask
+                      </span>
+                      <span className="mt-1 block text-xs leading-5 text-gray-500">
+                        Controls the AI receptionist only. Independent from the
+                        public website setting above.
+                      </span>
+                    </span>
+                  </label>
+                </>
+              ) : (
+                <>
+                  <div className="rounded-xl border border-stone-200 bg-white px-3 py-2 text-sm">
+                    <span className="font-medium text-gray-700">
+                      Show on public website:
+                    </span>{" "}
+                    {form.showBusinessAddressPublicly ? "Yes" : "No"}
+                  </div>
+                  <div className="rounded-xl border border-stone-200 bg-white px-3 py-2 text-sm">
+                    <span className="font-medium text-gray-700">
+                      Share in AI chat when asked:
+                    </span>{" "}
+                    {form.shareBusinessAddressInChat ? "Yes" : "No"}
+                  </div>
+                </>
+              )}
+            </div>
           </div>
 
           <div className="rounded-2xl border border-stone-200 bg-white p-4 shadow-sm">
             <div className="mb-4">
-            <h3 className="text-sm font-semibold text-gray-950">
+              <h3 className="text-sm font-semibold text-gray-950">
                 Service Radius
-                </h3>
-                <p className="mt-1 text-xs leading-5 text-gray-500">
-                Internal rule used by the AI receptionist and future address validation. The public website still uses the service area summary and included cities below.
-                </p>
+              </h3>
+              <p className="mt-1 text-xs leading-5 text-gray-500">
+                Optional note for your records. Contactor does not validate
+                customer locations against this radius today, and it is not shown
+                on the public website.
+              </p>
             </div>
 
             {isEditing ? (
               <div className="mt-4 space-y-5">
-              <div className="grid grid-cols-2 gap-3 md:grid-cols-5">
-                {[10, 25, 50, 75, 100].map((radius) => (
-                  <button
-                    key={radius}
-                    type="button"
-                    disabled={!isEditing}
-                    onClick={() =>
-                      onChange({
-                        serviceRadiusMiles: radius,
-                      })
-                    }
-                    className={`rounded-xl border px-4 py-3 text-sm font-semibold transition ${
-                      Number(form.serviceRadiusMiles) === radius
-                        ? "border-orange-700 bg-orange-700 text-white"
-                        : "border-stone-200 bg-white text-gray-700 hover:border-orange-200 hover:bg-orange-50"
-                    }`}
-                  >
-                    {radius} mi
-                  </button>
-                ))}
-              </div>
-            
-              <div className="rounded-2xl border border-dashed border-stone-300 bg-stone-50 p-6">
-                <div className="flex items-center justify-between">
-                  <span className="text-sm font-medium text-gray-700">
-                    Current Service Radius
-                  </span>
-            
-                  <span className="rounded-full bg-orange-100 px-3 py-1 text-sm font-semibold text-orange-700">
-                    {form.serviceRadiusMiles || 25} miles
-                  </span>
+                <div className="grid grid-cols-2 gap-3 md:grid-cols-5">
+                  {radiusPresets.map((radius) => (
+                    <button
+                      key={radius}
+                      type="button"
+                      disabled={!isEditing}
+                      onClick={() =>
+                        onChange({
+                          serviceRadiusMiles: radius,
+                        })
+                      }
+                      className={`rounded-xl border px-4 py-3 text-sm font-semibold transition ${
+                        form.serviceRadiusMiles === radius
+                          ? "border-orange-700 bg-orange-700 text-white"
+                          : "border-stone-200 bg-white text-gray-700 hover:border-orange-200 hover:bg-orange-50"
+                      }`}
+                    >
+                      {radius} mi
+                    </button>
+                  ))}
                 </div>
-            
-                <div className="mt-4 h-4 rounded-full bg-stone-200">
-                  <div
-                    className="h-4 rounded-full bg-orange-700 transition-all"
-                    style={{
-                      width: `${Math.min(
-                        ((form.serviceRadiusMiles || 25) / 100) * 100,
-                        100
-                      )}%`,
-                    }}
-                  />
+
+                <button
+                  type="button"
+                  onClick={() => onChange({ serviceRadiusMiles: null })}
+                  className="text-sm font-semibold text-gray-600 underline-offset-2 hover:text-orange-700 hover:underline"
+                >
+                  Clear service radius
+                </button>
+
+                <div className="rounded-2xl border border-dashed border-stone-300 bg-stone-50 p-6">
+                  <div className="flex items-center justify-between">
+                    <span className="text-sm font-medium text-gray-700">
+                      Selected service radius
+                    </span>
+
+                    <span className="rounded-full bg-orange-100 px-3 py-1 text-sm font-semibold text-orange-700">
+                      {form.serviceRadiusMiles != null
+                        ? `${form.serviceRadiusMiles} miles`
+                        : "Not set"}
+                    </span>
+                  </div>
                 </div>
-            
-                <p className="mt-3 text-xs text-gray-500">
-                  Future enhancement: interactive map and radius drawing.
-                </p>
               </div>
-            </div>
             ) : (
               <div className="rounded-xl border border-stone-200 bg-white px-3 py-2 text-sm">
-                {form.serviceRadiusMiles || 25} miles from business address
+                {form.serviceRadiusMiles != null
+                  ? `${form.serviceRadiusMiles} miles (internal reference only)`
+                  : "Not set"}
               </div>
             )}
           </div>
@@ -188,7 +256,8 @@ export default function ServiceAreaSettingsSection({
               Service Area Summary
             </h3>
             <p className="mt-1 text-xs leading-5 text-gray-500">
-              This is the plain-language version shown to customers and used by the AI receptionist.
+              Plain-language service area shown on the public website and used by
+              the AI receptionist.
             </p>
 
             <div className="mt-4">
@@ -200,30 +269,6 @@ export default function ServiceAreaSettingsSection({
                 onChange={(value) => onChange({ serviceAreaSummary: value })}
               />
             </div>
-
-            <div className="mt-4">
-              {isEditing ? (
-                <label className="flex items-center gap-2 rounded-xl border border-stone-200 bg-white px-3 py-2 text-sm text-gray-700">
-                  <input
-                    type="checkbox"
-                    checked={form.shareBusinessAddressInChat}
-                    onChange={(e) =>
-                      onChange({
-                        shareBusinessAddressInChat: e.target.checked,
-                      })
-                    }
-                  />
-                  Share business address in chat
-                </label>
-              ) : (
-                <div className="rounded-xl border border-stone-200 bg-white px-3 py-2 text-sm">
-                  <span className="font-medium text-gray-700">
-                    Share address in chat:
-                  </span>{" "}
-                  {form.shareBusinessAddressInChat ? "Yes" : "No"}
-                </div>
-              )}
-            </div>
           </div>
 
           <div className="rounded-2xl border border-stone-200 bg-white p-4 shadow-sm">
@@ -231,7 +276,8 @@ export default function ServiceAreaSettingsSection({
               Advanced Area Rules
             </h3>
             <p className="mt-1 text-xs leading-5 text-gray-500">
-              Optional. Use these only when the radius needs manual exceptions.
+              Optional lists stored for future use. They are not used by the AI
+              receptionist or public website today.
             </p>
 
             <div className="mt-4 space-y-4">
@@ -247,7 +293,7 @@ export default function ServiceAreaSettingsSection({
                 label="Excluded Cities"
                 value={form.excludedServiceCities}
                 isEditing={isEditing}
-                placeholder="One city per line. These cities are AI Excluded Cities"
+                placeholder="One city per line (stored for future use)"
                 onChange={(value) =>
                   onChange({ excludedServiceCities: value })
                 }
@@ -258,7 +304,7 @@ export default function ServiceAreaSettingsSection({
                 value={form.outOfAreaMessage}
                 isEditing={isEditing}
                 rows={3}
-                placeholder="Message to use when a request is outside the normal service area"
+                placeholder="Message for future out-of-area handling (not used yet)"
                 onChange={(value) => onChange({ outOfAreaMessage: value })}
               />
             </div>
@@ -332,7 +378,7 @@ function TextAreaField({
           placeholder={placeholder}
         />
       ) : (
-        <div className="mt-1 rounded-xl border border-stone-200 bg-white px-3 py-2 text-sm whitespace-pre-wrap">
+        <div className="mt-1 whitespace-pre-wrap rounded-xl border border-stone-200 bg-white px-3 py-2 text-sm">
           {displayValue(value)}
         </div>
       )}

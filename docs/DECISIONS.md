@@ -682,3 +682,22 @@ Tenant Setup Readiness answers: **“Can this part of Contactor do its job?”**
 **Contact:** Phone/email on the public site use Business Identity fields with `tel:` / `mailto:`; no duplicate contact fields in website settings.
 
 **Service area:** Cities/summary from Business Identity; website settings control presentation/visibility only (map remains future work).
+
+---
+
+## D-035 — Service area V1 & address privacy (Phase F3B)
+
+**Status:** Active as of 2026-09-23 (Phase F3B)
+
+**V1 service-area truth:** `serviceAreaSummary` plus optional manual `serviceCities`. No maps, geocoding, or automatic geographic generation in V1.
+
+**Four concepts (independent where noted):**
+
+1. **Operational Business Identity address** — stored address fields on the tenant record.
+2. **`showBusinessAddressPublicly`** — permission to show formatted street address on the hosted public website (`publicBusinessAddress` in `PublicTenant` only when true).
+3. **`shareBusinessAddressInChat`** — permission to include the **structured** Business Identity street address in customer-facing receptionist tenant context. Only **`=== true`** enables sharing; false/null/undefined are off. Enforced by **data minimization** (`buildReceptionistLocationContextLines` / `buildKnownContext` / post-capture tenant context), not prompt-only instructions. Service area summary and service cities remain in context when address sharing is off.
+4. **Tenant-authored Knowledge Base content** — separate from the structured BI checkbox. Contactor does **not** treat `shareBusinessAddressInChat` as a global redaction system for arbitrary KB text.
+
+**Public boundary:** Hosted public routes build `PublicTenant` / `PublicChatTenant` — private street fields omitted unless public website permission is true.
+
+**Admin persistence:** Sharing flags PATCH with strict `=== true` coercion; Service Area save refreshes read-only display after save.

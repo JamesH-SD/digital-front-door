@@ -3,6 +3,10 @@ import type { Metadata } from "next";
 import { getTenantBySlug } from "@/lib/db/tenants";
 import { ChatWidget } from "@/components/chat/ChatWidget";
 import { TenantWebsite } from "@/components/tenant/TenantWebsite";
+import {
+  buildPublicChatTenant,
+  buildPublicTenantView,
+} from "@/lib/website/publicTenant";
 
 type PageProps = {
   params: Promise<{
@@ -70,7 +74,7 @@ export default async function TenantPage({ params, searchParams }: PageProps) {
     return (
       <main className="h-screen w-screen overflow-hidden bg-white p-3">
         <ChatWidget
-          tenant={tenant}
+          tenant={buildPublicChatTenant(tenant)}
           autoOpen
           leadSource={leadSource}
           campaignId={campaignId}
@@ -99,7 +103,7 @@ export default async function TenantPage({ params, searchParams }: PageProps) {
 
   return (
     <TenantWebsite
-      tenant={tenant}
+      tenant={buildPublicTenantView(tenant)}
       leadSource={leadSource}
       campaignId={campaignId}
       campaignAssetId={campaignAssetId}

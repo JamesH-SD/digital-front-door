@@ -130,7 +130,9 @@ export type Tenant = {
   excludedServiceCities?: string[];
   outOfAreaMessage?: string;
   isInsured?: boolean;
-  shareBusinessAddressInChat?: boolean; 
+  shareBusinessAddressInChat?: boolean;
+  /** When true, hosted website may display the business street address. Independent of chat sharing. */
+  showBusinessAddressPublicly?: boolean;
 
   // ===============================
   // GBP_COMPATIBLE: Business Profile

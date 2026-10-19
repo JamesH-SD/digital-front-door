@@ -2,14 +2,14 @@
 
 import { useEffect, useMemo, useRef, useState } from "react";
 import { Plus } from "lucide-react";
-import { Tenant } from "@/lib/types/tenant";
+import type { PublicChatTenant } from "@/lib/website/publicTenant";
 import { ChatMessage, IntakeStep } from "@/lib/types/chat";
 import type { LeadImage } from "@/lib/types/lead";
 import ChatSchedulingPicker from "@/components/chat/ChatSchedulingPicker";
 import type { SchedulingState } from "@/lib/types/chat";
 
 type Props = {
-  tenant: Tenant;
+  tenant: PublicChatTenant;
   autoOpen?: boolean;
   leadSource?: string;
   campaignId?: string;

@@ -2,6 +2,11 @@
 
 This is a lightweight context changelog, not a substitute for Git history.
 
+## 2026-09-23 — Service area privacy & public address (Phase F3B)
+
+- Public hosted routes use a public-safe tenant DTO; **`showBusinessAddressPublicly`** for optional website address; independent chat sharing; service radius no longer defaults to 25 mi on save; maps/geocoding parked.
+- Receptionist: omit structured Business Identity street address from AI context when **`shareBusinessAddressInChat`** is false (`buildReceptionistTenantContext`).
+
 ## 2026-09-23 — Project Gallery admin discoverability (Phase F2.1)
 
 - **Project Gallery** row in Website setup grid (optional; **Added**/**Optional**); links to existing editor; readiness remains 9 essentials.

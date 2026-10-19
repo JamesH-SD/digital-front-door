@@ -1,9 +1,9 @@
-import type { Tenant } from "@/lib/types/tenant";
+import type { PublicTenant } from "@/lib/website/publicTenant";
 
 /**
  * Trust bar labels backed by stored tenant facts only (no template filler).
  */
-export function getPublicTrustLabels(tenant: Tenant): string[] {
+export function getPublicTrustLabels(tenant: PublicTenant): string[] {
   const labels: string[] = [];
 
   if (tenant.licenseNumber?.trim()) {

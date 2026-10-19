@@ -28,11 +28,14 @@ import {
   FaYelp,
   FaGoogle,
 } from "react-icons/fa";
-import type { Tenant } from "@/lib/types/tenant";
+import {
+  buildPublicChatTenant,
+  type PublicTenant,
+} from "@/lib/website/publicTenant";
 import { ChatWidget } from "@/components/chat/ChatWidget";
 
 type Props = {
-  tenant: Tenant;
+  tenant: PublicTenant;
   leadSource: string;
   campaignId?: string;
   campaignAssetId?: string;
@@ -50,7 +53,7 @@ function formatEmailHref(email?: string) {
   return `mailto:${email.trim()}`;
 }
 
-function getProjectGallery(tenant: Tenant) {
+function getProjectGallery(tenant: PublicTenant) {
   const gallery = tenant.websiteSettings?.projectGallery || [];
 
   return gallery.filter(
@@ -690,6 +693,13 @@ export function TenantWebsite({
                 {tenant.serviceAreaSummary.trim()}
               </p>
             ) : null}
+
+            {tenant.publicBusinessAddress ? (
+              <p className="mx-auto mt-6 max-w-2xl text-sm leading-6 text-gray-600">
+                <span className="font-semibold text-gray-800">Business location: </span>
+                {tenant.publicBusinessAddress}
+              </p>
+            ) : null}
           </div>
         </section>
       ) : null}
@@ -848,6 +858,9 @@ export function TenantWebsite({
                   </a>
                 </p>
               ) : null}
+              {tenant.publicBusinessAddress ? (
+                <p>{tenant.publicBusinessAddress}</p>
+              ) : null}
               {tenant.serviceAreaSummary ? (
                 <p>Service Area: {tenant.serviceAreaSummary}</p>
               ) : null}
@@ -919,7 +932,7 @@ export function TenantWebsite({
 
             <div className="min-h-0 flex-1">
             <ChatWidget
-              tenant={tenant}
+              tenant={buildPublicChatTenant(tenant)}
               autoOpen
               leadSource={leadSource}
               campaignId={campaignId}

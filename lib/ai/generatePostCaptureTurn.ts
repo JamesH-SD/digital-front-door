@@ -9,6 +9,7 @@ import {
   formatConversationContextForPrompt,
 } from "@/lib/chat/buildConversationContext";
 import { getBookingFlowConfig } from "@/lib/config/getBookingFlowConfig";
+import { buildReceptionistLocationContextLines } from "@/lib/ai/buildReceptionistTenantContext";
 
 type PostCaptureUpdates = {
   email?: string;
@@ -56,13 +57,8 @@ function stripCodeFences(value: string) {
     .trim();
 }
 
-function buildTenantContext(tenant: Tenant) {
-  const businessAddress = tenant.addressLine1
-    ? `${tenant.addressLine1}, ${tenant.city || ""}, ${tenant.state || ""} ${tenant.zip || ""}`
-        .replace(/\\s+/g, " ")
-        .replace(/\\s+,/g, ",")
-        .trim()
-    : "Not provided";
+export function buildPostCaptureTenantContext(tenant: Tenant) {
+  const locationLines = buildReceptionistLocationContextLines(tenant);
 
   return [
     `Booking Type: ${tenant.bookingType || "consultation"}`,
@@ -71,12 +67,8 @@ function buildTenantContext(tenant: Tenant) {
     `Primary Category: ${tenant.primaryCategory || "Not provided"}`,
     `Business Phone: ${tenant.primaryPhone || "Not provided"}`,
     `Business Email: ${tenant.email || "Not provided"}`,
-    `Business Address: ${businessAddress}`,
+    ...locationLines,
     `Business Hours: ${tenant.hours ? JSON.stringify(tenant.hours) : "Not provided"}`,
-    `Business City: ${tenant.city || "Not provided"}`,
-    `Business State: ${tenant.state || "Not provided"}`,
-    `Service Area Summary: ${tenant.serviceAreaSummary || "Not provided"}`,
-    `Service Cities: ${(tenant.serviceCities || []).join(", ") || "Not provided"}`,
     `Services Offered: ${(tenant.servicesOffered || []).join(", ") || "Not provided"}`,
     `Greeting Message: ${tenant.greetingMessage || "Not provided"}`,
     `License Number: ${tenant.licenseNumber || "Not provided"}`,
@@ -87,14 +79,7 @@ function buildTenantContext(tenant: Tenant) {
           : "no"
         : "unknown"
     }`,
-    `Share Business Address In Chat: ${
-      typeof tenant.shareBusinessAddressInChat === "boolean"
-        ? tenant.shareBusinessAddressInChat
-          ? "yes"
-          : "no"
-        : "unknown"
-    }`,
-  ].join("\\n");
+  ].join("\n");
 }
 
 function buildLeadContext(lead: Lead) {
@@ -289,7 +274,7 @@ Appointment preparation behavior:
 - Otherwise, do not repeat the appointment details unnecessarily.
 
 Tenant Context:
-${buildTenantContext(tenant)}
+${buildPostCaptureTenantContext(tenant)}
 
 Additional Tenant Knowledge:
 ${tenantKnowledgeContext}
@@ -443,8 +428,8 @@ export async function generatePostCaptureTurn(input: {
       - If License Number is present and the customer asks whether we are licensed, answer yes directly.
       - If Is Insured is "yes" and the customer asks whether we are insured, answer yes directly.
       - If Is Insured is "no" and the customer asks whether we are insured, answer no directly.
-      - If Share Business Address In Chat is "yes" and Business Address is present, provide the full address when the customer asks for the address or physical location.
-      - If Share Business Address In Chat is not "yes", do not reveal the full street address unless explicitly allowed by context.
+      - If Business Address is present in Tenant Context, provide it when the customer asks for the business street address or physical location.
+      - If Business Address is NOT present in Tenant Context, do not invent or disclose a street address. Use Service Area Summary and Service Cities for service-area questions.
       - If the customer asks for the business phone number and Business Phone is present, provide it directly.
       - If the customer asks for the business email and Business Email is present, provide it directly.
 
@@ -580,7 +565,7 @@ export async function generatePostCaptureTurn(input: {
       - If the customer asks about "he", "she", "they", "him", or "her", use the recent conversation to resolve who they mean before answering.
 
       Tenant Context:
-      ${buildTenantContext(tenant)}
+      ${buildPostCaptureTenantContext(tenant)}
 
       Additional Tenant Knowledge:
       ${tenantKnowledgeContext}

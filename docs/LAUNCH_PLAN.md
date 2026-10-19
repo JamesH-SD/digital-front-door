@@ -41,7 +41,7 @@ Tasks:
 - Make `primaryColor` / `accentColor` drive public brand tokens consistently.
 - Verify service cards, FAQs, gallery, service areas, social links, and publishing behavior.
 - Decide how to handle Reviews for launch: real data/import, manual tenant entries, or hide the section by default. Do not ship fake/sample testimonials as if real.
-- Replace or intentionally hide the footer map placeholder until Maps is implemented.
+- Service area on the hosted website is text/cities (F3B); maps remain post–V1.
 - Test responsive/mobile behavior.
 
 ## Phase 4 — Security and tenant isolation audit

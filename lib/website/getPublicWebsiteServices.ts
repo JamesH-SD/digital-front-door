@@ -1,6 +1,7 @@
-import type { Tenant, TenantWebsiteService } from "@/lib/types/tenant";
+import type { TenantWebsiteService } from "@/lib/types/tenant";
+import type { PublicTenant } from "@/lib/website/publicTenant";
 
-export function getPublicWebsiteServices(tenant: Tenant): TenantWebsiteService[] {
+export function getPublicWebsiteServices(tenant: PublicTenant): TenantWebsiteService[] {
   const websiteServices = tenant.websiteSettings?.services || [];
 
   const enabledWebsiteServices = websiteServices.filter(
@@ -26,7 +27,7 @@ export function getPublicWebsiteServices(tenant: Tenant): TenantWebsiteService[]
   return [];
 }
 
-export function tenantHasPublicServiceAreaContent(tenant: Tenant): boolean {
+export function tenantHasPublicServiceAreaContent(tenant: PublicTenant): boolean {
   return Boolean(
     tenant.serviceCities?.some((city) => city.trim()) ||
       tenant.serviceAreaSummary?.trim()

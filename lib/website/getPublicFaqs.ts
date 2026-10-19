@@ -1,4 +1,4 @@
-import type { Tenant } from "@/lib/types/tenant";
+import type { PublicTenant } from "@/lib/website/publicTenant";
 
 export type PublicFaq = {
   question: string;
@@ -8,7 +8,7 @@ export type PublicFaq = {
 /**
  * Tenant-authored website FAQs plus a small set of fact-safe derived FAQs.
  */
-export function getPublicFaqs(tenant: Tenant): PublicFaq[] {
+export function getPublicFaqs(tenant: PublicTenant): PublicFaq[] {
   const websiteFaqs = tenant.websiteSettings?.faqs || [];
 
   const authored = websiteFaqs

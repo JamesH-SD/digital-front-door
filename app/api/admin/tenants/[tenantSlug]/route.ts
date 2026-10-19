@@ -49,7 +49,12 @@ export async function PATCH(request: Request, context: RouteContext) {
         zip: body.zip,
         country: body.country,
         service_area_summary: body.serviceAreaSummary,
-        service_radius_miles: body.serviceRadiusMiles,
+        service_radius_miles:
+          body.serviceRadiusMiles === null ||
+          body.serviceRadiusMiles === undefined ||
+          body.serviceRadiusMiles === ""
+            ? null
+            : Number(body.serviceRadiusMiles),
         service_cities: body.serviceCities,
         excluded_service_cities: body.excludedServiceCities,
         out_of_area_message: body.outOfAreaMessage,
@@ -61,7 +66,8 @@ export async function PATCH(request: Request, context: RouteContext) {
         about_us: body.aboutUs,
         license_number: body.licenseNumber,
         is_insured: body.isInsured,
-        share_business_address_in_chat: body.shareBusinessAddressInChat,
+        share_business_address_in_chat: body.shareBusinessAddressInChat === true,
+        show_business_address_publicly: body.showBusinessAddressPublicly === true,
 
         // ===============================
         // GBP_COMPATIBLE: Services + Hours

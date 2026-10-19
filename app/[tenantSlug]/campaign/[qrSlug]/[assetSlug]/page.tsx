@@ -3,6 +3,7 @@ import { getTenantBySlug } from "@/lib/db/tenants";
 import { getCampaignByQrSlug } from "@/lib/db/campaigns";
 import { getCampaignAssetBySlug } from "@/lib/db/campaign-asset";
 import { TenantWebsite } from "@/components/tenant/TenantWebsite";
+import { buildPublicTenantView } from "@/lib/website/publicTenant";
 
 type PageProps = {
   params: Promise<{
@@ -58,7 +59,7 @@ export default async function CampaignAssetPage({ params }: PageProps) {
 
   return (
     <TenantWebsite
-      tenant={tenant}
+      tenant={buildPublicTenantView(tenant)}
       leadSource={campaignAsset.source}
       campaignId={campaign.id}
       campaignAssetId={campaignAsset.id}
