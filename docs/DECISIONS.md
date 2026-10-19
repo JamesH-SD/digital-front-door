@@ -668,3 +668,17 @@ Tenant Setup Readiness answers: **“Can this part of Contactor do its job?”**
 **Images:** No stock-image system; missing images use intentional text-first layouts without dev placeholder copy.
 
 **Admin copy:** Website image fields describe empty state honestly (no implied default/stock image).
+
+---
+
+## D-034 — Hosted website V1 customization completion (Phase F2)
+
+**Status:** Active as of 2026-09-23 (Phase F2)
+
+**Hours:** Public Business Hours consume canonical `tenant.hours` from Business Identity; website settings control visibility/headings only (`showBusinessHours`).
+
+**Truthfulness:** Public trust bar, FAQs, and service cards must not use template filler or generic AI marketing copy. Trust labels require stored license/insured facts; FAQs are tenant-authored website entries or a small fact-safe derived set; empty optional sections do not render.
+
+**Contact:** Phone/email on the public site use Business Identity fields with `tel:` / `mailto:`; no duplicate contact fields in website settings.
+
+**Service area:** Cities/summary from Business Identity; website settings control presentation/visibility only (map remains future work).

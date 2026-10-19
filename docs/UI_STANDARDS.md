@@ -45,6 +45,10 @@ Do not show development-style image placeholders on the public site; use text-fi
 
 Tenant-facing website image controls must not imply stock/default images exist when they do not (use “No custom image yet…” / “Remove image”).
 
+**F2 truthfulness:** Business hours, phone, and email come from Business Identity — website settings control visibility/headings only. Trust bar items require stored license/insured facts. FAQs are tenant-authored or a small fact-safe derived set — no generic AI marketing FAQ block. Optional sections (services, FAQs, trust, service area, hours, gallery) do not render when empty/disabled.
+
+**Website admin navigation:** Website setup grid lists section shortcuts (10 rows including **Project Gallery** beside Services). Project Gallery shows **Added** or **Optional** and is excluded from the 9-essential readiness percentage.
+
 ## Public website
 
 - Website should function as a trust-building front door, not merely a chat launcher.

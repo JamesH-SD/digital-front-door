@@ -241,6 +241,8 @@ The tenant should answer understandable business questions while Contactor trans
 ### Tenant website customization
 
 - **F1:** Hosted public site uses website override → tenant `tagline` / `aboutUs` for hero and About; brand primary/accent via scoped CSS variables on `TenantWebsite`; logo upload in website brand settings; no fictional public reviews; text-first layouts when images are missing.
+- **F2:** Business hours render from Business Identity (`tenant.hours`) with website show/hide; footer phone/email use `tel:`/`mailto:`; trust bar and FAQs avoid template filler; optional sections hide when empty; service area uses Business Identity cities/summary.
+- **F2.1:** **Project Gallery** appears in the Website setup grid (across from Services); links to `/admin/.../website/project-gallery`; optional (**Added** / **Optional** badges); excluded from the 9-essential readiness %.
 - Full theme engine, fonts, arbitrary CSS, stock images, maps, and real review sources remain future work.
 
 Desired direction:

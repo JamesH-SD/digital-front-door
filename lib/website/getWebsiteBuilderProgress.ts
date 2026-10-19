@@ -1,13 +1,32 @@
 import type { Tenant } from "@/lib/types/tenant";
+import { tenantHasConfiguredHours } from "@/lib/readiness/helpers";
 
 export type WebsiteBuilderProgressItem = {
   label: string;
   complete: boolean;
   href: string;
+  /** When false, row appears in Website setup but does not affect readiness %. */
+  countsTowardReadiness?: boolean;
+  /** Badge when incomplete; essentials default to needs_attention. */
+  incompleteStatus?: "needs_attention" | "optional";
+  /** Badge when complete; gallery uses "added". */
+  completeStatus?: "complete" | "added";
 };
 
+function hasPublishableGalleryProject(tenant: Tenant): boolean {
+  const gallery = tenant.websiteSettings?.projectGallery || [];
+
+  return gallery.some(
+    (item) =>
+      item.enabled !== false &&
+      item.title?.trim() &&
+      item.imageUrl?.trim()
+  );
+}
+
 /**
- * Website Builder setup/polish checklist — not Tenant Setup Readiness (see D-029).
+ * Website setup grid (essentials + optional Project Gallery row).
+ * Readiness % uses only items with countsTowardReadiness !== false.
  */
 export function getWebsiteBuilderProgress(tenant: Tenant): WebsiteBuilderProgressItem[] {
   const settings = tenant.websiteSettings || {};
@@ -42,14 +61,27 @@ export function getWebsiteBuilderProgress(tenant: Tenant): WebsiteBuilderProgres
       href: "services",
     },
     {
-      label: "About section",
-      complete: Boolean(settings.aboutBody?.trim() || tenant.aboutUs?.trim()),
-      href: "about",
+      label: "Project Gallery",
+      complete: hasPublishableGalleryProject(tenant),
+      href: "project-gallery",
+      countsTowardReadiness: false,
+      incompleteStatus: "optional",
+      completeStatus: "added",
     },
     {
       label: "FAQs added",
       complete: Boolean(settings.faqs && settings.faqs.length > 0),
       href: "faqs",
+    },
+    {
+      label: "About section",
+      complete: Boolean(settings.aboutBody?.trim() || tenant.aboutUs?.trim()),
+      href: "about",
+    },
+    {
+      label: "Business hours on website",
+      complete: tenantHasConfiguredHours(tenant.hours),
+      href: "business-hours",
     },
     {
       label: "Business contact complete",
@@ -64,7 +96,9 @@ export function getWebsiteBuilderProgressPercent(tenant: Tenant): {
   totalCount: number;
   percent: number;
 } {
-  const items = getWebsiteBuilderProgress(tenant);
+  const items = getWebsiteBuilderProgress(tenant).filter(
+    (item) => item.countsTowardReadiness !== false
+  );
   const completedCount = items.filter((item) => item.complete).length;
   const totalCount = items.length;
   const percent =

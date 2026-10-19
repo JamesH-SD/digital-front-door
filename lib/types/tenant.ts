@@ -34,6 +34,10 @@ export type TenantWebsiteSettings = {
   showAbout?: boolean;
   showReviews?: boolean;
   showFaqs?: boolean;
+  showBusinessHours?: boolean;
+
+  businessHoursHeading?: string;
+  businessHoursTitle?: string;
 
   showProjectGallery?: boolean;
   projectGalleryHeading?: string;

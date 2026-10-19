@@ -56,6 +56,11 @@ const sectionMap: Record<
     title: "Service Areas Section",
     description: "Manage service area heading and section title.",
   },
+  "business-hours": {
+    panelSections: ["businessHours"],
+    title: "Business Hours Section",
+    description: "Control whether business hours appear on the public website.",
+  },
   about: {
     panelSections: ["about"],
     title: "About Section",

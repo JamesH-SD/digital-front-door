@@ -77,7 +77,7 @@ function assert(name: string, condition: boolean, detail?: string) {
   assert("existing-site N/A", !op.applicable && op.status === "not_applicable");
   assert(
     "builder checklist still works",
-    getWebsiteBuilderProgress(t).length === 8
+    getWebsiteBuilderProgress(t).length === 10
   );
 }
 
@@ -93,10 +93,19 @@ function assert(name: string, condition: boolean, detail?: string) {
       aboutBody: "About",
       faqs: [{ id: "1", question: "Q", answer: "A" }],
     },
+    primaryPhone: "555-0100",
+    email: "hello@example.com",
+    hours: {
+      monday: { open: "09:00", close: "17:00", closed: false },
+    },
   });
   const { completedCount, percent } = getWebsiteBuilderProgressPercent(t);
-  assert("8-item checklist", getWebsiteBuilderProgress(t).length === 8);
-  assert("all polish complete", completedCount === 8 && percent === 100);
+  assert("10-row setup grid", getWebsiteBuilderProgress(t).length === 10);
+  assert(
+    "9 essentials for readiness",
+    getWebsiteBuilderProgressPercent(t).totalCount === 9
+  );
+  assert("all polish complete", completedCount === 9 && percent === 100);
 }
 
 console.log("\nAll C1b website verification checks passed.");

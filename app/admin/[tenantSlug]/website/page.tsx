@@ -9,6 +9,7 @@ import { getHostedWebsiteOperationalReadiness } from "@/lib/readiness/getHostedW
 import {
   getWebsiteBuilderProgress,
   getWebsiteBuilderProgressPercent,
+  type WebsiteBuilderProgressItem,
 } from "@/lib/website/getWebsiteBuilderProgress";
 
 type PageProps = {
@@ -16,6 +17,30 @@ type PageProps = {
     tenantSlug: string;
   }>;
 };
+
+function statusBadgeClass(item: WebsiteBuilderProgressItem): string {
+  if (item.complete) {
+    return "shrink-0 rounded-full bg-emerald-50 px-3 py-1 text-xs font-bold text-emerald-700";
+  }
+
+  if (item.incompleteStatus === "optional") {
+    return "shrink-0 rounded-full bg-stone-100 px-3 py-1 text-xs font-bold text-gray-600";
+  }
+
+  return "shrink-0 rounded-full bg-amber-50 px-3 py-1 text-xs font-bold text-amber-700";
+}
+
+function statusBadgeLabel(item: WebsiteBuilderProgressItem): string {
+  if (item.complete) {
+    return item.completeStatus === "added" ? "Added" : "Complete";
+  }
+
+  if (item.incompleteStatus === "optional") {
+    return "Optional";
+  }
+
+  return "Needs attention";
+}
 
 export default async function WebsitePage({ params }: PageProps) {
   const { tenantSlug } = await params;
@@ -38,7 +63,7 @@ export default async function WebsitePage({ params }: PageProps) {
   }
 
   const websiteReadiness = getHostedWebsiteOperationalReadiness(tenant);
-  const readinessItems = getWebsiteBuilderProgress(tenant);
+  const setupItems = getWebsiteBuilderProgress(tenant);
   const { completedCount, totalCount, percent } =
     getWebsiteBuilderProgressPercent(tenant);
 
@@ -85,7 +110,7 @@ export default async function WebsitePage({ params }: PageProps) {
         </div>
 
         <div className="mt-5 grid gap-3 md:grid-cols-2">
-          {readinessItems.map((item) => (
+          {setupItems.map((item) => (
             <Link
               key={item.label}
               href={
@@ -97,14 +122,8 @@ export default async function WebsitePage({ params }: PageProps) {
             >
               <span className="font-semibold text-gray-900">{item.label}</span>
 
-              <span
-                className={
-                  item.complete
-                    ? "shrink-0 rounded-full bg-emerald-50 px-3 py-1 text-xs font-bold text-emerald-700"
-                    : "shrink-0 rounded-full bg-amber-50 px-3 py-1 text-xs font-bold text-amber-700"
-                }
-              >
-                {item.complete ? "Complete" : "Needs attention"}
+              <span className={statusBadgeClass(item)}>
+                {statusBadgeLabel(item)}
               </span>
             </Link>
           ))}

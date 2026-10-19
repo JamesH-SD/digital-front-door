@@ -15,6 +15,13 @@ import {
   resolveWebsiteHeroHeadline,
 } from "@/lib/website/resolveTenantWebsitePresentation";
 import { resolveWebsiteServicesSection } from "@/lib/website/resolveWebsiteServicesSection";
+import { getPublicBusinessHoursRows } from "@/lib/website/formatBusinessHours";
+import { getPublicFaqs } from "@/lib/website/getPublicFaqs";
+import { getPublicTrustLabels } from "@/lib/website/getPublicTrustLabels";
+import {
+  getPublicWebsiteServices,
+  tenantHasPublicServiceAreaContent,
+} from "@/lib/website/getPublicWebsiteServices";
 import {
   FaFacebook,
   FaInstagram,
@@ -38,57 +45,9 @@ function formatPhoneHref(phone?: string) {
   return `tel:${phone.replace(/\D/g, "")}`;
 }
 
-function getServices(tenant: Tenant) {
-  const websiteServices = tenant.websiteSettings?.services || [];
-
-  const enabledWebsiteServices = websiteServices.filter(
-    (service) => service.enabled !== false && service.title?.trim()
-  );
-
-  if (enabledWebsiteServices.length > 0) {
-    return enabledWebsiteServices;
-  }
-
-  if (tenant.servicesOffered && tenant.servicesOffered.length > 0) {
-    return tenant.servicesOffered.map((service) => ({
-      id: service,
-      title: service,
-      description: "",
-      imageUrl: "",
-      enabled: true,
-    }));
-  }
-
-  return [
-    {
-      id: "default-primary",
-      title: tenant.primaryCategory || "General services",
-      description: "",
-      imageUrl: "",
-      enabled: true,
-    },
-    {
-      id: "default-questions",
-      title: "Project questions",
-      description: "",
-      imageUrl: "",
-      enabled: true,
-    },
-    {
-      id: "default-quotes",
-      title: "Quotes and estimates",
-      description: "",
-      imageUrl: "",
-      enabled: true,
-    },
-    {
-      id: "default-scheduling",
-      title: "Scheduling",
-      description: "",
-      imageUrl: "",
-      enabled: true,
-    },
-  ];
+function formatEmailHref(email?: string) {
+  if (!email?.trim()) return "";
+  return `mailto:${email.trim()}`;
 }
 
 function getProjectGallery(tenant: Tenant) {
@@ -97,46 +56,6 @@ function getProjectGallery(tenant: Tenant) {
   return gallery.filter(
     (item) => item.enabled !== false && item.imageUrl?.trim() && item.title?.trim()
   );
-}
-
-function getFaqs(tenant: Tenant) {
-  const websiteFaqs = tenant.websiteSettings?.faqs || [];
-
-  const enabledWebsiteFaqs = websiteFaqs.filter(
-    (faq) => faq.enabled !== false && faq.question?.trim() && faq.answer?.trim()
-  );
-
-  if (enabledWebsiteFaqs.length > 0) {
-    return enabledWebsiteFaqs.map((faq) => ({
-      question: faq.question,
-      answer: faq.answer,
-    }));
-  }
-
-  return [
-    {
-      question: "How do I get started?",
-      answer:
-        "The easiest way to get started is to ask a question or request an estimate through our AI receptionist. We’ll collect the right details and help move your request forward.",
-    },
-    {
-      question: "What areas do you serve?",
-      answer:
-        tenant.serviceAreaSummary ||
-        `We primarily serve customers in our local service area.`,
-    },
-    {
-      question: "Are you licensed and insured?",
-      answer: `${tenant.licenseNumber ? `We are licensed (${tenant.licenseNumber})` : "License information can be provided upon request"}${
-        tenant.isInsured ? " and insured." : "."
-      }`,
-    },
-    {
-      question: "Can I schedule a call or visit?",
-      answer:
-        "Yes. Use the AI receptionist to share your project details, ask questions, and schedule the next step when available.",
-    },
-  ];
 }
 
 export function TenantWebsite({
@@ -151,12 +70,22 @@ export function TenantWebsite({
   const [mobileNavOpen, setMobileNavOpen] = useState(false);
   const [activeFaq, setActiveFaq] = useState(0);
 
-  const phoneHref = formatPhoneHref(tenant.primaryPhone);
-  const services = getServices(tenant);
-  const projectGallery = getProjectGallery(tenant);
-  const faqs = getFaqs(tenant);
-
   const websiteSettings = tenant.websiteSettings || {};
+
+  const phoneHref = formatPhoneHref(tenant.primaryPhone);
+  const emailHref = formatEmailHref(tenant.email);
+  const services = getPublicWebsiteServices(tenant);
+  const projectGallery = getProjectGallery(tenant);
+  const faqs = getPublicFaqs(tenant);
+  const trustLabels = getPublicTrustLabels(tenant);
+  const businessHoursRows = getPublicBusinessHoursRows(tenant.hours);
+  const hasServiceAreaContent = tenantHasPublicServiceAreaContent(tenant);
+  const hasAuthoredFaqs = (websiteSettings.faqs || []).some(
+    (faq) =>
+      faq.enabled !== false &&
+      faq.question?.trim() &&
+      faq.answer?.trim()
+  );
   const brand = resolveWebsiteBrandColors(tenant, websiteSettings);
   const brandStyle = {
     ["--tenant-primary" as string]: brand.primary,
@@ -255,9 +184,18 @@ export function TenantWebsite({
     websiteSettings.serviceAreasHeading || "Service Areas";
   
   const serviceAreasTitle =
-    websiteSettings.serviceAreasTitle ||
-    tenant.serviceAreaSummary ||
+    websiteSettings.serviceAreasTitle?.trim() ||
+    tenant.serviceAreaSummary?.trim() ||
     "Serving our local community";
+
+  const businessHoursHeading =
+    websiteSettings.businessHoursHeading || "Business Hours";
+
+  const businessHoursTitle =
+    websiteSettings.businessHoursTitle || "When we're available";
+
+  const showBusinessHoursSection =
+    websiteSettings.showBusinessHours !== false && businessHoursRows.length > 0;
 
     const projectGalleryHeading =
     websiteSettings.projectGalleryHeading || "Project Gallery";
@@ -420,7 +358,7 @@ export function TenantWebsite({
                 onClick={openChat}
                 className="saas-button-accent mt-2 rounded-xl px-4 py-3 text-sm font-semibold"
               >
-                Ask a Question
+                {heroPrimaryCtaLabel}
               </button>
             </div>
           </div>
@@ -514,7 +452,7 @@ export function TenantWebsite({
                 onClick={openChat}
                 className="saas-button-accent mt-5 w-full rounded-xl px-4 py-3 text-sm font-semibold"
               >
-                Start Conversation
+                {heroPrimaryCtaLabel}
               </button>
             </div>
           </div>
@@ -522,20 +460,15 @@ export function TenantWebsite({
       </section>
 
       {/* TRUST BAR */}
+      {trustLabels.length > 0 ? (
       <section className="border-b border-stone-200 bg-white">
         <div className="mx-auto grid max-w-6xl gap-3 px-5 py-5 text-sm font-semibold text-gray-700 sm:grid-cols-2 sm:px-6 lg:grid-cols-4">
-          {tenant.licenseNumber ? (
-            <TrustItem label={`Licensed ${tenant.licenseNumber}`} />
-          ) : (
-            <TrustItem label="License info available" />
-          )}
-          <TrustItem
-            label={tenant.isInsured ? "Insured" : "Insurance info available"}
-          />
-          <TrustItem label="Local service provider" />
-          <TrustItem label="Fast online intake" />
+          {trustLabels.map((label) => (
+            <TrustItem key={label} label={label} />
+          ))}
         </div>
       </section>
+      ) : null}
 
       {/* WHY US */}
       {websiteSettings.showWhyUs !== false ? (
@@ -579,7 +512,7 @@ export function TenantWebsite({
       ) : null}
 
       {/* SERVICES */}
-      {websiteSettings.showServices !== false ? (
+      {websiteSettings.showServices !== false && services.length > 0 ? (
         <section id="services" className="bg-white py-16">
           <div className="mx-auto max-w-6xl px-5 sm:px-6">
             <div className="mx-auto max-w-2xl text-center">
@@ -727,7 +660,7 @@ export function TenantWebsite({
       ) : null}
 
       {/* SERVICE AREAS */}
-      {websiteSettings.showServiceAreas !== false ? (
+      {websiteSettings.showServiceAreas !== false && hasServiceAreaContent ? (
         <section className="bg-stone-50 py-16">
           <div className="mx-auto max-w-6xl px-5 text-center sm:px-6">
           <p className="tenant-brand-primary-text text-xs font-bold uppercase tracking-wide">
@@ -752,7 +685,38 @@ export function TenantWebsite({
                   </li>
                 ))}
               </ul>
+            ) : tenant.serviceAreaSummary?.trim() ? (
+              <p className="mx-auto mt-8 max-w-3xl text-lg leading-8 text-gray-700">
+                {tenant.serviceAreaSummary.trim()}
+              </p>
             ) : null}
+          </div>
+        </section>
+      ) : null}
+
+      {showBusinessHoursSection ? (
+        <section id="business-hours" className="bg-white py-16">
+          <div className="mx-auto max-w-3xl px-5 sm:px-6">
+            <div className="text-center">
+              <p className="tenant-brand-primary-text text-xs font-bold uppercase tracking-wide">
+                {businessHoursHeading}
+              </p>
+              <h2 className="mt-3 text-3xl font-bold tracking-tight text-gray-950">
+                {businessHoursTitle}
+              </h2>
+            </div>
+
+            <ul className="mt-8 divide-y divide-stone-200 rounded-2xl border border-stone-200 bg-white">
+              {businessHoursRows.map((row) => (
+                <li
+                  key={row.day}
+                  className="flex flex-col gap-1 px-5 py-4 text-sm sm:flex-row sm:items-center sm:justify-between"
+                >
+                  <span className="font-semibold text-gray-950">{row.day}</span>
+                  <span className="text-gray-600">{row.hoursText}</span>
+                </li>
+              ))}
+            </ul>
           </div>
         </section>
       ) : null}
@@ -799,7 +763,7 @@ export function TenantWebsite({
       ) : null}
 
       {/* FAQ */}
-      {websiteSettings.showFaqs !== false ? (
+      {websiteSettings.showFaqs !== false && faqs.length > 0 ? (
       <section id="faqs" className="bg-white py-16">
         <div className="mx-auto grid max-w-6xl gap-10 px-5 sm:px-6 lg:grid-cols-[0.8fr_1.2fr]">
           <div>
@@ -809,9 +773,11 @@ export function TenantWebsite({
             <h2 className="mt-3 text-3xl font-bold tracking-tight text-gray-950">
               {faqsTitle}
             </h2>
-            <p className="mt-4 text-sm leading-7 text-gray-600">
-              {faqsDescription}
-            </p>
+            {hasAuthoredFaqs && faqsDescription?.trim() ? (
+              <p className="mt-4 text-sm leading-7 text-gray-600">
+                {faqsDescription}
+              </p>
+            ) : null}
             <button
               type="button"
               onClick={openChat}
@@ -860,8 +826,28 @@ export function TenantWebsite({
           <div>
             <h2 className="text-xl font-bold">{tenant.businessName}</h2>
             <div className="mt-5 space-y-2 text-sm text-white/70">
-              {tenant.primaryPhone ? <p>Phone: {tenant.primaryPhone}</p> : null}
-              {tenant.email ? <p>Email: {tenant.email}</p> : null}
+              {tenant.primaryPhone ? (
+                <p>
+                  Phone:{" "}
+                  <a
+                    href={phoneHref}
+                    className="underline-offset-2 hover:underline"
+                  >
+                    {tenant.primaryPhone}
+                  </a>
+                </p>
+              ) : null}
+              {tenant.email ? (
+                <p>
+                  Email:{" "}
+                  <a
+                    href={emailHref}
+                    className="break-all underline-offset-2 hover:underline"
+                  >
+                    {tenant.email}
+                  </a>
+                </p>
+              ) : null}
               {tenant.serviceAreaSummary ? (
                 <p>Service Area: {tenant.serviceAreaSummary}</p>
               ) : null}

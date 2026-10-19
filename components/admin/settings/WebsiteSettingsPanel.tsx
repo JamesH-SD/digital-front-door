@@ -1,5 +1,6 @@
 "use client";
 
+import Link from "next/link";
 import { useState } from "react";
 import { ChevronDown } from "lucide-react";
 import type { TenantWebsiteSettings } from "@/lib/types/tenant";
@@ -16,6 +17,7 @@ export type WebsitePanelSection =
   | "about"
   | "reviews"
   | "faqs"
+  | "businessHours"
   | "socialLinks";
 
   type Props = {
@@ -44,6 +46,10 @@ const defaultSettings: TenantWebsiteSettings = {
   showAbout: true,
   showReviews: false,
   showFaqs: true,
+  showBusinessHours: true,
+
+  businessHoursHeading: "Business Hours",
+  businessHoursTitle: "When we're available",
   facebookUrl: "",
   instagramUrl: "",
   yelpUrl: "",
@@ -751,7 +757,7 @@ export default function WebsiteSettingsPanel({
                 value={settings.primaryColor}
                 fallback={defaultSettings.primaryColor || "#1F3B4D"}
                 onChange={(value) => updateField("primaryColor", value)}
-                description="Your main brand color. Used for primary buttons, key website accents, and customer actions."
+                description="Used for primary buttons, key website accents, and customer actions."
               />
 
               <ColorField
@@ -1326,7 +1332,51 @@ export default function WebsiteSettingsPanel({
             />
 
             <p className="rounded-xl border border-stone-200 bg-stone-50 px-3 py-2 text-sm text-gray-600">
-              Service area cities are still managed under the Service Area tab.
+              Service area cities and summary are managed in{" "}
+              <Link
+                href={`/admin/${tenantSlug}/settings/service-area`}
+                className="font-semibold text-orange-700 underline-offset-2 hover:underline"
+              >
+                Business Identity → Service Area
+              </Link>
+              .
+            </p>
+          </div>
+        </SectionCard>
+      ) : null}
+      {shouldShow("businessHours") ? (
+        <SectionCard
+          title="Business Hours Section"
+          description="Show your business hours on the public website."
+          helpText="Hours come from Business Identity. Use this section to control visibility and headings only."
+          enabled={settings.showBusinessHours !== false}
+          onToggle={(checked) => updateField("showBusinessHours", checked)}
+        >
+          <div className="space-y-4">
+            <TextField
+              label="Small Heading"
+              value={settings.businessHoursHeading}
+              onChange={(value) => updateField("businessHoursHeading", value)}
+              placeholder="Business Hours"
+            />
+
+            <TextField
+              label="Title"
+              value={settings.businessHoursTitle}
+              onChange={(value) => updateField("businessHoursTitle", value)}
+              placeholder="When we're available"
+            />
+
+            <p className="rounded-xl border border-stone-200 bg-stone-50 px-3 py-2 text-sm text-gray-600">
+              Edit hours in{" "}
+              <Link
+                href={`/admin/${tenantSlug}/settings/hours`}
+                className="font-semibold text-orange-700 underline-offset-2 hover:underline"
+              >
+                Business Identity → Business Hours
+              </Link>
+              . If no hours are configured, this section stays hidden on the
+              public site.
             </p>
           </div>
         </SectionCard>

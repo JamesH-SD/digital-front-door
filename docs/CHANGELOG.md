@@ -2,6 +2,14 @@
 
 This is a lightweight context changelog, not a substitute for Git history.
 
+## 2026-09-23 — Project Gallery admin discoverability (Phase F2.1)
+
+- **Project Gallery** row in Website setup grid (optional; **Added**/**Optional**); links to existing editor; readiness remains 9 essentials.
+
+## 2026-09-23 — Hosted website V1 customization (Phase F2)
+
+- Public business hours from canonical `tenant.hours`; website visibility/headings; contact `tel:`/`mailto:`; trust/FAQ/service truthfulness; empty optional sections hidden; **D-034**.
+
 ## 2026-09-23 — Hosted website V1 credibility (Phase F1)
 
 - Hero/About use website override → tenant `tagline` / `aboutUs` → generic fallback (`resolveTenantWebsitePresentation`).

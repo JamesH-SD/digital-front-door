@@ -94,6 +94,7 @@ Billing UI and Stripe integration routes are present. The admin UI represents tr
 - Supabase: auth/data/storage
 - Google Calendar/OAuth: calendar connection and appointment flow. OAuth redirect URI should target `GET /api/calendar/google/callback`; shared handler also serves legacy tenant-path callbacks. State carries `tenantSlug` + validated internal `returnTo`.
 - **Tenant Admin API auth (E1):** `lib/auth/requireTenantAccess.ts` gates tenant-scoped Admin APIs; `lib/auth/requireLeadAccess.ts` gates authenticated lead admin routes and AI lead tools. `POST /api/leads/[leadId]/images` stays public for chat uploads with server-side tenant path binding. Customer chat and other public entry routes remain intentionally unauthenticated at the HTTP layer.
+- **Hosted website presentation (F1/F2):** `TenantWebsite` resolves copy/branding via `lib/website/resolveTenantWebsitePresentation.ts`, services section via `resolveWebsiteServicesSection.ts`, and public truth helpers (`formatBusinessHours`, `getPublicFaqs`, `getPublicTrustLabels`, `getPublicWebsiteServices`). Business Identity remains canonical for hours, contact, and service area; `websiteSettings` holds presentation overrides and section visibility.
 - Stripe: subscription billing
 - Twilio/SMS notification support in library code
 - Resend/email configuration is referenced by project environment/deployment material but full production verification is outside this code-only snapshot
